@@ -105,7 +105,7 @@ ONL_DIR = $(BUILD_DIR)/$(ONL_REPO)
 onl:
 	if [ ! -d "$(ONL_DIR)/OpenNetworkLinux" ]; then \
 		mkdir -p $(ONL_DIR); \
-		git clone git@github.com:shadansari/$(ONL_REPO).git $(ONL_DIR); \
+		git clone https://gerrit.opencord.org/$(ONL_REPO) $(ONL_DIR); \
 		make -C $(ONL_DIR) $(DEVICE)-$(ONL_KERN_VER_MAJOR); \
 	fi;
 onl-force:
@@ -215,7 +215,7 @@ CXXFLAGS += -I./$(OPENOLT_API_DIR) -I $(OPENOLT_API_DIR)/googleapis/gens
 openolt-api:
 	if [ ! -e "$(OPENOLT_API_DIR)" ]; then \
 		mkdir -p $(BUILD_DIR); \
-		git clone git@github.com:shadansari/openolt-api.git $(OPENOLT_API_DIR); \
+		git clone https://gerrit.opencord.org/openolt-api $(OPENOLT_API_DIR); \
 	fi;
 	make -C $(OPENOLT_API_DIR) all
 clean-openolt-api:
