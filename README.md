@@ -44,7 +44,7 @@ The versions that have been tested are:
 - SW-BCM68620_2_4_3_6.zip
 - sdk-all-6.5.7.tar.gz
 - ACCTON_BAL_2.4.3.6-V201710131639.patch
-- OPENOLT_BAL_2.4.3.6.zip
+- OPENOLT_BAL_2.4.3.6.patch
 
 ## Build
 
