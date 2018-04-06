@@ -106,6 +106,7 @@ onl:
 	if [ ! -d "$(ONL_DIR)/OpenNetworkLinux" ]; then \
 		mkdir -p $(ONL_DIR); \
 		git clone git@github.com:shadansari/$(ONL_REPO).git $(ONL_DIR); \
+		sed -i 's/onlbuilder/onlbuilder --non-interactive/g' $(ONL_DIR)/Makefile; \
 		make -C $(ONL_DIR) $(DEVICE)-$(ONL_KERN_VER_MAJOR); \
 	fi;
 onl-force:
