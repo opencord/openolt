@@ -68,19 +68,21 @@ The **build** directory contains all the build artifacts:
 2. Copy **openolt** to /broadcom
 3. Copy the gRPC libraries to /usr/local/lib
 
+## Update system library indexes
+```shell
+ldconfig
+```
 
 ## Run
 
 - Run bal_core_dist:
 ```shell
 cd /broadcom
-ldconfig
 ./bal_core_dist -C 10.6.0.201:40000 -A 10.6.0.201:50000
 ```
 - Run openolt:
 ```shell
 cd /broadcom
-ldconfig
-openolt  -C 10.6.0.201:40000 -A 10.6.0.201:50000
+./openolt  -C 10.6.0.201:40000 -A 10.6.0.201:50000
 ```
 (Note - Substitute 10.6.0.201 with a local IP of the OLT - e.g. mgmt interface IP).

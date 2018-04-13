@@ -16,7 +16,7 @@
 ########################################################################
 ##
 ##
-## 				Config
+##        Config
 ##
 ##
 DEVICE = asfvolt16
@@ -36,66 +36,51 @@ ONL_KERN_VER_MINOR = 10
 #
 # Build directory
 BUILD_DIR = build
-
+#
+# GRPC installation
+GRPC_ADDR = https://github.com/grpc/grpc
+GRPC_DST = /tmp/grpc
+GRPC_VER = v1.10.x
+#
 ########################################################################
 ##
 ##
-## 				Check
+##        Check prerequisites
 ##
 ##
 HOST_SYSTEM = $(shell uname | cut -f 1 -d_)
 SYSTEM ?= $(HOST_SYSTEM)
+
 CXX = g++
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
 ifeq ($(SYSTEM),Darwin)
 LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
-           -lgrpc++_reflection\
-           -ldl
+					 -lgrpc++_reflection\
+					 -ldl
 else
 LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
-           -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
-           -ldl
+					 -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
+					 -ldl
 endif
-PROTOC = protoc
-GRPC_CPP_PLUGIN = grpc_cpp_plugin
-GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
-GRPC_CPP_VER ?= `command curl -L https://grpc.io/release`
-PROTOC_CMD = which $(PROTOC)
-PROTOC_CHECK_CMD = $(PROTOC) --version | grep -q libprotoc.3
-PLUGIN_CHECK_CMD = which $(GRPC_CPP_PLUGIN)
-HAS_PROTOC = $(shell $(PROTOC_CMD) > /dev/null && echo true || echo false)
-ifeq ($(HAS_PROTOC),true)
-HAS_VALID_PROTOC = $(shell $(PROTOC_CHECK_CMD) 2> /dev/null && echo true || echo false)
-endif
-HAS_PLUGIN = $(shell $(PLUGIN_CHECK_CMD) > /dev/null && echo true || echo false)
+
 check:
 	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev
-ifneq ($(HAS_VALID_PROTOC),true)
-	mkdir -p /tmp/$(PROTOC_NAME)
-	wget -P /tmp/$(PROTOC_NAME) $(PROTOC_DOWNLOAD_URL)/v$(PROTOC_VERSION)/$(PROTOC_NAME).zip
-	unzip -o /tmp/$(PROTOC_NAME)/$(PROTOC_NAME) -d /tmp/$(PROTOC_NAME)
-	mkdir -p $(PWD)/bin
-	cp -f /tmp/$(PROTOC_NAME)/bin/protoc $(PWD)/bin/.
-	mkdir -p $(PWD)/include
-	cp -rf /tmp/$(PROTOC_NAME)/include/* $(PWD)/include/.
-	rm -rf /tmp/$(PROTOC_NAME)
-endif
-ifneq ($(HAS_PLUGIN),true)
-	rm -rf /tmp/grpc
-	git clone -b $(GRPC_CPP_VER) https://github.com/grpc/grpc /tmp/grpc
-	cd /tmp/grpc && git submodule update --init
-	make -C /tmp/grpc
-	sudo make -C /tmp/grpc install
+
+	# Install GRPC plugins
+	rm -rf $(GRPC_DST)
+	git clone -b $(GRPC_VER) $(GRPC_ADDR) $(GRPC_DST)
+	cd $(GRPC_DST) && git submodule update --init
+	make -C $(GRPC_DST)
+	sudo make -C $(GRPC_DST) install
+	# Install libprotobuf and protoc
 	make -C /tmp/grpc/third_party/protobuf
 	sudo make -C /tmp/grpc/third_party/protobuf install
-	rm -rf /tmp/grpc
-endif
 
 ########################################################################
 ##
 ##
-## 				ONL
+##        ONL
 ##
 ##
 ONL_KERN_VER = $(ONL_KERN_VER_MAJOR).$(ONL_KERN_VER_MINOR)
@@ -117,7 +102,7 @@ distclean-onl:
 ########################################################################
 ##
 ##
-## 				BAL
+##        BAL
 ##
 ##
 BAL_ZIP = SW-BCM68620_$(subst .,_,$(BAL_VER)).zip
@@ -149,15 +134,15 @@ BAL_INC = -I$(BAL_DIR)/bal_release/src/common/os_abstraction \
 CXXFLAGS += $(BAL_INC) -I $(BAL_DIR)/lib/cmdline
 .PHONY: get-$(BAL_DIR)
 get-$(BAL_DIR):
-#	if [ ! -e "download/$(BAL_ZIP)" ]; then \
-#		rm -rf /tmp/broadcom-proprietary; \
-#		git clone git@github.com:shadansari/broadcom-proprietary.git /tmp/broadcom-proprietary; \
-#		mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(BAL_ZIP) ./download; \
-#		mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(SDK_ZIP) ./download; \
-#		mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(ACCTON_PATCH) ./download; \
-#		mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(OPENOLT_BAL_PATCH) ./download; \
-#		rm -rf /tmp/broadcom-proprietary; \
-#	fi;
+# if [ ! -e "download/$(BAL_ZIP)" ]; then \
+#   rm -rf /tmp/broadcom-proprietary; \
+#   git clone git@github.com:shadansari/broadcom-proprietary.git /tmp/broadcom-proprietary; \
+#   mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(BAL_ZIP) ./download; \
+#   mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(SDK_ZIP) ./download; \
+#   mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(ACCTON_PATCH) ./download; \
+#   mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(OPENOLT_BAL_PATCH) ./download; \
+#   rm -rf /tmp/broadcom-proprietary; \
+# fi;
 .PHONY: bal
 bal: onl get-$(BAL_DIR)
 ifeq ("$(wildcard $(BAL_DIR))","")
@@ -205,7 +190,7 @@ distclean-bal: distclean-onl
 ########################################################################
 ##
 ##
-## 				OpenOLT API
+##        OpenOLT API
 ##
 ##
 OPENOLT_API_DIR = $(BUILD_DIR)/openolt-api
@@ -225,7 +210,7 @@ distclean-openolt-api:
 ########################################################################
 ##
 ##
-## 				Main
+##        Main
 ##
 ##
 SRCS = $(wildcard src/*.cc)
