@@ -45,7 +45,7 @@ GRPC_VER = v1.10.x
 ########################################################################
 ##
 ##
-##        Check prerequisites
+##        Install prerequisites
 ##
 ##
 HOST_SYSTEM = $(shell uname | cut -f 1 -d_)
@@ -64,7 +64,7 @@ LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
 					 -ldl
 endif
 
-check:
+prereq:
 	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev
 
 	# Install GRPC plugins
@@ -74,8 +74,11 @@ check:
 	make -C $(GRPC_DST)
 	sudo make -C $(GRPC_DST) install
 	# Install libprotobuf and protoc
-	make -C /tmp/grpc/third_party/protobuf
-	sudo make -C /tmp/grpc/third_party/protobuf install
+	cd $(GRPC_DST)/third_party/protobuf && ./autogen.sh
+	cd $(GRPC_DST)/third_party/protobuf && ./configure
+	make -C $(GRPC_DST)/third_party/protobuf
+	sudo make -C $(GRPC_DST)/third_party/protobuf install
+	sudo ldconfig
 
 ########################################################################
 ##
@@ -218,7 +221,7 @@ OBJS = $(SRCS:.cc=.o)
 DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
 all: $(BUILD_DIR)/openolt
-$(BUILD_DIR)/openolt: check openolt-api bal $(OBJS)
+$(BUILD_DIR)/openolt: openolt-api bal $(OBJS)
 	$(CXX) $(OBJS) $(LDFLAGS) $(OPENOLT_API_LIB) -o $@ -L$(BALLIBDIR) -l$(BALLIBNAME)
 	ln -s $(shell ldconfig -p | grep libgrpc.so.5 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc.so.5
 	ln -s $(shell ldconfig -p | grep libgrpc++.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++.so.1

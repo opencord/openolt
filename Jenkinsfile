@@ -32,6 +32,7 @@ node ('olt-agent-onf') {
           sh returnStdout: true, script: 'cp -r ../../build-files/mkdebian .'
         }
         stage ('Build packages and libraries') {
+          sh returnStdout: true, script: '/bin/bash -c make prereq'
           sh returnStdout: true, script: '/bin/bash -c make'
         }
         stage ('Copy ASFvOLT16 release file to mkdebian folder') {
