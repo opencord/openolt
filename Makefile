@@ -233,6 +233,7 @@ src/%.o: %.cpp
 clean: clean-bal
 	rm -f $(OBJS) $(DEPS) $(BUILD_DIR)/openolt
 	rm -rf $(OPENOLT_API_DIR)
+	rm $(BUILD_DIR)/libgrpc.so.5 $(BUILD_DIR)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++_reflection.so.1
 distclean: distclean-openolt-api distclean-bal
 	rm -rf $(BUILD_DIR)
 -include $(DEPS)
