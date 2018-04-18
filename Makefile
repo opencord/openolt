@@ -223,7 +223,7 @@ DEPS = $(SRCS:.cc=.d)
 all: $(BUILD_DIR)/openolt
 $(BUILD_DIR)/openolt: openolt-api bal $(OBJS)
 	$(CXX) $(OBJS) $(LDFLAGS) $(OPENOLT_API_LIB) -o $@ -L$(BALLIBDIR) -l$(BALLIBNAME)
-	ln -s $(shell ldconfig -p | grep libgrpc.so.5 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc.so.5
+	ln -s $(shell ldconfig -p | grep libgrpc.so.6 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc.so.6
 	ln -s $(shell ldconfig -p | grep libgrpc++.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++.so.1
 	ln -s $(shell ldconfig -p | grep libgrpc++_reflection.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++_reflection.so.1
 
@@ -233,7 +233,7 @@ src/%.o: %.cpp
 clean: clean-bal
 	rm -f $(OBJS) $(DEPS) $(BUILD_DIR)/openolt
 	rm -rf $(OPENOLT_API_DIR)
-	rm $(BUILD_DIR)/libgrpc.so.5 $(BUILD_DIR)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++_reflection.so.1
+	rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++_reflection.so.1
 distclean: distclean-openolt-api distclean-bal
 	rm -rf $(BUILD_DIR)
 -include $(DEPS)
