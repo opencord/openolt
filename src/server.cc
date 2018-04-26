@@ -64,6 +64,16 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->pkt());
     }
 
+    Status OnuPacketOut(
+            ServerContext* context,
+            const openolt::OnuPacket* request,
+            openolt::Empty* response) override {
+        return OnuPacketOut_(
+            request->intf_id(),
+            request->onu_id(),
+            request->pkt());
+    }
+
     Status FlowAdd(
             ServerContext* context,
             const openolt::Flow* request,
@@ -221,15 +231,38 @@ Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt) {
     }
 
     buf.val = (uint8_t *)malloc((buf.len)*sizeof(uint8_t));
-    memcpy(buf.val,(uint8_t *)arraySend,buf.len);
+    memcpy(buf.val, (uint8_t *)arraySend, buf.len);
 
     std::cout << "After converting bytes to hex "
               << buf.val << buf.len << std::endl;
 
-    err = bcmbal_pkt_send(0, proxy_pkt_dest,
-                         (const char *)(buf.val), buf.len);
+    err = bcmbal_pkt_send(0, proxy_pkt_dest, (const char *)(buf.val), buf.len);
 
     std::cout << "OMCI request msg of length " << buf.len
+              << " sent to ONU" << onu_id
+              << " through PON " << intf_id << std::endl;
+
+    free(buf.val);
+
+    return Status::OK;
+}
+
+Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt) {
+    bcmos_errno err = BCM_ERR_OK;
+    bcmbal_dest proxy_pkt_dest;
+    bcmbal_u8_list_u32_max_2048 buf;
+
+    proxy_pkt_dest.type = BCMBAL_DEST_TYPE_SUB_TERM,
+    proxy_pkt_dest.u.sub_term.sub_term_id = onu_id;
+    proxy_pkt_dest.u.sub_term.intf_id = intf_id;
+
+    buf.len = pkt.size();
+    buf.val = (uint8_t *)malloc((buf.len)*sizeof(uint8_t));
+    memcpy(buf.val, (uint8_t *)pkt.data(), buf.len);
+
+    err = bcmbal_pkt_send(0, proxy_pkt_dest, (const char *)(buf.val), buf.len);
+
+    std::cout << "Packet out of length " << buf.len
               << " sent to ONU" << onu_id
               << " through PON " << intf_id << std::endl;
 
