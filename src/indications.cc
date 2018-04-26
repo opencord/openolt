@@ -210,16 +210,14 @@ bcmos_errno OnuOperIndication(bcmbal_obj *obj) {
 bcmos_errno OmciIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
     openolt::OmciIndication* omci_ind = new openolt::OmciIndication;
-    bcmbal_packet_itu_omci_channel_rx *omci_channel =
+    bcmbal_packet_itu_omci_channel_rx *in =
         (bcmbal_packet_itu_omci_channel_rx *)obj;
 
     std::cout << "omci indication" << std::endl;
 
-    omci_ind->set_intf_id(
-        omci_channel->key.packet_send_dest.u.itu_omci_channel.intf_id);
-    omci_ind->set_onu_id(
-        omci_channel->key.packet_send_dest.u.itu_omci_channel.sub_term_id);
-    omci_ind->set_pkt(omci_channel->data.pkt.val, omci_channel->data.pkt.len);
+    omci_ind->set_intf_id(in->key.packet_send_dest.u.itu_omci_channel.intf_id);
+    omci_ind->set_onu_id(in->key.packet_send_dest.u.itu_omci_channel.sub_term_id);
+    omci_ind->set_pkt(in->data.pkt.val, in->data.pkt.len);
 
     ind.set_allocated_omci_ind(omci_ind);
     oltIndQ.push(ind);
@@ -227,9 +225,25 @@ bcmos_errno OmciIndication(bcmbal_obj *obj) {
     return BCM_ERR_OK;
 }
 
-bcmos_errno PacketInIndication(bcmbal_obj *obj) {
+bcmos_errno PacketIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
-    std::cout << "packet-in indication" << std::endl;
+    openolt::PacketIndication* pkt_ind = new openolt::PacketIndication;
+    bcmbal_packet_bearer_channel_rx *in = (bcmbal_packet_bearer_channel_rx *)obj;
+
+    std::cout << "packet indication"
+              << " intf_id:" << in->data.intf_id
+              << " svc_port:" << in->data.svc_port
+              << " flow_id:" << in->data.flow_id
+              << std::endl;
+
+    pkt_ind->set_intf_id(in->data.intf_id);
+    pkt_ind->set_gemport_id(in->data.svc_port);
+    pkt_ind->set_flow_id(in->data.flow_id);
+    pkt_ind->set_pkt(in->data.pkt.val, in->data.pkt.len);
+
+    ind.set_allocated_pkt_ind(pkt_ind);
+    oltIndQ.push(ind);
+
     return BCM_ERR_OK;
 }
 
@@ -354,13 +368,13 @@ Status SubscribeIndication() {
         return Status(grpc::StatusCode::INTERNAL, "onu operational state change indication subscribe failed");
     }
 
-    /* Packet-in indications */
+    /* Packet (bearer) indication */
     cb_cfg.obj_type = BCMBAL_OBJ_ID_PACKET;
     ind_subgroup = bcmbal_packet_auto_id_bearer_channel_rx;
     cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)PacketInIndication;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)PacketIndication;
     if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Packet-in indication subscribe failed");
+        return Status(grpc::StatusCode::INTERNAL, "Packet indication subscribe failed");
     }
 
     /* Flow Operational State Change */
