@@ -98,7 +98,6 @@ onl:
 	fi;
 onl-force:
 	make -C $(ONL_DIR) $(DEVICE)-$(ONL_KERN_VER_MAJOR)
-clean-onl:
 distclean-onl:
 	sudo rm -rf $(ONL_DIR)
 
@@ -185,8 +184,7 @@ bal-rebuild:
 	mv -f release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz $(BUILD_DIR)
 	mv -f libbal_api_dist.so $(BUILD_DIR)
 	mv -f bal_core_dist $(BUILD_DIR)
-clean-bal: clean-onl
-distclean-bal: distclean-onl
+distclean-bal:
 	sudo rm -rf $(BAL_DIR)
 	rm -f build/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz
 
@@ -196,19 +194,14 @@ distclean-bal: distclean-onl
 ##        OpenOLT API
 ##
 ##
-OPENOLT_API_DIR = $(BUILD_DIR)/openolt-api
-OPENOLT_API_LIB = $(OPENOLT_API_DIR)/libopenoltapi.a
-CXXFLAGS += -I./$(OPENOLT_API_DIR) -I $(OPENOLT_API_DIR)/googleapis/gens
-.PHONY: openolt-api
-openolt-api:
-	if [ ! -e "$(OPENOLT_API_DIR)" ]; then \
-		mkdir -p $(BUILD_DIR); \
-		git clone https://gerrit.opencord.org/openolt-api $(OPENOLT_API_DIR); \
-	fi;
-	make -C $(OPENOLT_API_DIR) all
-clean-openolt-api:
-	-make -C $(OPENOLT_API_DIR) clean
-distclean-openolt-api:
+OPENOLT_PROTOS_DIR = ./protos
+OPENOLT_API_LIB = $(OPENOLT_PROTOS_DIR)/libopenoltapi.a
+CXXFLAGS += -I./$(OPENOLT_PROTOS_DIR) -I $(OPENOLT_PROTOS_DIR)/googleapis/gens
+.PHONY: protos
+protos:
+	make -C $(OPENOLT_PROTOS_DIR) all
+clean-protos:
+	-make -C $(OPENOLT_PROTOS_DIR) clean
 
 ########################################################################
 ##
@@ -221,7 +214,7 @@ OBJS = $(SRCS:.cc=.o)
 DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
 all: $(BUILD_DIR)/openolt
-$(BUILD_DIR)/openolt: openolt-api bal $(OBJS)
+$(BUILD_DIR)/openolt: protos bal $(OBJS)
 	$(CXX) $(OBJS) $(LDFLAGS) $(OPENOLT_API_LIB) -o $@ -L$(BALLIBDIR) -l$(BALLIBNAME)
 	ln -s $(shell ldconfig -p | grep libgrpc.so.6 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc.so.6
 	ln -s $(shell ldconfig -p | grep libgrpc++.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++.so.1
@@ -230,10 +223,9 @@ $(BUILD_DIR)/openolt: openolt-api bal $(OBJS)
 src/%.o: %.cpp
 	$(CXX) -MMD -c $< -o $@
 
-clean: clean-bal
-	rm -f $(OBJS) $(DEPS) $(BUILD_DIR)/openolt
-	rm -rf $(OPENOLT_API_DIR)
+clean: clean-protos
+	rm -f $(OBJS) $(DEPS)
 	rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++_reflection.so.1
-distclean: distclean-openolt-api distclean-bal
+
+distclean:
 	rm -rf $(BUILD_DIR)
--include $(DEPS)
