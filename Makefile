@@ -216,9 +216,9 @@ DEPS = $(SRCS:.cc=.d)
 all: $(BUILD_DIR)/openolt
 $(BUILD_DIR)/openolt: protos bal $(OBJS)
 	$(CXX) $(OBJS) $(LDFLAGS) $(OPENOLT_API_LIB) -o $@ -L$(BALLIBDIR) -l$(BALLIBNAME)
-	ln -s $(shell ldconfig -p | grep libgrpc.so.6 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc.so.6
-	ln -s $(shell ldconfig -p | grep libgrpc++.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++.so.1
-	ln -s $(shell ldconfig -p | grep libgrpc++_reflection.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++_reflection.so.1
+	ln -sf $(shell ldconfig -p | grep libgrpc.so.6 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc.so.6
+	ln -sf $(shell ldconfig -p | grep libgrpc++.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++.so.1
+	ln -sf $(shell ldconfig -p | grep libgrpc++_reflection.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++_reflection.so.1
 
 src/%.o: %.cpp
 	$(CXX) -MMD -c $< -o $@
