@@ -15,8 +15,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef OPENASF_INDICATIONS_H_
-#define OPENASF_INDICATIONS_H_
+#ifndef OPENOLT_INDICATIONS_H_
+#define OPENOLT_INDICATIONS_H_
+
 #include <grpc++/grpc++.h>
 #include <openolt.grpc.pb.h>
 #include "Queue.h"

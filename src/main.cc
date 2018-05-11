@@ -18,6 +18,7 @@
 
 #include "indications.h"
 #include "server.h"
+#include "core.h"
 
 extern "C"
 {

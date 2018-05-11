@@ -15,8 +15,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef OPENASF_UTILS_H_
-#define OPENASF_UTILS_H_
+#ifndef OPENOLT_UTILS_H_
+#define OPENOLT_UTILS_H_
 
 extern "C"
 {

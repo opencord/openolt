@@ -15,35 +15,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef OPENASF_SERVER_H_
-#define OPENASF_SERVER_H_
-
-#include <grpc++/grpc++.h>
-using grpc::Status;
-#include <openolt.grpc.pb.h>
+#ifndef OPENOLT_SERVER_H_
+#define OPENOLT_SERVER_H_
 
 void RunServer();
-Status Enable_();
-Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
-    const char *vendor_id, const char *vendor_specific);
-Status EnablePonIf_(uint32_t intf_id);
-Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
-Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
-Status FlowAdd_(uint32_t onu_id,
-                uint32_t flow_id, const std::string flow_type,
-                uint32_t access_intf_id, uint32_t network_intf_id,
-                uint32_t gemport_id,
-                const ::openolt::Classifier& classifier,
-                const ::openolt::Action& action);
-
-static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id);
-
-static inline int mk_sched_id(int onu_id) {
-    return 1023 + onu_id;
-}
-
-static inline int mk_agg_port_id(int onu_id) {
-    return 1023 + onu_id;
-}
 
 #endif

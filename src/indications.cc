@@ -15,7 +15,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "indications.h"
-#include "server.h"
+#include "core.h"
 #include "utils.h"
 extern "C"
 {
