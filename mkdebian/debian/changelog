@@ -1,0 +1,8 @@
+asfvolt16 (2.4.3.6+accton1.1-0) stable; urgency=high
+
+    * Added Pre-emphasis adjustment on the Qumran
+    * Added Qumran LED function
+    * Patch file name: ACCTON_BAL_2.4.6.10-V201711151812.patch
+
+ -- Jason Huang <jasonsc_huang@edge-core.com>  Thu, 15 Nov 2017 18:12:32 +0800
+

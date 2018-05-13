@@ -1,0 +1,13 @@
+Source: asfvolt16
+Section: misc
+Priority: optional
+Maintainer: Jason Huang  <jasonsc_huang@edge-core.com>
+Build-Depends: debhelper (>= 4.0.0)
+Standards-Version: 3.6.2
+
+Package: asfvolt16
+Architecture: amd64
+Depends: ${shlibs:Depends}
+Description: Broadcom OLT drivers and CLI
+  ported from Broadcom SDK-2.4.3.6 package
+

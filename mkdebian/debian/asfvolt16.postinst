@@ -1,0 +1,9 @@
+#!/bin/bash
+
+rm -rf /opt/bcm68620
+rm -rf  /broadcom
+rm -rf /run/bcm68620
+tar zxf /tmp/release_asfvolt16.tar.gz -C / 2>&1 > /dev/null
+source /root/.bashrc
+/sbin/ldconfig
+/opt/bcm68620/svk_init.sh

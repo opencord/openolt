@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# kill CLI applications
+echo "kill running time application"
+[ -n "`pidof bcm_user_appl`" ] && killall bcm_user_appl
+[ -n "`pidof bcm.user`" ] && killall bcm.user
+[ -n "`pidof bcm_sdn_agent`" ] && killall bcm_sdn_agent
+[ -n "`pidof bal_core_dist`" ] && killall bal_core_dist 
+[ -n "`pidof voltha_bal_driver`" ] && killall voltha_bal_driver
+
+# unload drivers
+echo "unload kernel drivers"
+[ -n "`lsmod | grep bcm_coop_dba_linux`" ] && rmmod bcm_coop_dba_linux && sleep 1
+[ -n "`lsmod | grep bcm_dev_ctrl_linux`" ] &&  rmmod bcm_dev_ctrl_linux && sleep 1
+[ -n "`lsmod | grep i2c_devs`" ] && rmmod i2c_devs && sleep 1
+[ -n "`lsmod | grep os_linux`" ] && rmmod os_linux && sleep 1
+[ -n "`lsmod | grep ll_pcie`" ] && rmmod ll_pcie && sleep 1
+[ -n "`lsmod | grep linux_user_bde`" ] && rmmod linux-user-bde && sleep 1
+[ -n "`lsmod | grep linux_kernel_bde`" ] && rmmod linux-kernel-bde && sleep 1
+rm -rf /dev/maple_i2c
+rm -rf /dev/bcm_log
+rm -rf /dev/maple_dev_ctrl
+rm -rf /dev/linux-user-bde
+rm -rf /dev/linux-kernel-bde
+rm -rf /dev/coop_dba
+
