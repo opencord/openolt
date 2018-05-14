@@ -29,27 +29,20 @@ node ('olt-agent-onf') {
           sh returnStdout: true, script: 'cp ../../build-files/sdk-all-6.5.7.tar.gz download'
           sh returnStdout: true, script: 'cp ../../build-files/ACCTON_BAL_2.4.3.6-V201710131639.patch download'
           sh returnStdout: true, script: 'cp ../../build-files/OPENOLT_BAL_2.4.3.6.patch download'
-          sh returnStdout: true, script: 'cp -r ../../build-files/mkdebian .'
         }
         stage ('Build packages and libraries') {
           sh returnStdout: true, script: '/bin/bash -c make prereq'
           sh returnStdout: true, script: '/bin/bash -c make'
         }
-        stage ('Copy ASFvOLT16 release file to mkdebian folder') {
-          sh returnStdout: true, script: 'cp build/*.tar.gz mkdebian/debian/release_asfvolt16.tar.gz'
-        }
-        stage ('Copy OpenOLT to mkdebian folder') {
-          sh returnStdout: true, script: 'cp build/openolt mkdebian/debian'
-        }
-        stage ('Copy gRPC to mkdebian folder') {
-          sh returnStdout: true, script: 'cp build/libgrpc++_reflection.so.1 mkdebian/debian'
-          sh returnStdout: true, script: 'cp build/libgrpc++.so.1 mkdebian/debian'
-          sh returnStdout: true, script: 'cp /usr/local/lib/libgrpc.so.6 mkdebian/debian'
-        }
         stage ('Create Debian file') {
-          sh returnStdout: true, script: '#!/bin/bash \n cd mkdebian; ./build_asfvolt16_deb.sh'
+          sh returnStdout: true, script: '/bin/bash -c make deb'
         }
-        stage ('Publish Voltha BAL driver DEB package') {
+        stage ('Publish executables and DEB package to web server') {
+          sh returnStdout: true, script: 'sudo mkdir -p /var/www/voltha-bal/executables'
+          sh returnStdout: true, script: 'sudo cp build/*.tar.gz /var/www/voltha-bal/executables/'
+          sh returnStdout: true, script: 'sudo cp build/libgrpc++_reflection.so.1 /var/www/voltha-bal/executables/'
+          sh returnStdout: true, script: 'sudo cp build/libgrpc++.so.1 /var/www/voltha-bal/executables/'
+          sh returnStdout: true, script: 'sudo cp /usr/local/lib/libgrpc.so.6 /var/www/voltha-bal/executables/'
           sh returnStdout: true, script: 'sudo cp *.deb /var/www/voltha-bal/voltha-bal.deb'
         }
       }
