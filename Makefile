@@ -221,11 +221,12 @@ $(BUILD_DIR)/openolt: protos bal $(OBJS)
 	ln -sf $(shell ldconfig -p | grep libgrpc++_reflection.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++_reflection.so.1
 
 deb:
-	rm *.deb
-	cp build/*.tar.gz mkdebian/debian/release_asfvolt16.tar.gz
-	cp build/openolt mkdebian/debian
-	cp build/libgrpc++_reflection.so.1 mkdebian/debian
-	cp /usr/local/lib/libgrpc.so.6 mkdebian/debian
+	rm -f *.deb
+	cp $(BUILD_DIR)/*.tar.gz mkdebian/debian/release_asfvolt16.tar.gz
+	cp $(BUILD_DIR)/openolt mkdebian/debian
+	cp $(BUILD_DIR)/libgrpc.so.6 mkdebian/debian
+	cp $(BUILD_DIR)/libgrpc++.so.1 mkdebian/debian
+	cp $(BUILD_DIR)/libgrpc++_reflection.so.1 mkdebian/debian
 	cd mkdebian && ./build_asfvolt16_deb.sh
 	mv *.deb $(BUILD_DIR)/openolt.deb
 

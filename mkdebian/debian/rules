@@ -27,9 +27,13 @@ DEB_DH_INSTALL_SOURCEDIR = $(CURDIR)/debian/tmp
 override_dh_auto_install: 
 	mkdir -p $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 	cp -a $(CURDIR)/debian/release_asfvolt16.tar.gz $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/libgrpc++_reflection.so.1 $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/libgrpc++.so.1 $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/libgrpc.so.6 $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/openolt $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 
-#override_dh_shlibdeps:
-#	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info -l$(ONLP_LIB_PATH):$(OFDPA_LIB_PATH)
+override_dh_shlibdeps:
+	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info -l$(ONLP_LIB_PATH):$(OFDPA_LIB_PATH)
 
 # avoid auto strip for debug ofagentapp.dbg
 #
@@ -65,3 +69,4 @@ test:
 	@echo ONLP_LIB_PATH=$(ONLP_LIB_PATH)
 #	@echo OFDPA_LIB_PATH=$(OFDPA_LIB_PATH)
 #	@echo OFDPA_BIN_PATH=$(OFDPA_BIN_PATH)
+

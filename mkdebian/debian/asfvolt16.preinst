@@ -2,11 +2,8 @@
 
 # kill CLI applications
 echo "kill running time application"
-[ -n "`pidof bcm_user_appl`" ] && killall bcm_user_appl
-[ -n "`pidof bcm.user`" ] && killall bcm.user
-[ -n "`pidof bcm_sdn_agent`" ] && killall bcm_sdn_agent
 [ -n "`pidof bal_core_dist`" ] && killall bal_core_dist 
-[ -n "`pidof voltha_bal_driver`" ] && killall voltha_bal_driver
+[ -n "`pidof openolt`" ] && killall openolt
 
 # unload drivers
 echo "unload kernel drivers"
@@ -24,3 +21,11 @@ rm -rf /dev/linux-user-bde
 rm -rf /dev/linux-kernel-bde
 rm -rf /dev/coop_dba
 
+rm -rf /opt/bcm68620
+rm -rf /run/bcm68620
+
+rm -rf  /broadcom
+
+rm -rf /usr/local/lib/libgrpc++_reflection.so.1
+rm -rf /usr/local/lib/libgrpc++.so.1
+rm -rf /usr/local/lib/libgrpc.so.5

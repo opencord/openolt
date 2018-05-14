@@ -1,0 +1,14 @@
+#!/bin/bash
+
+rm -rf /opt/bcm68620
+rm -rf /run/bcm68620
+
+rm -rf /broadcom
+
+rm -rf /usr/local/lib/libgrpc++_reflection.so.1
+rm -rf /usr/local/lib/libgrpc++.so.1
+rm -rf /usr/local/lib/libgrpc.so.6
+
+# Remove init scripts
+sed -i '\/opt\/bcm68620\/svk_init.sh/d' /etc/rc.local
+# sed -i '\/broadcom\/voltha_init.sh/d' /etc/rc.local
