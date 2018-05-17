@@ -29,7 +29,7 @@ node ('olt-agent-onf') {
           sh returnStdout: true, script: '/bin/bash -c make'
         }
         stage ('Create Debian file') {
-          sh returnStdout: true, script: '/bin/bash -c make deb'
+          sh returnStdout: true, script: '/bin/bash -c "make deb"'
         }
         stage ('Publish executables and DEB package to web server') {
           sh returnStdout: true, script: 'sudo mkdir -p /var/www/voltha-bal/executables'
@@ -50,4 +50,3 @@ node ('olt-agent-onf') {
     }
   }
 }
-
