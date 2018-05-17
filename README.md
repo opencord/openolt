@@ -54,6 +54,7 @@ git clone git@github.com:OpenOLT/openolt.git
 
 mv SW-BCM68620_2_4_3_6.zip sdk-all-6.5.7.tar.gz ACCTON_BAL_2.4.3.6-V201710131639.patch OPENOLT_BAL_2.4.3.6.zip openolt/download
 
+make prereq
 make
 ```
 The **build** directory contains all the build artifacts:
@@ -84,6 +85,7 @@ cd /broadcom
 - Run openolt:
 ```shell
 cd /broadcom
+export LD_LIBRARY_PATH=/broadcom
 ./openolt  -C 10.6.0.201:40000 -A 10.6.0.201:50000
 ```
 (Note - Substitute 10.6.0.201 with a local IP of the OLT - e.g. mgmt interface IP).
