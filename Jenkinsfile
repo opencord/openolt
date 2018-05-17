@@ -12,18 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import groovy.json.JsonSlurperClassic
-
 node ('olt-agent-onf') {
   timeout (time: 240) {
     try {
-      stage ('Clean up') {
-        sh returnStdout: true, script: 'sudo rm -rf openolt'
-      }
-      stage ('Clone OpenOLT') {
-        sh returnStdout: true, script: 'git clone https://gerrit.opencord.org/openolt'
-      }
       dir ('openolt') {
+        stage ('Pull latest code') {
+          sh returnStdout: true, script: 'git pull'
+        }
         stage ('Copy over SDK, BAL, patch files and DEB generators') {
           sh returnStdout: true, script: 'cp ../../build-files/SW-BCM68620_2_4_3_6.zip download'
           sh returnStdout: true, script: 'cp ../../build-files/sdk-all-6.5.7.tar.gz download'
@@ -31,7 +26,6 @@ node ('olt-agent-onf') {
           sh returnStdout: true, script: 'cp ../../build-files/OPENOLT_BAL_2.4.3.6.patch download'
         }
         stage ('Build packages and libraries') {
-          sh returnStdout: true, script: '/bin/bash -c make prereq'
           sh returnStdout: true, script: '/bin/bash -c make'
         }
         stage ('Create Debian file') {
@@ -40,10 +34,11 @@ node ('olt-agent-onf') {
         stage ('Publish executables and DEB package to web server') {
           sh returnStdout: true, script: 'sudo mkdir -p /var/www/voltha-bal/executables'
           sh returnStdout: true, script: 'sudo cp build/*.tar.gz /var/www/voltha-bal/executables/'
+          sh returnStdout: true, script: 'sudo cp build/openolt /var/www/voltha-bal/executables/'
           sh returnStdout: true, script: 'sudo cp build/libgrpc++_reflection.so.1 /var/www/voltha-bal/executables/'
           sh returnStdout: true, script: 'sudo cp build/libgrpc++.so.1 /var/www/voltha-bal/executables/'
           sh returnStdout: true, script: 'sudo cp /usr/local/lib/libgrpc.so.6 /var/www/voltha-bal/executables/'
-          sh returnStdout: true, script: 'sudo cp *.deb /var/www/voltha-bal/voltha-bal.deb'
+          sh returnStdout: true, script: 'sudo cp build/openolt.deb /var/www/voltha-bal'
         }
       }
       currentBuild.result = 'SUCCESS'
