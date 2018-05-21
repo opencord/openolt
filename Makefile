@@ -200,7 +200,7 @@ CXXFLAGS += -I./$(OPENOLT_PROTOS_DIR) -I $(OPENOLT_PROTOS_DIR)/googleapis/gens
 .PHONY: protos
 protos:
 	make -C $(OPENOLT_PROTOS_DIR) all
-clean-protos:
+protos-clean:
 	-make -C $(OPENOLT_PROTOS_DIR) clean
 
 ########################################################################
@@ -233,10 +233,22 @@ deb:
 src/%.o: %.cpp
 	$(CXX) -MMD -c $< -o $@
 
-clean: clean-protos
+deb-clean:
+	rm -f $(BUILD_DIR)/*.deb
+	rm -f mkdebian/debian/asfvolt16.debhelper.log
+	rm -f mkdebian/debian/asfvolt16.postinst.debhelper
+	rm -f mkdebian/debian/asfvolt16.postrm.debhelper
+	rm -rf mkdebian/debian/asfvolt16/
+	rm -f mkdebian/debian/libgrpc++.so.1
+	rm -f mkdebian/debian/libgrpc++_reflection.so.1
+	rm -f mkdebian/debian/libgrpc.so.6
+	rm -f mkdebian/debian/openolt
+	rm -f mkdebian/debian/release_asfvolt16.tar.gz
+	rm -rf mkdebian/debian/tmp/
+
+clean: protos-clean
 	rm -f $(OBJS) $(DEPS)
 	rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++_reflection.so.1
-	rm -f $(BUILD_DIR)/*.deb
 
 distclean:
 	rm -rf $(BUILD_DIR)
