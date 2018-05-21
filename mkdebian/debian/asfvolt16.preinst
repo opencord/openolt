@@ -29,3 +29,5 @@ rm -rf  /broadcom
 rm -rf /usr/local/lib/libgrpc++_reflection.so.1
 rm -rf /usr/local/lib/libgrpc++.so.1
 rm -rf /usr/local/lib/libgrpc.so.5
+rm -rf /usr/local/lib/libbal_api_dist.so
+
