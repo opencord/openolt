@@ -10,6 +10,7 @@ mv /tmp/openolt /broadcom
 mv /tmp/libgrpc++_reflection.so.1 /usr/local/lib
 mv /tmp/libgrpc++.so.1 /usr/local/lib
 mv /tmp/libgrpc.so.6 /usr/local/lib
+mv /broadcom/libbal_api_dist.so /usr/local/lib
 
 # Init file
 #mv /tmp/voltha_init.sh /broadcom

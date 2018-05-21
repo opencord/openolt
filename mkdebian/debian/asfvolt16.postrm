@@ -8,6 +8,7 @@ rm -rf /broadcom
 rm -rf /usr/local/lib/libgrpc++_reflection.so.1
 rm -rf /usr/local/lib/libgrpc++.so.1
 rm -rf /usr/local/lib/libgrpc.so.6
+rm -rf /usr/local/lib/libbal_api_dist.so
 
 # Remove init scripts
 sed -i '\/opt\/bcm68620\/svk_init.sh/d' /etc/rc.local
