@@ -103,7 +103,7 @@ bcmos_errno IfOperIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
     openolt::IntfOperIndication* intf_oper_ind = new openolt::IntfOperIndication;
     std::cout << "intf oper state indication, intf_id:"
-              << ((bcmbal_interface_ind *)obj)->key.intf_id
+              << ((bcmbal_interface_oper_status_change *)obj)->key.intf_id
               << " type:" << ((bcmbal_interface_oper_status_change *)obj)->key.intf_type
               << " oper_state:" << ((bcmbal_interface_oper_status_change *)obj)->data.new_oper_status
               << " admin_state:" << ((bcmbal_interface_oper_status_change *)obj)->data.admin_state
@@ -139,7 +139,40 @@ bcmos_errno OnuAlarmIndication(bcmbal_obj *obj) {
 
 bcmos_errno OnuDyingGaspIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
-    std::cout << "onu dying-gasp indication" << std::endl;
+    openolt::OnuIndication* onu_ind = new openolt::OnuIndication;
+    openolt::SerialNumber* serial_number = new openolt::SerialNumber;
+
+    bcmbal_subscriber_terminal_key *key =
+        &(((bcmbal_subscriber_terminal_dgi*)obj)->key);
+
+    bcmbal_subscriber_terminal_dgi_data *data =
+        &(((bcmbal_subscriber_terminal_dgi*)obj)->data);
+
+
+    std::cout << "onu dying-gasp indication, intf_id:"
+         << key->intf_id
+         << ", onu_id:"
+         << key->sub_term_id
+         << ", alarm: "
+         << data->dgi_status << std::endl;
+
+    onu_ind->set_intf_id(key->intf_id);
+    onu_ind->set_onu_id(key->sub_term_id);
+    const char* zeros4 = "0000";
+    const char* zeros8 = "00000000";
+    serial_number->set_vendor_id(zeros4);
+    serial_number->set_vendor_specific(zeros8);
+    onu_ind->set_allocated_serial_number(serial_number);
+    //ONU is dying, set operating state to down
+    onu_ind->set_oper_state("down");
+    //TODO: set admin state to unknow ? For now assume that it is up otherwise
+    //we would not have received the alarm
+    onu_ind->set_admin_state("up");
+
+
+    ind.set_allocated_onu_ind(onu_ind);
+
+    oltIndQ.push(ind);
     return BCM_ERR_OK;
 }
 
@@ -195,6 +228,17 @@ bcmos_errno OnuIndication(bcmbal_obj *obj) {
     serial_number->set_vendor_id(reinterpret_cast<const char *>(in_serial_number->vendor_id), 4);
     serial_number->set_vendor_specific(reinterpret_cast<const char *>(in_serial_number->vendor_specific), 8);
     onu_ind->set_allocated_serial_number(serial_number);
+    if (data->oper_status == BCMBAL_STATE_UP) {
+        onu_ind->set_oper_state("up");
+    } else {
+        onu_ind->set_oper_state("down");
+    }
+    if (data->admin_state == BCMBAL_STATE_UP) {
+        onu_ind->set_admin_state("up");
+    } else {
+        onu_ind->set_admin_state("down");
+    }
+
     ind.set_allocated_onu_ind(onu_ind);
 
     oltIndQ.push(ind);
@@ -203,7 +247,46 @@ bcmos_errno OnuIndication(bcmbal_obj *obj) {
 
 bcmos_errno OnuOperIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
-    std::cout << "onu oper state indication" << std::endl;
+    openolt::OnuIndication* onu_ind = new openolt::OnuIndication;
+    openolt::SerialNumber* serial_number = new openolt::SerialNumber;
+
+    bcmbal_subscriber_terminal_key *key =
+        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->key);
+
+    bcmbal_subscriber_terminal_oper_status_change_data *data =
+        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->data);
+
+
+    std::cout << "onu oper state indication, intf_id:"
+         << key->intf_id
+         << " onu_id: "
+         << key->sub_term_id
+         << " old oper state: "
+         << data->old_oper_status
+         << " new oper state:"
+         << data->new_oper_status << std::endl;
+
+    onu_ind->set_intf_id(key->intf_id);
+    onu_ind->set_onu_id(key->sub_term_id);
+    const char* zeros4 = "0000";
+    const char* zeros8 = "00000000";
+    serial_number->set_vendor_id(zeros4);
+    serial_number->set_vendor_specific(zeros8);
+    onu_ind->set_allocated_serial_number(serial_number);
+    if (data->new_oper_status == BCMBAL_STATE_UP) {
+        onu_ind->set_oper_state("up");
+    } else {
+        onu_ind->set_oper_state("down");
+    }
+    if (data->admin_state == BCMBAL_STATE_UP) {
+        onu_ind->set_admin_state("up");
+    } else {
+        onu_ind->set_admin_state("down");
+    }
+
+    ind.set_allocated_onu_ind(onu_ind);
+
+    oltIndQ.push(ind);
     return BCM_ERR_OK;
 }
 
