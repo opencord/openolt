@@ -65,7 +65,8 @@ LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
 endif
 
 prereq:
-	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev
+	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
+	sudo apt-get install -y build-essential autoconf libssl-dev gawk debhelper dh-systemd init-system-helpers
 
 	# Install GRPC plugins
 	rm -rf $(GRPC_DST)
@@ -165,7 +166,7 @@ ifeq ("$(wildcard $(BAL_DIR))","")
 	KERNDIR=$(ONL_KERNDIR)/linux-$(ONL_KERN_VER) BOARD=$(DEVICE) ARCH=x86_64 SDKBUILD=build_bcm_user make -C $(BCM_SDK)/build-$(DEVICE)/sdk-all-$(SDK_VER)/systems/linux/user/x86-generic_64-2_6
 	make -C $(BAL_DIR)/bal_release BOARD=$(DEVICE) bal
 	make -C $(BAL_DIR)/bal_release BOARD=$(DEVICE) release_board
-	ln -s -f $(PWD)/$(BAL_DIR)/bcm68620_release/asfvolt16/release/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz . 
+	ln -s -f $(PWD)/$(BAL_DIR)/bcm68620_release/asfvolt16/release/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz .
 	ln -s -f $(PWD)/$(BAL_DIR)/bal_release/build/core/lib/libbal_api_dist.so .
 	ln -s -f $(PWD)/$(BAL_DIR)/bal_release/build/core/src/apps/bal_core_dist/bal_core_dist
 	mv -f release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz $(BUILD_DIR)

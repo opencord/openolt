@@ -40,7 +40,7 @@ libopenoltapi.a: $(OBJS)
 
 googleapis:
 	if [ ! -e "googleapis" ]; then \
-		git clone git@github.com:googleapis/googleapis.git; \
+		git clone https://github.com/googleapis/googleapis.git; \
 		make -C googleapis LANGUAGE=cpp all; \
 	fi;
 
