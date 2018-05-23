@@ -53,7 +53,7 @@ The versions currently supported by **OpenOLT driver** are:
 - ACCTON_BAL_2.4.3.6-V201710131639.patch
 - OPENOLT_BAL_2.4.3.6.patch
 
-Note - This repo does not contain the above four source packages. These are needed to build the OpenOLT driver executable. Contact Broadcom for access to these source packages.
+Note - This repo does not contain the above four source packages. These are needed to build the **OpenOLT driver** executable. Contact Broadcom for access to these source packages.
 
 ## System Requirements
 
