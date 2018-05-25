@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-node ('olt-agent-onf') {
+node ('openolt_deb_onf_agent') {
   timeout (time: 240) {
     try {
       dir ('openolt') {
