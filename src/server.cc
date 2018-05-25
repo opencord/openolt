@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2018 Open Networking Foundation 
+    Copyright (C) 2018 Open Networking Foundation
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <time.h>
 
 #include "Queue.h"
 #include <iostream>
@@ -37,6 +38,7 @@ using grpc::ServerWriter;
 using grpc::Status;
 
 const char *serverPort = "0.0.0.0:9191";
+int signature;
 
 class OpenoltService final : public openolt::Openolt::Service {
 
@@ -90,11 +92,22 @@ class OpenoltService final : public openolt::Openolt::Service {
             ServerContext* context,
             const ::openolt::Empty* request,
             ServerWriter<openolt::Indication>* writer) override {
+        std::cout << "Connection to Voltha established. Indications enabled"
+        << std::endl;
         while (1) {
             auto oltInd = oltIndQ.pop();
             writer->Write(oltInd);
             //oltInd.release_olt_ind()
         }
+        return Status::OK;
+    }
+
+    Status HeartbeatCheck(
+            ServerContext* context,
+            const openolt::Empty* request,
+            openolt::Heartbeat* response) override {
+        response->set_heartbeat_signature(signature);
+
         return Status::OK;
     }
 };
@@ -109,7 +122,13 @@ void RunServer() {
 
   std::unique_ptr<Server> server(builder.BuildAndStart());
 
-  std::cout << "Server listening on " << server_address << std::endl;
+  time_t now;
+  time(&now);
+  signature = (int)now;
+
+  std::cout << "Server listening on " << server_address
+  << ", connection signature : " << signature << std::endl;
+
 
   server->Wait();
 }
