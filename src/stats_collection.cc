@@ -60,6 +60,7 @@ openolt::PortStatistics* get_default_port_statistics() {
     return port_stats;
 }
 
+#if 0
 openolt::FlowStatistics* get_default_flow_statistics() {
     openolt::FlowStatistics* flow_stats = new openolt::FlowStatistics;
     flow_stats->set_flow_id(-1);
@@ -70,6 +71,7 @@ openolt::FlowStatistics* get_default_flow_statistics() {
 
     return flow_stats;
 }
+#endif
 
 openolt::PortStatistics* collectPortStatistics(int intf_id, bcmbal_intf_type intf_type) {
 
@@ -119,6 +121,7 @@ openolt::PortStatistics* collectPortStatistics(int intf_id, bcmbal_intf_type int
 
 }
 
+#if 0
 openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_flow_type flow_type) {
 
     bcmos_errno err;
@@ -156,6 +159,7 @@ openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_fl
 
     return flow_stats;
 }
+#endif
 
 
 void* stats_collection(void* x) {

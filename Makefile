@@ -25,10 +25,10 @@ DEVICE = asfvolt16
 # SW-BCM68620_<VER>.zip - Broadcom BAL source and Maple SDK.
 # sdk-all-<SDK_VER>.tar.gz - Broadcom Qumran SDK.
 # ACCTON_BAL_<BAL_VER>-<ACCTON_VER>.patch - Accton/Edgecore's patch.
-BAL_MAJOR_VER = 02.04
-BAL_VER = 2.4.3.6
+BAL_MAJOR_VER = 02.06
+BAL_VER = 2.6.0.1
 SDK_VER = 6.5.7
-ACCTON_VER = 201710131639
+ACCTON_VER = 201804301043
 #
 # Version of Open Network Linux (ONL).
 ONL_KERN_VER_MAJOR = 3.7
@@ -81,6 +81,32 @@ prereq:
 	sudo make -C $(GRPC_DST)/third_party/protobuf install
 	sudo ldconfig
 
+	rm -rf /tmp/protobuf
+	git clone https://github.com/google/protobuf.git /tmp/protobuf
+	cd /tmp/protobuf && git submodule update --init --recursive && ./autogen.sh && ./configure
+	make -C /tmp/protobuf
+	sudo make -C /tmp/protobuf install
+	sudo ldconfig
+
+	# libunwind (needed by glog)
+	rm -rf /tmp/libunwind-1.2
+	wget http://download.savannah.nongnu.org/releases/libunwind/libunwind-1.2.tar.gz -P /tmp
+	cd /tmp && tar -xzvf libunwind-1.2.tar.gz
+	cd /tmp/libunwind-1.2 && ./configure
+	make -C /tmp/libunwind-1.2
+	sudo make -C /tmp/libunwind-1.2 install
+
+	# cmake (needed by glog)
+	sudo apt-get remove cmake cmake-data
+	sudo -E add-apt-repository -y ppa:george-edison55/cmake-3.x
+	sudo -E apt-get update
+	sudo apt-get install -y cmake
+
+        # glog
+	rm -rf /tmp/glog
+	git clone https://github.com/google/glog.git /tmp/glog
+	cd /tmp/glog && cmake -H. -Bbuild -G "Unix Makefiles" && cmake --build build && sudo cmake --build build --target install
+
 ########################################################################
 ##
 ##
@@ -90,7 +116,6 @@ prereq:
 ONL_KERN_VER = $(ONL_KERN_VER_MAJOR).$(ONL_KERN_VER_MINOR)
 ONL_REPO = $(DEVICE)-onl
 ONL_DIR = $(BUILD_DIR)/$(ONL_REPO)
-.PHONY: onl
 onl:
 	if [ ! -d "$(ONL_DIR)/OpenNetworkLinux" ]; then \
 		mkdir -p $(ONL_DIR); \
@@ -116,7 +141,7 @@ BAL_DIR = $(BUILD_DIR)/$(DEVICE)-bal
 ONL_KERNDIR = $(PWD)/$(ONL_DIR)/OpenNetworkLinux/packages/base/amd64/kernels/kernel-$(ONL_KERN_VER_MAJOR)-x86-64-all/builds
 MAPLE_KERNDIR = $(BAL_DIR)/bcm68620_release/$(DEVICE)/kernels
 BCM_SDK = $(BAL_DIR)/bal_release/3rdparty/bcm-sdk
-BALLIBDIR = $(BAL_DIR)/bal_release/build/core/lib
+BALLIBDIR = $(BAL_DIR)/bal_release/build/core/src/apps/bal_api_dist_shared_lib
 BALLIBNAME = bal_api_dist
 BAL_INC = -I$(BAL_DIR)/bal_release/src/common/os_abstraction \
 	-I$(BAL_DIR)/bal_release/src/common/os_abstraction/posix \
@@ -125,30 +150,23 @@ BAL_INC = -I$(BAL_DIR)/bal_release/src/common/os_abstraction \
 	-I$(BAL_DIR)/bal_release/src/core/main \
 	-I$(BAL_DIR)/bal_release/src/common/include \
 	-I$(BAL_DIR)/bal_release/src/lib/libbalapi \
-	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/utils \
 	-I$(BAL_DIR)/bal_release/src/balapiend \
 	-I$(BAL_DIR)/bal_release/src/common/dev_log \
 	-I$(BAL_DIR)/bal_release/src/common/bal_dist_utils  \
 	-I$(BAL_DIR)/bal_release/src/lib/libtopology \
-	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/model \
-	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/api \
 	-I$(BAL_DIR)/bal_release/src/lib/libcmdline \
 	-I$(BAL_DIR)/bal_release/src/lib/libutils \
+	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/utils \
+	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/model \
+	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/api \
 	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_reference/cli
+#       -I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_customized/os_abstraction
+#       -I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_customized/os_abstraction/posix
+#       -I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/config
 CXXFLAGS += $(BAL_INC) -I $(BAL_DIR)/lib/cmdline
-.PHONY: get-$(BAL_DIR)
-get-$(BAL_DIR):
-# if [ ! -e "download/$(BAL_ZIP)" ]; then \
-#   rm -rf /tmp/broadcom-proprietary; \
-#   git clone git@github.com:shadansari/broadcom-proprietary.git /tmp/broadcom-proprietary; \
-#   mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(BAL_ZIP) ./download; \
-#   mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(SDK_ZIP) ./download; \
-#   mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(ACCTON_PATCH) ./download; \
-#   mv -f /tmp/broadcom-proprietary/$(BAL_VER)/$(OPENOLT_BAL_PATCH) ./download; \
-#   rm -rf /tmp/broadcom-proprietary; \
-# fi;
-.PHONY: bal
-bal: onl get-$(BAL_DIR)
+CXXFLAGS += -DBCMOS_MSG_QUEUE_DOMAIN_SOCKET -DBCMOS_MSG_QUEUE_UDP_SOCKET -DBCMOS_MEM_CHECK -DBCMOS_SYS_UNITTEST
+
+sdk: onl
 ifeq ("$(wildcard $(BAL_DIR))","")
 	mkdir $(BAL_DIR)
 	unzip download/$(BAL_ZIP) -d $(BAL_DIR)
@@ -166,29 +184,17 @@ ifeq ("$(wildcard $(BAL_DIR))","")
 	make -C $(BAL_DIR)/bal_release BOARD=$(DEVICE) switch_sdk
 	KERNDIR=$(ONL_KERNDIR)/linux-$(ONL_KERN_VER) BOARD=$(DEVICE) ARCH=x86_64 SDKBUILD=build_bcm_user make -C $(BCM_SDK)/build-$(DEVICE)/sdk-all-$(SDK_VER)/systems/linux/user/x86-generic_64-2_6
 	make -C $(BAL_DIR)/bal_release BOARD=$(DEVICE) bal
+	echo 'auto_create_interface_tm=y' >> $(BAL_DIR)/bal_release/3rdparty/maple/cur/$(DEVICE)/board_files/broadcom/bal_config.ini
 	make -C $(BAL_DIR)/bal_release BOARD=$(DEVICE) release_board
-	ln -s -f $(PWD)/$(BAL_DIR)/bcm68620_release/asfvolt16/release/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz .
-	ln -s -f $(PWD)/$(BAL_DIR)/bal_release/build/core/lib/libbal_api_dist.so .
-	ln -s -f $(PWD)/$(BAL_DIR)/bal_release/build/core/src/apps/bal_core_dist/bal_core_dist
-	mv -f release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz $(BUILD_DIR)
-	mv -f libbal_api_dist.so $(BUILD_DIR)
-	mv -f bal_core_dist $(BUILD_DIR)
 endif
-bal-rebuild:
-	make -C $(BAL_DIR)/bal_release BOARD=$(DEVICE) maple_sdk
-	make -C $(BAL_DIR)/bal_release BOARD=$(DEVICE) switch_sdk
-	KERNDIR=$(ONL_KERNDIR)/linux-$(ONL_KERN_VER) BOARD=$(DEVICE) ARCH=x86_64 SDKBUILD=build_bcm_user make -C $(BCM_SDK)/build-$(DEVICE)/sdk-all-$(SDK_VER)/systems/linux/user/x86-generic_64-2_6
+
+bal: sdk
 	make -C $(BAL_DIR)/bal_release BOARD=$(DEVICE) bal
+	echo 'auto_create_interface_tm=y' >> $(BAL_DIR)/bal_release/3rdparty/maple/cur/asfvolt16/board_files/broadcom/bal_config.ini
 	make -C $(BAL_DIR)/bal_release BOARD=$(DEVICE) release_board
-	ln -s -f $(PWD)/$(BAL_DIR)/bcm68620_release/asfvolt16/release/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz .
-	ln -s -f $(PWD)/$(BAL_DIR)/bal_release/build/core/lib/libbal_api_dist.so .
-	ln -s -f $(PWD)/$(BAL_DIR)/bal_release/build/core/src/apps/bal_core_dist/bal_core_dist .
-	mv -f release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz $(BUILD_DIR)
-	mv -f libbal_api_dist.so $(BUILD_DIR)
-	mv -f bal_core_dist $(BUILD_DIR)
-distclean-bal:
-	sudo rm -rf $(BAL_DIR)
-	rm -f build/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz
+
+bal-clean:
+	make -C $(BAL_DIR)/bal_release BOARD=$(DEVICE) clean_bal
 
 ########################################################################
 ##
@@ -199,7 +205,6 @@ distclean-bal:
 OPENOLT_PROTOS_DIR = ./protos
 OPENOLT_API_LIB = $(OPENOLT_PROTOS_DIR)/libopenoltapi.a
 CXXFLAGS += -I./$(OPENOLT_PROTOS_DIR) -I $(OPENOLT_PROTOS_DIR)/googleapis/gens
-.PHONY: protos
 protos:
 	make -C $(OPENOLT_PROTOS_DIR) all
 protos-clean:
@@ -216,41 +221,53 @@ OBJS = $(SRCS:.cc=.o)
 DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
 all: $(BUILD_DIR)/openolt
-$(BUILD_DIR)/openolt: protos bal $(OBJS)
+$(BUILD_DIR)/openolt: sdk protos $(OBJS)
 	$(CXX) $(OBJS) $(LDFLAGS) $(OPENOLT_API_LIB) -o $@ -L$(BALLIBDIR) -l$(BALLIBNAME)
+	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(DEVICE)/release/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz $(BUILD_DIR)/.
+	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(DEVICE)/release/broadcom/libbal_api_dist.so $(BUILD_DIR)/.
+	ln -sf $(PWD)/$(BAL_DIR)/bal_release/build/core/src/apps/bal_core_dist/bal_core_dist $(BUILD_DIR)/.
 	ln -sf $(shell ldconfig -p | grep libgrpc.so.6 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc.so.6
 	ln -sf $(shell ldconfig -p | grep libgrpc++.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++.so.1
 	ln -sf $(shell ldconfig -p | grep libgrpc++_reflection.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++_reflection.so.1
 
 deb:
-	rm -f *.deb
-	cp $(BUILD_DIR)/*.tar.gz mkdebian/debian/release_asfvolt16.tar.gz
+	cp $(BUILD_DIR)/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz mkdebian/debian
 	cp $(BUILD_DIR)/openolt mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc.so.6 mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc++.so.1 mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc++_reflection.so.1 mkdebian/debian
-	cd mkdebian && ./build_asfvolt16_deb.sh
+	cd mkdebian && ./build_$(DEVICE)_deb.sh
 	mv *.deb $(BUILD_DIR)/openolt.deb
+	make deb-cleanup
 
 src/%.o: %.cpp
 	$(CXX) -MMD -c $< -o $@
 
-deb-clean:
-	rm -f $(BUILD_DIR)/*.deb
-	rm -f mkdebian/debian/asfvolt16.debhelper.log
-	rm -f mkdebian/debian/asfvolt16.postinst.debhelper
-	rm -f mkdebian/debian/asfvolt16.postrm.debhelper
-	rm -rf mkdebian/debian/asfvolt16/
+deb-cleanup:
+	rm -f mkdebian/debian/$(DEVICE).debhelper.log
+	rm -f mkdebian/debian/$(DEVICE).postinst.debhelper
+	rm -f mkdebian/debian/$(DEVICE).postrm.debhelper
+	rm -f mkdebian/debian/$(DEVICE).substvars
+	rm -rf mkdebian/debian/$(DEVICE)/
 	rm -f mkdebian/debian/libgrpc++.so.1
 	rm -f mkdebian/debian/libgrpc++_reflection.so.1
 	rm -f mkdebian/debian/libgrpc.so.6
 	rm -f mkdebian/debian/openolt
-	rm -f mkdebian/debian/release_asfvolt16.tar.gz
+	rm -f mkdebian/debian/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz
 	rm -rf mkdebian/debian/tmp/
+	rm -f $(DEVICE)_$(BAL_VER)+edgecore-V$(ACCTON_VER)_amd64.changes
 
-clean: protos-clean
+clean: protos-clean deb-cleanup
 	rm -f $(OBJS) $(DEPS)
+	rm -rf protos/googleapis
 	rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++_reflection.so.1
+	rm -f $(BUILD_DIR)/libbal_api_dist.so
+	rm -f $(BUILD_DIR)/openolt
+	rm -f $(BUILD_DIR)/bal_core_dist
+	rm -f $(BUILD_DIR)/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz
+	rm -f $(BUILD_DIR)/openolt.deb
 
 distclean:
 	rm -rf $(BUILD_DIR)
+
+.PHONY: onl sdk bal protos prereq

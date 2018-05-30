@@ -28,10 +28,12 @@ extern "C"
 
 int main(int argc, char** argv) {
 
+/*
     if (argc < 5) {
         std::cout << "Missing arguments" << std::endl;
         exit(1);
     }
+*/
 
     bcmbal_init(argc, argv, NULL);
 

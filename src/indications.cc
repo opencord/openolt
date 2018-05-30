@@ -39,8 +39,8 @@ bcmos_errno OltIndication(bcmbal_obj *obj) {
     openolt::OltIndication* olt_ind = new openolt::OltIndication;
     Status status;
 
-    bcmbal_access_terminal_ind *acc_term_ind = (bcmbal_access_terminal_ind *)obj;
-    if (acc_term_ind->data.oper_status == BCMBAL_STATUS_UP) {
+    bcmbal_access_terminal_oper_status_change *acc_term_ind = (bcmbal_access_terminal_oper_status_change *)obj;
+    if (acc_term_ind->data.new_oper_status == BCMBAL_STATUS_UP) {
         olt_ind->set_oper_state("up");
         start_collecting_statistics();
     } else {
@@ -51,6 +51,7 @@ bcmos_errno OltIndication(bcmbal_obj *obj) {
     std::cout << "olt indication, oper_state:" << ind.olt_ind().oper_state() << std::endl;
     oltIndQ.push(ind);
 
+#define MAX_SUPPORTED_INTF 16
     // Enable all PON interfaces.
     for (int i = 0; i < MAX_SUPPORTED_INTF; i++) {
         status = EnablePonIf_(i);
@@ -87,10 +88,10 @@ bcmos_errno IfIndication(bcmbal_obj *obj) {
     openolt::IntfIndication* intf_ind = new openolt::IntfIndication;
 
     std::cout << "intf indication, intf_id:"
-              << ((bcmbal_interface_ind *)obj)->key.intf_id << std::endl;
+              << ((bcmbal_interface_oper_status_change *)obj)->key.intf_id << std::endl;
 
-    intf_ind->set_intf_id(((bcmbal_interface_ind *)obj)->key.intf_id);
-    if (((bcmbal_interface_ind *)obj)->data.oper_status == BCMBAL_STATUS_UP) {
+    intf_ind->set_intf_id(((bcmbal_interface_oper_status_change *)obj)->key.intf_id);
+    if (((bcmbal_interface_oper_status_change *)obj)->data.new_oper_status == BCMBAL_STATUS_UP) {
         intf_ind->set_oper_state("up");
     } else {
         intf_ind->set_oper_state("down");
@@ -211,29 +212,22 @@ bcmos_errno OnuDiscoveryIndication(bcmbal_cfg *obj) {
 bcmos_errno OnuIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
     openolt::OnuIndication* onu_ind = new openolt::OnuIndication;
-    openolt::SerialNumber* serial_number = new openolt::SerialNumber;
 
     bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_ind*)obj)->key);
+        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->key);
 
-    bcmbal_subscriber_terminal_ind_data *data =
-        &(((bcmbal_subscriber_terminal_ind*)obj)->data);
-
-    bcmbal_serial_number *in_serial_number = &(data->serial_number);
+    bcmbal_subscriber_terminal_oper_status_change_data *data =
+        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->data);
 
     std::cout << "onu indication, intf_id:"
          << key->intf_id
-         << " serial_number:"
-         << serial_number_to_str(in_serial_number)
-         << " oper_state:" << data->oper_status
-         << " admin_state:" << data->admin_state << std::endl;
+         << " oper_state:" << data->new_oper_status
+         << " admin_state:" << data->admin_state
+         << " onu_id:" << key->sub_term_id << std::endl;
 
     onu_ind->set_intf_id(key->intf_id);
     onu_ind->set_onu_id(key->sub_term_id);
-    serial_number->set_vendor_id(reinterpret_cast<const char *>(in_serial_number->vendor_id), 4);
-    serial_number->set_vendor_specific(reinterpret_cast<const char *>(in_serial_number->vendor_specific), 8);
-    onu_ind->set_allocated_serial_number(serial_number);
-    if (data->oper_status == BCMBAL_STATE_UP) {
+    if (data->new_oper_status == BCMBAL_STATE_UP) {
         onu_ind->set_oper_state("up");
     } else {
         onu_ind->set_oper_state("down");
@@ -378,7 +372,7 @@ Status SubscribeIndication() {
 
     /* OLT device indication */
     cb_cfg.obj_type = BCMBAL_OBJ_ID_ACCESS_TERMINAL;
-    ind_subgroup = bcmbal_access_terminal_auto_id_ind;
+    ind_subgroup = bcmbal_access_terminal_auto_id_oper_status_change;
     cb_cfg.p_subgroup = &ind_subgroup;
     cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OltIndication;
     if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
@@ -396,7 +390,7 @@ Status SubscribeIndication() {
 
     /* Interface indication */
     cb_cfg.obj_type = BCMBAL_OBJ_ID_INTERFACE;
-    ind_subgroup = bcmbal_interface_auto_id_ind;
+    ind_subgroup = bcmbal_interface_auto_id_oper_status_change;
     cb_cfg.p_subgroup = &ind_subgroup;
     cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)IfIndication;
     if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
@@ -441,7 +435,7 @@ Status SubscribeIndication() {
 
     /* onu indication */
     cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_ind;
+    ind_subgroup = bcmbal_subscriber_terminal_auto_id_oper_status_change;
     cb_cfg.p_subgroup = &ind_subgroup;
     cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuIndication;
     if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
@@ -473,6 +467,7 @@ Status SubscribeIndication() {
     if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
         return Status(grpc::StatusCode::INTERNAL, "Flow operational state change indication subscribe failed");
     }
+#if 0
     /* Flow Indication */
     cb_cfg.obj_type = BCMBAL_OBJ_ID_FLOW;
     ind_subgroup = bcmbal_flow_auto_id_ind;
@@ -490,16 +485,18 @@ Status SubscribeIndication() {
     if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
         return Status(grpc::StatusCode::INTERNAL, "Traffic mgmt queue indication subscribe failed");
     }
+#endif
 
     /* TM sched indication */
     cb_cfg.obj_type = BCMBAL_OBJ_ID_TM_SCHED;
-    ind_subgroup = bcmbal_tm_sched_auto_id_ind;
+    ind_subgroup = bcmbal_tm_sched_auto_id_oper_status_change;
     cb_cfg.p_subgroup = &ind_subgroup;
     cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)TmSchedIndication;
     if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
         return Status(grpc::StatusCode::INTERNAL, "Traffic mgmt queue indication subscribe failed");
     }
 
+#if 0
     /* Multicast group indication */
     cb_cfg.obj_type = BCMBAL_OBJ_ID_GROUP;
     ind_subgroup = bcmbal_group_auto_id_ind;
@@ -508,6 +505,7 @@ Status SubscribeIndication() {
     if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
         return Status(grpc::StatusCode::INTERNAL, "Multicast group indication subscribe failed");
     }
+#endif
 
     subscribed = true;
 

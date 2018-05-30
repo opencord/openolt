@@ -1,21 +1,13 @@
 #!/bin/bash
 
-# Extract BAL driver
-tar zxf /tmp/release_asfvolt16.tar.gz -C / 2>&1 > /dev/null
-
-# Copy OpenOLT folder
+rm -rf /opt/bcm68620
+rm -rf /broadcom
+tar zxf /tmp/release_asfvolt16_V02.06.201804301043.tar.gz -C / 2>&1 > /dev/null
+grep -q '\/opt\/bcm68620\/svk_init.sh' /etc/rc.local || sed -i -e '$i \/opt\/bcm68620\/svk_init.sh' /etc/rc.local
+rm -f /run/bcm68620
 mv /tmp/openolt /broadcom
-
-# Copy libraries
 mv /tmp/libgrpc++_reflection.so.1 /usr/local/lib
 mv /tmp/libgrpc++.so.1 /usr/local/lib
 mv /tmp/libgrpc.so.6 /usr/local/lib
 mv /broadcom/libbal_api_dist.so /usr/local/lib
-
-# Init file
-#mv /tmp/voltha_init.sh /broadcom
-grep -q '\/opt\/bcm68620\/svk_init.sh' /etc/rc.local || sed -i -e '$i \/opt\/bcm68620\/svk_init.sh' /etc/rc.local
-
-source /root/.bashrc
-cd /broadcom && /sbin/ldconfig
-/opt\/bcm68620\/svk_init.sh
+/opt/bcm68620/svk_init.sh

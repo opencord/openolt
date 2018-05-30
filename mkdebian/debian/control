@@ -8,6 +8,6 @@ Standards-Version: 3.6.2
 Package: asfvolt16
 Architecture: amd64
 Depends: ${shlibs:Depends}
-Description: Broadcom OLT drivers and CLI
-  ported from Broadcom SDK-2.4.3.6 package
+Description: Broadcom OLT drivers,CLI
+  ported from Broadcom SDK-2.6.0.1 package
 

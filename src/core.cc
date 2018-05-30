@@ -92,9 +92,14 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     memcpy(serial_num.vendor_specific, vendor_specific, 4);
     BCMBAL_CFG_PROP_SET(&sub_term_obj, subscriber_terminal, serial_number, serial_num);
 
+#if 0
+    // Commenting out as this is causing issues with onu activation
+    // with BAL 2.6 (Broadcom CS5248819).
+
     // FIXME - Use a default (all zeros) registration id.
     memset(registration_id.arr, 0, sizeof(registration_id.arr));
     BCMBAL_CFG_PROP_SET(&sub_term_obj, subscriber_terminal, registration_id, registration_id);
+#endif
 
     BCMBAL_CFG_PROP_SET(&sub_term_obj, subscriber_terminal, admin_state, BCMBAL_STATE_UP);
 

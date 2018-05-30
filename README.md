@@ -131,10 +131,10 @@ The following proprietary source code is required to build the OpenOLT driver.
 
 The versions currently supported by the OpenOLT driver are:
 
-* SW-BCM68620_2_4_3_6.zip
+* SW-BCM68620_2_6_0_1.zip
 * sdk-all-6.5.7.tar.gz
-* ACCTON_BAL_2.4.3.6-V201710131639.patch
-* OPENOLT_BAL_2.4.3.6.patch
+* ACCTON_BAL_2.6.0.1-V201804301043.patch
+* OPENOLT_BAL_2.6.0.1.patch
 
 > NOTE: the repository does not contain the above four source packages.  These
 > are needed to build the OpenOLT driver executable. Contact

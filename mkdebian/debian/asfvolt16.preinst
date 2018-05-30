@@ -2,7 +2,10 @@
 
 # kill CLI applications
 echo "kill running time application"
+[ -n "`pidof bcm_user_appl`" ] && killall bcm_user_appl
+[ -n "`pidof bcm.user`" ] && killall bcm.user
 [ -n "`pidof bal_core_dist`" ] && killall bal_core_dist 
+[ -n "`pidof voltha_bal_driver`" ] && killall voltha_bal_driver
 [ -n "`pidof openolt`" ] && killall openolt
 
 # unload drivers
@@ -10,6 +13,8 @@ echo "unload kernel drivers"
 [ -n "`lsmod | grep bcm_coop_dba_linux`" ] && rmmod bcm_coop_dba_linux && sleep 1
 [ -n "`lsmod | grep bcm_dev_ctrl_linux`" ] &&  rmmod bcm_dev_ctrl_linux && sleep 1
 [ -n "`lsmod | grep i2c_devs`" ] && rmmod i2c_devs && sleep 1
+[ -n "`lsmod | grep trmux`" ] && rmmod trmux && sleep 1
+[ -n "`lsmod | grep fld`" ] && rmmod fld && sleep 1
 [ -n "`lsmod | grep os_linux`" ] && rmmod os_linux && sleep 1
 [ -n "`lsmod | grep ll_pcie`" ] && rmmod ll_pcie && sleep 1
 [ -n "`lsmod | grep linux_user_bde`" ] && rmmod linux-user-bde && sleep 1
