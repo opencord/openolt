@@ -1,52 +1,62 @@
 # OpenOLT driver
 
-The *OpenOLT driver* runs on white box Optical Line Terminals (OLTs) and provides a gRPC-based management and control interface to OLTs.
+The *OpenOLT driver* runs on white box Optical Line Terminals (OLTs) and
+provides a gRPC-based management and control interface to OLTs.
 
-The OpenOLT driver is used by [VOLTHA](https://github.com/opencord/voltha) through the [OpenOLT adapter](https://github.com/opencord/voltha/tree/master/voltha/adapters/openolt).
+The OpenOLT driver is used by [VOLTHA](https://github.com/opencord/voltha)
+through the [OpenOLT
+adapter](https://github.com/opencord/voltha/tree/master/voltha/adapters/openolt).
 
-OpenOLT driver currently supports Broadcom's Maple/Qumran chipsets. 
+OpenOLT driver currently supports Broadcom's Maple/Qumran chipsets.
 
 ```text
 
-              +---------------------------------+
-              |             VOLTHA              |
-              |                                 |
-              |       +------------------+      |
-              |       | OpenOLT adapter  |      |
-              +-------+--------+---------+------+
-                               |
-              OpenOLT gRPC API |
-                               |
-            +--------------------- ---------------+
-            |                  |                  |
-            |         +------------------+        |
-            |         | OpenOLT driver   |        |
-            |         +--------+---------+        |
-            |                  |                  |
-            | Broadcom BAL API |                  |
-            |                  |                  |
-            |         +------------------+        |
-            |         | Maple/Qumran SDK |        |
-            |         +------------------+        |
-            |                                     |
-            |           White box OLT             |
-            +-------------------------------------+
+  +---------------------------------+
+  |             VOLTHA              |
+  |                                 |
+  |       +------------------+      |
+  |       | OpenOLT adapter  |      |
+  +-------+--------+---------+------+
+                   |
+  OpenOLT gRPC API |
+                   |
++--------------------- ---------------+
+|                  |                  |
+|         +------------------+        |
+|         | OpenOLT driver   |        |
+|         +--------+---------+        |
+|                  |                  |
+| Broadcom BAL API |                  |
+|                  |                  |
+|         +------------------+        |
+|         | Maple/Qumran SDK |        |
+|         +------------------+        |
+|                                     |
+|           White box OLT             |
++-------------------------------------+
 
 ```
 
 ## Hardware requirements
 
-A list of tested devices and optics can be found in the [CORD hardware requirements](https://github.com/opencord/docs/blob/master/prereqs/hardware.md#suggested-hardware) guide, in the *R-CORD access equipment and optics* section.
+A list of tested devices and optics can be found in the [CORD hardware
+requirements](https://github.com/opencord/docs/blob/master/prereqs/hardware.md#suggested-hardware)
+guide, in the *R-CORD access equipment and optics* section.
 
 ## Get the pre-built debian package
 
-Currently, [EdgeCore](jeff_catlin@edge-core.com) can privately distribute the latest OpenOLT debian package to its customers. Contact [Jeff Catlin](jeff_catlin@edge-core.com) for more information.
+Currently, [EdgeCore](mailto:jeff_catlin@edge-core.com) can privately
+distribute the latest OpenOLT debian package to its customers. Contact [Jeff
+Catlin](mailto:jeff_catlin@edge-core.com) for more information.
 
 ## Prerequisites
 
-The debian package has been tested on [this specific version of OpenNetworkingLinux (ONL)](https://github.com/opencord/OpenNetworkLinux/releases/download/20180124-olt-kernel-3.7.10/ONL-2.0.0_ONL-OS_2018-01-24.0118-1303f20_AMD64_INSTALLED_INSTALLER).
+The debian package has been tested on [this specific version of
+OpenNetworkingLinux
+(ONL)](https://github.com/opencord/OpenNetworkLinux/releases/download/20180124-olt-kernel-3.7.10/ONL-2.0.0_ONL-OS_2018-01-24.0118-1303f20_AMD64_INSTALLED_INSTALLER).
 
-More info on how to install ONL can be found on the official [ONL website](https://opennetlinux.org/docs/deploy).
+More info on how to install ONL can be found on the official [ONL
+website](https://opennetlinux.org/docs/deploy).
 
 ## Install OpenOLT
 
@@ -77,14 +87,16 @@ cd /broadcom
 ./bal_core_dist -C 127.0.0.1:40000 -A 127.0.0.1:50000
 ```
 
-While the first executable still runs (even in background), open another terminal and run *openolt*:
+While the first executable still runs (even in background), open another
+terminal and run *openolt*:
 
 ```shell
 cd /broadcom
 ./openolt  -C 127.0.0.1:40000 -A 127.0.0.1:50000
 ```
 
-> **NOTE**: the two executables will remain open in the terminals, unless they are put in background.
+> **NOTE**: the two executables will remain open in the terminals, unless they
+> are put in background.
 
 ### Connect from VOLTHA
 
@@ -98,7 +110,8 @@ At the VOLTHA CLI, preprovision and enable the OLT:
 ### Additional notes
 
 * *9191* is the TCP port that the *OpenOLT* driver uses for its gRPC channel
-* In the commands above, you can either use the loopback IP address (127.0.0.1) or substitute all its occurrences with the management IP of your OLT
+* In the commands above, you can either use the loopback IP address (127.0.0.1)
+  or substitute all its occurrences with the management IP of your OLT
 
 ## Build OpenOLT
 
@@ -113,7 +126,8 @@ The following proprietary source code is required to build the OpenOLT driver.
 * `SW-BCM68620_<BAL_VER>.zip` - Broadcom BAL source and Maple SDK
 * `sdk-all-<SDK_VER>.tar.gz` - Broadcom Qumran SDK
 * `ACCTON_BAL_<BAL_VER>-<ACCTON_VER>.patch` - Accton/Edgecore's patch
-* `OPENOLT_BAL_<BAL_VER>.patch` - A patch to Broadcom software to allow compilation with C++ based openolt
+* `OPENOLT_BAL_<BAL_VER>.patch` - A patch to Broadcom software to allow
+  compilation with C++ based openolt
 
 The versions currently supported by the OpenOLT driver are:
 
@@ -122,7 +136,9 @@ The versions currently supported by the OpenOLT driver are:
 * ACCTON_BAL_2.4.3.6-V201710131639.patch
 * OPENOLT_BAL_2.4.3.6.patch
 
-> **NOTE**: the repository does not contain the above four source packages. These are needed to build the OpenOLT driver executable. Contact [Broadcom](dave.baron@broadcom.com) to access the source packages.
+> NOTE: the repository does not contain the above four source packages.  These
+> are needed to build the OpenOLT driver executable. Contact
+> [Broadcom](mailto:dave.baron@broadcom.com) to access the source packages.
 
 ### System Requirements
 
@@ -152,13 +168,16 @@ This is usually a one-time thing, unless there is a change in the dependencies.
 make prereq
 ```
 
-Run *make*. This can take a while to complete the first time, since it builds ONL and the Broadcom SDKs. Following runs will be much faster, as they only build the OpenOLT driver source.
+Run *make*. This can take a while to complete the first time, since it builds
+ONL and the Broadcom SDKs. Following runs will be much faster, as they only
+build the OpenOLT driver source.
 
 ```shell
 make
 ```
 
-If the build process succeeds, libraries and executables will be created in the *openolt/build* directory.
+If the build process succeeds, libraries and executables will be created in the
+*openolt/build* directory.
 
 Optionally, build the debian package that will be installed on the OLT.
 
@@ -166,7 +185,8 @@ Optionally, build the debian package that will be installed on the OLT.
 make deb
 ```
 
-If the build process succeeds, the *openolt.deb* package will be created as well in the *openolt/build* directory.
+If the build process succeeds, the *openolt.deb* package will be created as
+well in the *openolt/build* directory.
 
 ### Cleanup
 
@@ -175,3 +195,4 @@ To cleanup the repository and start the build procedure again, run:
 ```shell
 make clean-all
 ```
+
