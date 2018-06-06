@@ -221,7 +221,9 @@ bcmos_errno OnuIndication(bcmbal_obj *obj) {
     std::cout << "onu indication, intf_id:"
          << key->intf_id
          << " serial_number:"
-         << serial_number_to_str(in_serial_number) << std::endl;
+         << serial_number_to_str(in_serial_number)
+         << " oper_state:" << data->oper_status
+         << " admin_state:" << data->admin_state << std::endl;
 
     onu_ind->set_intf_id(key->intf_id);
     onu_ind->set_onu_id(key->sub_term_id);

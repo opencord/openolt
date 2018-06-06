@@ -94,9 +94,15 @@ class OpenoltService final : public openolt::Openolt::Service {
             ServerWriter<openolt::Indication>* writer) override {
         std::cout << "Connection to Voltha established. Indications enabled"
         << std::endl;
-        while (1) {
+        bool isConnected = true;
+        while (isConnected) {
             auto oltInd = oltIndQ.pop();
-            writer->Write(oltInd);
+            isConnected = writer->Write(oltInd);
+            if (!isConnected) {
+                //Lost connectivity to this Voltha instance
+                //Put the indication back in the queue for next connecting instance
+                oltIndQ.push(oltInd);
+            }
             //oltInd.release_olt_ind()
         }
         return Status::OK;
