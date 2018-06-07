@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2018 Open Networking Foundation 
+    Copyright (C) 2018 Open Networking Foundation
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
 Status EnablePonIf_(uint32_t intf_id);
 Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
 Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
+Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt);
 Status FlowAdd_(uint32_t onu_id,
                 uint32_t flow_id, const std::string flow_type,
                 uint32_t access_intf_id, uint32_t network_intf_id,

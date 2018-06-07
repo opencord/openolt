@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2018 Open Networking Foundation 
+    Copyright (C) 2018 Open Networking Foundation
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -181,6 +181,28 @@ Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt) {
     std::cout << "Packet out of length " << buf.len
               << " sent to ONU" << onu_id
               << " through PON " << intf_id << std::endl;
+
+    free(buf.val);
+
+    return Status::OK;
+}
+
+Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt) {
+    bcmos_errno err = BCM_ERR_OK;
+    bcmbal_dest proxy_pkt_dest;
+    bcmbal_u8_list_u32_max_2048 buf;
+
+    proxy_pkt_dest.type = BCMBAL_DEST_TYPE_NNI,
+    proxy_pkt_dest.u.nni.intf_id = intf_id;
+
+    buf.len = pkt.size();
+    buf.val = (uint8_t *)malloc((buf.len)*sizeof(uint8_t));
+    memcpy(buf.val, (uint8_t *)pkt.data(), buf.len);
+
+    err = bcmbal_pkt_send(0, proxy_pkt_dest, (const char *)(buf.val), buf.len);
+
+    std::cout << "Packet out of length " << buf.len
+              << " sent through uplink port " << intf_id << std::endl;
 
     free(buf.val);
 

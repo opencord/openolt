@@ -73,6 +73,15 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->pkt());
     }
 
+    Status UplinkPacketOut(
+            ServerContext* context,
+            const openolt::UplinkPacket* request,
+            openolt::Empty* response) override {
+        return UplinkPacketOut_(
+            request->intf_id(),
+            request->pkt());
+    }
+
     Status FlowAdd(
             ServerContext* context,
             const openolt::Flow* request,
