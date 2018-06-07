@@ -25,6 +25,7 @@
 
 #include "core.h"
 #include "indications.h"
+#include "stats_collection.h"
 
 extern "C"
 {
@@ -403,6 +404,8 @@ Status FlowAdd_(uint32_t onu_id,
         return Status(grpc::StatusCode::INTERNAL, "flow add failed");
     }
 
+    register_new_flow(key);
+
     return Status::OK;
 }
 
@@ -421,12 +424,11 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id) {
 
         val.type = BCMBAL_TM_SCHED_OWNER_TYPE_AGG_PORT;
         val.u.agg_port.intf_id = (bcmbal_intf_id) intf_id;
-	val.u.agg_port.presence_mask = val.u.agg_port.presence_mask | BCMBAL_TM_SCHED_OWNER_AGG_PORT_ID_INTF_ID;
+	    val.u.agg_port.presence_mask = val.u.agg_port.presence_mask | BCMBAL_TM_SCHED_OWNER_AGG_PORT_ID_INTF_ID;
         val.u.agg_port.sub_term_id = (bcmbal_sub_id) onu_id;
         val.u.agg_port.presence_mask = val.u.agg_port.presence_mask | BCMBAL_TM_SCHED_OWNER_AGG_PORT_ID_SUB_TERM_ID;
-
-	val.u.agg_port.agg_port_id = (bcmbal_aggregation_port_id) agg_port_id;
-	val.u.agg_port.presence_mask = val.u.agg_port.presence_mask | BCMBAL_TM_SCHED_OWNER_AGG_PORT_ID_AGG_PORT_ID;
+	    val.u.agg_port.agg_port_id = (bcmbal_aggregation_port_id) agg_port_id;
+	    val.u.agg_port.presence_mask = val.u.agg_port.presence_mask | BCMBAL_TM_SCHED_OWNER_AGG_PORT_ID_AGG_PORT_ID;
 
         BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, val);
     }

@@ -122,6 +122,7 @@ BAL_INC = -I$(BAL_DIR)/bal_release/src/common/os_abstraction \
 	-I$(BAL_DIR)/bal_release/src/common/os_abstraction/posix \
 	-I$(BAL_DIR)/bal_release/src/common/config \
 	-I$(BAL_DIR)/bal_release/src/core/platform \
+	-I$(BAL_DIR)/bal_release/src/core/main \
 	-I$(BAL_DIR)/bal_release/src/common/include \
 	-I$(BAL_DIR)/bal_release/src/lib/libbalapi \
 	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/utils \

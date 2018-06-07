@@ -17,6 +17,7 @@
 #include "indications.h"
 #include "core.h"
 #include "utils.h"
+#include "stats_collection.h"
 extern "C"
 {
 #include <bcmos_system.h>
@@ -41,8 +42,10 @@ bcmos_errno OltIndication(bcmbal_obj *obj) {
     bcmbal_access_terminal_ind *acc_term_ind = (bcmbal_access_terminal_ind *)obj;
     if (acc_term_ind->data.oper_status == BCMBAL_STATUS_UP) {
         olt_ind->set_oper_state("up");
+        start_collecting_statistics();
     } else {
         olt_ind->set_oper_state("down");
+        stop_collecting_statistics();
     }
     ind.set_allocated_olt_ind(olt_ind);
     std::cout << "olt indication, oper_state:" << ind.olt_ind().oper_state() << std::endl;
