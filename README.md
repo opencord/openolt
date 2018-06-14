@@ -196,3 +196,20 @@ To cleanup the repository and start the build procedure again, run:
 make clean-all
 ```
 
+## FAQ
+
+### Change speed of ASFVOLT16 NNI interface
+
+Auto-negotiation on the NNI (uplink) interfaces is not tested. By default, the OpenOLT driver sets the speed of the NNI interfaces to 100G. To downgrade the network interface speed to 40G, add the following lines at the end of the qax.soc (/broadcom/qax.soc) configuration file. A restart of the bal_core_dist and openolt executables is required after the change.
+
+```shell
+port ce128 sp=40000
+```
+
+This change can also be made at run-time from the CLI of the bal_core_dist:
+
+```shell
+d/s/shell
+port ce128 speed=40000
+```
+(It is safe to ignore the error msgs.)
