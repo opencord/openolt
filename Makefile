@@ -81,13 +81,6 @@ prereq:
 	sudo make -C $(GRPC_DST)/third_party/protobuf install
 	sudo ldconfig
 
-	rm -rf /tmp/protobuf
-	git clone https://github.com/google/protobuf.git /tmp/protobuf
-	cd /tmp/protobuf && git submodule update --init --recursive && ./autogen.sh && ./configure
-	make -C /tmp/protobuf
-	sudo make -C /tmp/protobuf install
-	sudo ldconfig
-
 	# libunwind (needed by glog)
 	rm -rf /tmp/libunwind-1.2
 	wget http://download.savannah.nongnu.org/releases/libunwind/libunwind-1.2.tar.gz -P /tmp
