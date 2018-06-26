@@ -41,6 +41,8 @@ BUILD_DIR = build
 GRPC_ADDR = https://github.com/grpc/grpc
 GRPC_DST = /tmp/grpc
 GRPC_VER = v1.10.x
+
+USER := $(shell echo $(USER))
 #
 ########################################################################
 ##
@@ -54,15 +56,16 @@ SYSTEM ?= $(HOST_SYSTEM)
 CXX = g++
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
-ifeq ($(SYSTEM),Darwin)
-LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
-					 -lgrpc++_reflection\
-					 -ldl
-else
-LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
-					 -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
-					 -ldl
-endif
+#ifeq ($(SYSTEM),Darwin)
+#LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
+#					 -lgrpc++_reflection\
+#					 -ldl
+#else
+#LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
+#					 -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
+#					 -ldl
+#endif
+LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc` -ldl
 
 prereq:
 	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
@@ -99,6 +102,13 @@ prereq:
 	rm -rf /tmp/glog
 	git clone https://github.com/google/glog.git /tmp/glog
 	cd /tmp/glog && cmake -H. -Bbuild -G "Unix Makefiles" && cmake --build build && sudo cmake --build build --target install
+
+docker:
+	echo $(USER)
+	sudo groupadd -f docker
+ifneq "$(USER)" ""
+	sudo usermod -aG docker $(USER)
+endif
 
 ########################################################################
 ##
@@ -215,7 +225,7 @@ DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
 all: $(BUILD_DIR)/openolt
 $(BUILD_DIR)/openolt: sdk protos $(OBJS)
-	$(CXX) $(OBJS) $(LDFLAGS) $(OPENOLT_API_LIB) -o $@ -L$(BALLIBDIR) -l$(BALLIBNAME)
+	$(CXX) $(OBJS) $(OPENOLT_API_LIB) -o $@ -L$(BALLIBDIR) -l$(BALLIBNAME) $(LDFLAGS)
 	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(DEVICE)/release/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz $(BUILD_DIR)/.
 	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(DEVICE)/release/broadcom/libbal_api_dist.so $(BUILD_DIR)/.
 	ln -sf $(PWD)/$(BAL_DIR)/bal_release/build/core/src/apps/bal_core_dist/bal_core_dist $(BUILD_DIR)/.

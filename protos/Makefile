@@ -17,15 +17,16 @@ SYSTEM ?= $(HOST_SYSTEM)
 CXX = g++
 CPPFLAGS += `pkg-config --cflags protobuf grpc` -I googleapis/gens
 CXXFLAGS += -std=c++11
-ifeq ($(SYSTEM),Darwin)
-LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
-           -lgrpc++_reflection\
-           -ldl
-else
-LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
-           -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
-           -ldl
-endif
+#ifeq ($(SYSTEM),Darwin)
+#LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
+#           -lgrpc++_reflection\
+#           -ldl
+#else
+#LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
+#           -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
+#           -ldl
+#endif
+LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc` -ldl
 PROTOC = protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
