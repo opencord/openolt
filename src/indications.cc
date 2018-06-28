@@ -18,6 +18,8 @@
 #include "core.h"
 #include "utils.h"
 #include "stats_collection.h"
+#include "translation.h"
+#include <string>
 extern "C"
 {
 #include <bcmos_system.h>
@@ -79,7 +81,22 @@ bcmos_errno OltIndication(bcmbal_obj *obj) {
 
 bcmos_errno LosIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
-    std::cout << "LOS indication " << std::endl;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::LosIndication* los_ind = new openolt::LosIndication;
+
+    bcmbal_interface_los* bcm_los_ind = (bcmbal_interface_los *) obj;
+    int intf_id = interface_key_to_port_no(bcm_los_ind->key);
+    std::string status = alarm_status_to_string(bcm_los_ind->data.status);
+
+    std::cout << "LOS indication : " << intf_id << "  " << status << std::endl;
+
+    los_ind->set_intf_id(intf_id);
+    los_ind->set_status(status);
+
+    alarm_ind->set_allocated_los_ind(los_ind);
+    ind.set_allocated_alarm_ind(alarm_ind);
+
+    oltIndQ.push(ind);
     return BCM_ERR_OK;
 }
 
@@ -143,8 +160,8 @@ bcmos_errno OnuAlarmIndication(bcmbal_obj *obj) {
 
 bcmos_errno OnuDyingGaspIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
-    openolt::OnuIndication* onu_ind = new openolt::OnuIndication;
-    openolt::SerialNumber* serial_number = new openolt::SerialNumber;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::DyingGaspIndication* dg_ind = new openolt::DyingGaspIndication;
 
     bcmbal_subscriber_terminal_key *key =
         &(((bcmbal_subscriber_terminal_dgi*)obj)->key);
@@ -160,21 +177,12 @@ bcmos_errno OnuDyingGaspIndication(bcmbal_obj *obj) {
          << ", alarm: "
          << data->dgi_status << std::endl;
 
-    onu_ind->set_intf_id(key->intf_id);
-    onu_ind->set_onu_id(key->sub_term_id);
-    const char* zeros4 = "0000";
-    const char* zeros8 = "00000000";
-    serial_number->set_vendor_id(zeros4);
-    serial_number->set_vendor_specific(zeros8);
-    onu_ind->set_allocated_serial_number(serial_number);
-    //ONU is dying, set operating state to down
-    onu_ind->set_oper_state("down");
-    //TODO: set admin state to unknow ? For now assume that it is up otherwise
-    //we would not have received the alarm
-    onu_ind->set_admin_state("up");
+    dg_ind->set_intf_id(key->intf_id);
+    dg_ind->set_onu_id(key->sub_term_id);
+    dg_ind->set_status(alarm_status_to_string(data->dgi_status));
 
-
-    ind.set_allocated_onu_ind(onu_ind);
+    alarm_ind->set_allocated_dying_gasp_ind(dg_ind);
+    ind.set_allocated_alarm_ind(alarm_ind);
 
     oltIndQ.push(ind);
     return BCM_ERR_OK;
@@ -247,7 +255,6 @@ bcmos_errno OnuIndication(bcmbal_obj *obj) {
 bcmos_errno OnuOperIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
     openolt::OnuIndication* onu_ind = new openolt::OnuIndication;
-    openolt::SerialNumber* serial_number = new openolt::SerialNumber;
 
     bcmbal_subscriber_terminal_key *key =
         &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->key);
@@ -267,11 +274,6 @@ bcmos_errno OnuOperIndication(bcmbal_obj *obj) {
 
     onu_ind->set_intf_id(key->intf_id);
     onu_ind->set_onu_id(key->sub_term_id);
-    const char* zeros4 = "0000";
-    const char* zeros8 = "00000000";
-    serial_number->set_vendor_id(zeros4);
-    serial_number->set_vendor_specific(zeros8);
-    onu_ind->set_allocated_serial_number(serial_number);
     if (data->new_oper_status == BCMBAL_STATE_UP) {
         onu_ind->set_oper_state("up");
     } else {
