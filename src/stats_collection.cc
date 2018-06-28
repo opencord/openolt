@@ -93,8 +93,8 @@ openolt::PortStatistics* collectPortStatistics(int intf_id, bcmbal_intf_type int
     err = bcmbal_stat_get(DEFAULT_ATERM_ID, &stat.hdr, clear_on_read);
     if (err == BCM_ERR_OK)
     {
-        std::cout << "Interface statistics retrieved"
-                  << " intf_id:" << intf_id << std::endl;
+        //std::cout << "Interface statistics retrieved"
+        //          << " intf_id:" << intf_id << std::endl;
 
         port_stats->set_rx_bytes(stat.data.rx_bytes);
         port_stats->set_rx_packets(stat.data.rx_packets);

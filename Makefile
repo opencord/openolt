@@ -56,52 +56,23 @@ SYSTEM ?= $(HOST_SYSTEM)
 CXX = g++
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
-#ifeq ($(SYSTEM),Darwin)
-#LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
-#					 -lgrpc++_reflection\
-#					 -ldl
-#else
-#LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
-#					 -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
-#					 -ldl
-#endif
-LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc` -ldl
+LDFLAGS += -L/usr/local/lib `pkg-config --libs grpc++ grpc` -ldl
 
 prereq:
 	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
 	sudo apt-get install -y build-essential autoconf libssl-dev gawk debhelper dh-systemd init-system-helpers
 
-	# Install GRPC plugins
+	# Install GRPC, libprotobuf and protoc
 	rm -rf $(GRPC_DST)
 	git clone -b $(GRPC_VER) $(GRPC_ADDR) $(GRPC_DST)
 	cd $(GRPC_DST) && git submodule update --init
-	make -C $(GRPC_DST)
-	sudo make -C $(GRPC_DST) install
-	# Install libprotobuf and protoc
-	cd $(GRPC_DST)/third_party/protobuf && ./autogen.sh
-	cd $(GRPC_DST)/third_party/protobuf && ./configure
+	cd $(GRPC_DST)/third_party/protobuf && ./autogen.sh && ./configure
 	make -C $(GRPC_DST)/third_party/protobuf
 	sudo make -C $(GRPC_DST)/third_party/protobuf install
 	sudo ldconfig
-
-	# libunwind (needed by glog)
-	rm -rf /tmp/libunwind-1.2
-	wget http://download.savannah.nongnu.org/releases/libunwind/libunwind-1.2.tar.gz -P /tmp
-	cd /tmp && tar -xzvf libunwind-1.2.tar.gz
-	cd /tmp/libunwind-1.2 && ./configure
-	make -C /tmp/libunwind-1.2
-	sudo make -C /tmp/libunwind-1.2 install
-
-	# cmake (needed by glog)
-	sudo apt-get remove cmake cmake-data
-	sudo -E add-apt-repository -y ppa:george-edison55/cmake-3.x
-	sudo -E apt-get update
-	sudo apt-get install -y cmake
-
-        # glog
-	rm -rf /tmp/glog
-	git clone https://github.com/google/glog.git /tmp/glog
-	cd /tmp/glog && cmake -H. -Bbuild -G "Unix Makefiles" && cmake --build build && sudo cmake --build build --target install
+	make -C $(GRPC_DST)
+	sudo make -C $(GRPC_DST) install
+	sudo ldconfig
 
 docker:
 	echo $(USER)
@@ -163,9 +134,6 @@ BAL_INC = -I$(BAL_DIR)/bal_release/src/common/os_abstraction \
 	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/model \
 	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/api \
 	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_reference/cli
-#       -I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_customized/os_abstraction
-#       -I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_customized/os_abstraction/posix
-#       -I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/config
 CXXFLAGS += $(BAL_INC) -I $(BAL_DIR)/lib/cmdline
 CXXFLAGS += -DBCMOS_MSG_QUEUE_DOMAIN_SOCKET -DBCMOS_MSG_QUEUE_UDP_SOCKET -DBCMOS_MEM_CHECK -DBCMOS_SYS_UNITTEST
 
@@ -225,20 +193,18 @@ DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
 all: $(BUILD_DIR)/openolt
 $(BUILD_DIR)/openolt: sdk protos $(OBJS)
-	$(CXX) $(OBJS) $(OPENOLT_API_LIB) -o $@ -L$(BALLIBDIR) -l$(BALLIBNAME) $(LDFLAGS)
+	$(CXX) -pthread -L/usr/local/lib -L$(BALLIBDIR) $(OBJS) $(OPENOLT_API_LIB) /usr/local/lib/libprotobuf.a -o $@ -l$(BALLIBNAME) -lgrpc++ -lgrpc -lpthread -ldl
 	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(DEVICE)/release/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz $(BUILD_DIR)/.
 	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(DEVICE)/release/broadcom/libbal_api_dist.so $(BUILD_DIR)/.
 	ln -sf $(PWD)/$(BAL_DIR)/bal_release/build/core/src/apps/bal_core_dist/bal_core_dist $(BUILD_DIR)/.
 	ln -sf $(shell ldconfig -p | grep libgrpc.so.6 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc.so.6
 	ln -sf $(shell ldconfig -p | grep libgrpc++.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++.so.1
-	ln -sf $(shell ldconfig -p | grep libgrpc++_reflection.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++_reflection.so.1
 
 deb:
 	cp $(BUILD_DIR)/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz mkdebian/debian
 	cp $(BUILD_DIR)/openolt mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc.so.6 mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc++.so.1 mkdebian/debian
-	cp $(BUILD_DIR)/libgrpc++_reflection.so.1 mkdebian/debian
 	cd mkdebian && ./build_$(DEVICE)_deb.sh
 	mv *.deb $(BUILD_DIR)/openolt.deb
 	make deb-cleanup
@@ -253,7 +219,6 @@ deb-cleanup:
 	rm -f mkdebian/debian/$(DEVICE).substvars
 	rm -rf mkdebian/debian/$(DEVICE)/
 	rm -f mkdebian/debian/libgrpc++.so.1
-	rm -f mkdebian/debian/libgrpc++_reflection.so.1
 	rm -f mkdebian/debian/libgrpc.so.6
 	rm -f mkdebian/debian/openolt
 	rm -f mkdebian/debian/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz
@@ -263,7 +228,7 @@ deb-cleanup:
 clean: protos-clean deb-cleanup
 	rm -f $(OBJS) $(DEPS)
 	rm -rf protos/googleapis
-	rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++_reflection.so.1
+	rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1
 	rm -f $(BUILD_DIR)/libbal_api_dist.so
 	rm -f $(BUILD_DIR)/openolt
 	rm -f $(BUILD_DIR)/bal_core_dist
