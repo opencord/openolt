@@ -29,6 +29,7 @@
 #include "core.h"
 #include "indications.h"
 #include "stats_collection.h"
+#include "state.h"
 
 #include <grpc++/grpc++.h>
 #include <openolt.grpc.pb.h>
@@ -105,17 +106,20 @@ class OpenoltService final : public openolt::Openolt::Service {
             ServerWriter<openolt::Indication>* writer) override {
         std::cout << "Connection to Voltha established. Indications enabled"
         << std::endl;
-        bool isConnected = true;
-        while (isConnected) {
+        state::connect();
+
+        while (state::is_connected) {
             auto oltInd = oltIndQ.pop();
-            isConnected = writer->Write(oltInd);
+            bool isConnected = writer->Write(oltInd);
             if (!isConnected) {
                 //Lost connectivity to this Voltha instance
                 //Put the indication back in the queue for next connecting instance
                 oltIndQ.push(oltInd);
+                state::disconnect();
             }
             //oltInd.release_olt_ind()
         }
+
         return Status::OK;
     }
 

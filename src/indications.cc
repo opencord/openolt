@@ -19,7 +19,10 @@
 #include "utils.h"
 #include "stats_collection.h"
 #include "translation.h"
+#include "state.h"
+
 #include <string>
+
 extern "C"
 {
 #include <bcmos_system.h>
@@ -31,6 +34,7 @@ using grpc::Status;
 
 Queue<openolt::Indication> oltIndQ;
 //Queue<openolt::Indication*> oltIndQ;
+
 
 bool subscribed = false;
 
@@ -44,10 +48,10 @@ bcmos_errno OltIndication(bcmbal_obj *obj) {
     bcmbal_access_terminal_oper_status_change *acc_term_ind = (bcmbal_access_terminal_oper_status_change *)obj;
     if (acc_term_ind->data.new_oper_status == BCMBAL_STATUS_UP) {
         olt_ind->set_oper_state("up");
-        start_collecting_statistics();
+        state::activate();
     } else {
         olt_ind->set_oper_state("down");
-        stop_collecting_statistics();
+        state::deactivate();
     }
     ind.set_allocated_olt_ind(olt_ind);
     std::cout << "olt indication, oper_state:" << ind.olt_ind().oper_state() << std::endl;

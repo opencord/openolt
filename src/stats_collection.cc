@@ -167,6 +167,9 @@ void* stats_collection(void* x) {
     time_t now;
 
     while(isCollectingStatistics) {
+
+        std::cout << "Collecting statistics" << std::endl;
+
         //Ports statistics
 
         //Uplink ports
