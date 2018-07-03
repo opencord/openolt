@@ -158,7 +158,33 @@ bcmos_errno IfOperIndication(bcmbal_obj *obj) {
 
 bcmos_errno OnuAlarmIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
-    std::cout << "onu alarm indication" << std::endl;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::OnuAlarmIndication* onu_alarm_ind = new openolt::OnuAlarmIndication;
+
+    bcmbal_subscriber_terminal_key *key =
+        &((bcmbal_subscriber_terminal_sub_term_alarm*)obj)->key;
+
+    bcmbal_subscriber_terminal_alarms *alarms =
+        &(((bcmbal_subscriber_terminal_sub_term_alarm*)obj)->data.alarm);
+
+    std::cout << "onu alarm indication intf_id:" << key->intf_id
+        << ", onu_id:"
+        << key->sub_term_id
+        << ", alarm: los " << alarms->los << ", lob " << alarms->lob
+        << ", lopc_miss " << alarms->lopc_miss << ", lopc_mic_error "
+        << alarms->lopc_mic_error << std::endl;
+
+    onu_alarm_ind->set_intf_id(key->intf_id);
+    onu_alarm_ind->set_onu_id(key->sub_term_id);
+    onu_alarm_ind->set_los_status(alarm_status_to_string(alarms->los));
+    onu_alarm_ind->set_lob_status(alarm_status_to_string(alarms->lob));
+    onu_alarm_ind->set_lopc_miss_status(alarm_status_to_string(alarms->lopc_miss));
+    onu_alarm_ind->set_lopc_mic_error_status(alarm_status_to_string(alarms->lopc_mic_error));
+
+    alarm_ind->set_allocated_onu_alarm_ind(onu_alarm_ind);
+    ind.set_allocated_alarm_ind(alarm_ind);
+
+    oltIndQ.push(ind);
     return BCM_ERR_OK;
 }
 
@@ -365,6 +391,240 @@ bcmos_errno McastGroupIndication(bcmbal_obj *obj) {
     return BCM_ERR_OK;
 }
 
+bcmos_errno OnuStartupFailureIndication(bcmbal_obj *obj) {
+    openolt::Indication ind;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::OnuStartupFailureIndication* sufi_ind = new openolt::OnuStartupFailureIndication;
+
+    bcmbal_subscriber_terminal_key *key =
+        &(((bcmbal_subscriber_terminal_sufi*)obj)->key);
+
+    bcmbal_subscriber_terminal_sufi_data *data =
+        &(((bcmbal_subscriber_terminal_sufi*)obj)->data);
+
+    std::cout << "onu startup failure indication, intf_id:"
+         << key->intf_id
+         << ", onu_id:"
+         << key->sub_term_id
+         << ", alarm: "
+         << data->sufi_status << std::endl;
+
+    sufi_ind->set_intf_id(key->intf_id);
+    sufi_ind->set_onu_id(key->sub_term_id);
+    sufi_ind->set_status(alarm_status_to_string(data->sufi_status));
+
+    alarm_ind->set_allocated_onu_startup_fail_ind(sufi_ind);
+    ind.set_allocated_alarm_ind(alarm_ind);
+
+    oltIndQ.push(ind);
+    return BCM_ERR_OK;
+}
+
+bcmos_errno OnuSignalDegradeIndication(bcmbal_obj *obj) {
+    openolt::Indication ind;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::OnuSignalDegradeIndication* sdi_ind = new openolt::OnuSignalDegradeIndication;
+
+    bcmbal_subscriber_terminal_key *key =
+        &(((bcmbal_subscriber_terminal_sdi*)obj)->key);
+
+    bcmbal_subscriber_terminal_sdi_data *data =
+        &(((bcmbal_subscriber_terminal_sdi*)obj)->data);
+
+    std::cout << "onu signal degrade indication, intf_id:"
+         << key->intf_id
+         << ", onu_id:"
+         << key->sub_term_id
+         << ", alarm: "
+         << data->sdi_status
+         << ", BER : " << data->ber << std::endl;
+
+    sdi_ind->set_intf_id(key->intf_id);
+    sdi_ind->set_onu_id(key->sub_term_id);
+    sdi_ind->set_status(alarm_status_to_string(data->sdi_status));
+    sdi_ind->set_inverse_bit_error_rate(data->ber);
+
+    alarm_ind->set_allocated_onu_signal_degrade_ind(sdi_ind);
+    ind.set_allocated_alarm_ind(alarm_ind);
+
+    oltIndQ.push(ind);
+    return BCM_ERR_OK;
+}
+
+bcmos_errno OnuDriftOfWindowIndication(bcmbal_obj *obj) {
+    openolt::Indication ind;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::OnuDriftOfWindowIndication* dowi_ind = new openolt::OnuDriftOfWindowIndication;
+
+    bcmbal_subscriber_terminal_key *key =
+        &(((bcmbal_subscriber_terminal_dowi*)obj)->key);
+
+    bcmbal_subscriber_terminal_dowi_data *data =
+        &(((bcmbal_subscriber_terminal_dowi*)obj)->data);
+
+    std::cout << "onu drift of window indication, intf_id:"
+         << key->intf_id
+         << ", onu_id:"
+         << key->sub_term_id
+         << ", alarm: "
+         << data->dowi_status
+         << ", drift : " << data->drift_value
+         << "new_eqd : " << data->new_eqd << std::endl;
+
+    dowi_ind->set_intf_id(key->intf_id);
+    dowi_ind->set_onu_id(key->sub_term_id);
+    dowi_ind->set_status(alarm_status_to_string(data->dowi_status));
+    dowi_ind->set_drift(data->drift_value);
+    dowi_ind->set_new_eqd(data->new_eqd);
+
+    alarm_ind->set_allocated_onu_drift_of_window_ind(dowi_ind);
+    ind.set_allocated_alarm_ind(alarm_ind);
+
+    oltIndQ.push(ind);
+    return BCM_ERR_OK;
+}
+
+bcmos_errno OnuLossOfOmciChannelIndication(bcmbal_obj *obj) {
+    openolt::Indication ind;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::OnuLossOfOmciChannelIndication* looci_ind = new openolt::OnuLossOfOmciChannelIndication;
+
+    bcmbal_subscriber_terminal_key *key =
+        &(((bcmbal_subscriber_terminal_looci*)obj)->key);
+
+    bcmbal_subscriber_terminal_looci_data *data =
+        &(((bcmbal_subscriber_terminal_looci*)obj)->data);
+
+    std::cout << "onu loss of OMCI channel indication, intf_id:"
+         << key->intf_id
+         << ", onu_id:"
+         << key->sub_term_id
+         << ", alarm: "
+         << data->looci_status << std::endl;
+
+
+    looci_ind->set_intf_id(key->intf_id);
+    looci_ind->set_onu_id(key->sub_term_id);
+    looci_ind->set_status(alarm_status_to_string(data->looci_status));
+
+    alarm_ind->set_allocated_onu_loss_omci_ind(looci_ind);
+    ind.set_allocated_alarm_ind(alarm_ind);
+
+    oltIndQ.push(ind);
+    return BCM_ERR_OK;
+}
+
+bcmos_errno OnuSignalsFailureIndication(bcmbal_obj *obj) {
+    openolt::Indication ind;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::OnuSignalsFailureIndication* sfi_ind = new openolt::OnuSignalsFailureIndication;
+
+    bcmbal_subscriber_terminal_key *key =
+        &(((bcmbal_subscriber_terminal_sfi*)obj)->key);
+
+    bcmbal_subscriber_terminal_sfi_data *data =
+        &(((bcmbal_subscriber_terminal_sfi*)obj)->data);
+
+    std::cout << "onu signals failure indication, intf_id:"
+         << key->intf_id
+         << ", onu_id:"
+         << key->sub_term_id
+         << ", alarm: "
+         << data->sfi_status
+         << ", BER: " << data->ber << std::endl;
+
+
+    sfi_ind->set_intf_id(key->intf_id);
+    sfi_ind->set_onu_id(key->sub_term_id);
+    sfi_ind->set_status(alarm_status_to_string(data->sfi_status));
+    sfi_ind->set_inverse_bit_error_rate(data->ber);
+
+    alarm_ind->set_allocated_onu_signals_fail_ind(sfi_ind);
+    ind.set_allocated_alarm_ind(alarm_ind);
+
+    oltIndQ.push(ind);
+    return BCM_ERR_OK;
+}
+
+bcmos_errno OnuTransmissionInterferenceWarningIndication(bcmbal_obj *obj) {
+    openolt::Indication ind;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::OnuTransmissionInterferenceWarning* tiwi_ind = new openolt::OnuTransmissionInterferenceWarning;
+
+    bcmbal_subscriber_terminal_key *key =
+        &(((bcmbal_subscriber_terminal_tiwi*)obj)->key);
+
+    bcmbal_subscriber_terminal_tiwi_data *data =
+        &(((bcmbal_subscriber_terminal_tiwi*)obj)->data);
+
+    std::cout << "onu transmission interference warning indication, intf_id:"
+         << key->intf_id
+         << ", onu_id:"
+         << key->sub_term_id
+         << ", alarm: "
+         << data->tiwi_status
+         << ", drift: " << data->drift_value << std::endl;
+
+    tiwi_ind->set_intf_id(key->intf_id);
+    tiwi_ind->set_onu_id(key->sub_term_id);
+    tiwi_ind->set_status(alarm_status_to_string(data->tiwi_status));
+    tiwi_ind->set_drift(data->drift_value);
+
+    alarm_ind->set_allocated_onu_tiwi_ind(tiwi_ind);
+    ind.set_allocated_alarm_ind(alarm_ind);
+
+    oltIndQ.push(ind);
+    return BCM_ERR_OK;
+}
+
+bcmos_errno OnuActivationFailureIndication(bcmbal_obj *obj) {
+    openolt::Indication ind;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::OnuActivationFailureIndication* activation_fail_ind = new openolt::OnuActivationFailureIndication;
+
+    bcmbal_subscriber_terminal_key *key =
+        &(((bcmbal_subscriber_terminal_sub_term_act_fail*)obj)->key);
+
+    std::cout << "onu activation failure indication, intf_id:"
+         << key->intf_id
+         << ", onu_id:"
+         << key->sub_term_id << std::endl;
+
+
+    activation_fail_ind->set_intf_id(key->intf_id);
+    activation_fail_ind->set_onu_id(key->sub_term_id);
+
+    alarm_ind->set_allocated_onu_activation_fail_ind(activation_fail_ind);
+    ind.set_allocated_alarm_ind(alarm_ind);
+
+    oltIndQ.push(ind);
+    return BCM_ERR_OK;
+}
+
+bcmos_errno OnuProcessingErrorIndication(bcmbal_obj *obj) {
+    openolt::Indication ind;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::OnuProcessingErrorIndication* onu_proc_error_ind = new openolt::OnuProcessingErrorIndication;
+
+    bcmbal_subscriber_terminal_key *key =
+        &(((bcmbal_subscriber_terminal_processing_error*)obj)->key);
+
+    std::cout << "onu processing error indication, intf_id:"
+         << key->intf_id
+         << ", onu_id:"
+         << key->sub_term_id << std::endl;
+
+
+    onu_proc_error_ind->set_intf_id(key->intf_id);
+    onu_proc_error_ind->set_onu_id(key->sub_term_id);
+
+    alarm_ind->set_allocated_onu_processing_error_ind(onu_proc_error_ind);
+    ind.set_allocated_alarm_ind(alarm_ind);
+
+    oltIndQ.push(ind);
+    return BCM_ERR_OK;
+}
+
 Status SubscribeIndication() {
     bcmbal_cb_cfg cb_cfg = {};
     uint16_t ind_subgroup;
@@ -512,6 +772,79 @@ Status SubscribeIndication() {
         return Status(grpc::StatusCode::INTERNAL, "Multicast group indication subscribe failed");
     }
 #endif
+
+
+    /* ONU startup failure indication */
+    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
+    ind_subgroup = bcmbal_subscriber_terminal_auto_id_sufi;
+    cb_cfg.p_subgroup = &ind_subgroup;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuStartupFailureIndication;
+    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+        return Status(grpc::StatusCode::INTERNAL, "onu startup failure indication subscribe failed");
+    }
+
+    /* SDI indication */
+    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
+    ind_subgroup = bcmbal_subscriber_terminal_auto_id_sdi;
+    cb_cfg.p_subgroup = &ind_subgroup;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuSignalDegradeIndication;
+    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+        return Status(grpc::StatusCode::INTERNAL, "onu sdi indication subscribe failed");
+    }
+
+    /* DOWI indication */
+    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
+    ind_subgroup = bcmbal_subscriber_terminal_auto_id_dowi;
+    cb_cfg.p_subgroup = &ind_subgroup;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuDriftOfWindowIndication;
+    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+        return Status(grpc::StatusCode::INTERNAL, "onu dowi indication subscribe failed");
+    }
+
+    /* LOOCI indication */
+    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
+    ind_subgroup = bcmbal_subscriber_terminal_auto_id_looci;
+    cb_cfg.p_subgroup = &ind_subgroup;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuLossOfOmciChannelIndication;
+    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+        return Status(grpc::StatusCode::INTERNAL, "onu looci indication subscribe failed");
+    }
+
+    /* SFI indication */
+    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
+    ind_subgroup = bcmbal_subscriber_terminal_auto_id_sfi;
+    cb_cfg.p_subgroup = &ind_subgroup;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuSignalsFailureIndication;
+    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+        return Status(grpc::StatusCode::INTERNAL, "onu sfi indication subscribe failed");
+    }
+
+    /* TIWI indication */
+    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
+    ind_subgroup = bcmbal_subscriber_terminal_auto_id_tiwi;
+    cb_cfg.p_subgroup = &ind_subgroup;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuTransmissionInterferenceWarningIndication;
+    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+        return Status(grpc::StatusCode::INTERNAL, "onu tiwi indication subscribe failed");
+    }
+
+    /* TIWI indication */
+    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
+    ind_subgroup = bcmbal_subscriber_terminal_auto_id_sub_term_act_fail;
+    cb_cfg.p_subgroup = &ind_subgroup;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuActivationFailureIndication;
+    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+        return Status(grpc::StatusCode::INTERNAL, "onu activation falaire indication subscribe failed");
+    }
+
+    /* ONU processing error indication */
+    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
+    ind_subgroup = bcmbal_subscriber_terminal_auto_id_processing_error;
+    cb_cfg.p_subgroup = &ind_subgroup;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuProcessingErrorIndication;
+    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+        return Status(grpc::StatusCode::INTERNAL, "onu processing error indication subscribe failed");
+    }
 
     subscribed = true;
 
