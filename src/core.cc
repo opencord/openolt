@@ -638,6 +638,36 @@ Status FlowAdd_(uint32_t onu_id,
     return Status::OK;
 }
 
+Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
+
+    bcmbal_flow_cfg cfg;
+    bcmbal_flow_key key = { };
+
+    key.flow_id = (bcmbal_flow_id) flow_id;
+    key.flow_id = flow_id;
+    if (flow_type.compare("upstream") == 0 ) {
+        key.flow_type = BCMBAL_FLOW_TYPE_UPSTREAM;
+    } else if (flow_type.compare("downstream") == 0) {
+        key.flow_type = BCMBAL_FLOW_TYPE_DOWNSTREAM;
+    } else {
+        std::cout << "Invalid flow type " << flow_type << std::endl;
+        return bcm_to_grpc_err(BCM_ERR_PARM, "Invalid flow type");
+    }
+
+    BCMBAL_CFG_INIT(&cfg, flow, key);
+
+
+    bcmos_errno err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &cfg.hdr);
+    if (err) {
+        std::cout << "Error " << err << " while removing flow "
+            << flow_id << ", " << flow_type << std::endl;
+        return Status(grpc::StatusCode::INTERNAL, "Failed to remove flow");
+    }
+
+    std::cout << "Flow " << flow_id << ", " << flow_type << " removed";
+    return Status::OK;
+}
+
 Status SchedAdd_(int intf_id, int onu_id, int agg_port_id) {
     bcmbal_tm_sched_cfg cfg;
     bcmbal_tm_sched_key key = { };

@@ -42,6 +42,7 @@ Status FlowAdd_(uint32_t onu_id,
                 uint32_t gemport_id, uint32_t priority,
                 const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action);
+Status FlowRemove_(uint32_t flow_id, const std::string flow_type);
 Status Disable_();
 Status Reenable_();
 

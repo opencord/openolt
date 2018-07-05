@@ -138,6 +138,15 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->action());
     }
 
+    Status FlowRemove(
+            ServerContext* context,
+            const openolt::Flow* request,
+            openolt::Empty* response) override {
+        return FlowRemove_(
+            request->flow_id(),
+            request->flow_type());
+    }
+
     Status EnableIndication(
             ServerContext* context,
             const ::openolt::Empty* request,
