@@ -71,6 +71,24 @@ Status EnablePonIf_(uint32_t intf_id) {
     return Status::OK;
 }
 
+Status DisablePonIf_(uint32_t intf_id) {
+    bcmbal_interface_cfg interface_obj;
+    bcmbal_interface_key interface_key;
+
+    interface_key.intf_id = intf_id;
+    interface_key.intf_type = BCMBAL_INTF_TYPE_PON;
+
+    BCMBAL_CFG_INIT(&interface_obj, interface, interface_key);
+    BCMBAL_CFG_PROP_SET(&interface_obj, interface, admin_state, BCMBAL_STATE_DOWN);
+
+    if (bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr))) {
+        std::cout << "ERROR: Failed to disable PON interface: " << intf_id << std::endl;
+        return Status(grpc::StatusCode::INTERNAL, "Failed to disable PON interface");
+    }
+
+    return Status::OK;
+}
+
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific) {
 

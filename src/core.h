@@ -26,6 +26,7 @@ Status Enable_();
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific);
 Status EnablePonIf_(uint32_t intf_id);
+Status DisablePonIf_(uint32_t intf_id);
 Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
 Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
 Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt);

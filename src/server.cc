@@ -132,6 +132,21 @@ class OpenoltService final : public openolt::Openolt::Service {
         return Status::OK;
     }
 
+    Status EnablePonIf(
+            ServerContext* context,
+            const openolt::Interface* request,
+            openolt::Empty* response) override {
+
+        return EnablePonIf_(request->intf_id());
+    }
+
+    Status DisablePonIf(
+            ServerContext* context,
+            const openolt::Interface* request,
+            openolt::Empty* response) override {
+
+        return DisablePonIf_(request->intf_id());
+    }
 
 };
 
