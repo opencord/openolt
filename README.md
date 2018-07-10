@@ -84,7 +84,7 @@ Open a terminal and run the Broadcom BAL software (*bal_core_dist*):
 
 ```shell
 cd /broadcom
-./bal_core_dist -C 127.0.0.1:40000 -A 127.0.0.1:50000
+./bal_core_dist -C :55001
 ```
 
 While the first executable still runs (even in background), open another
@@ -92,7 +92,7 @@ terminal and run *openolt*:
 
 ```shell
 cd /broadcom
-./openolt  -C 127.0.0.1:40000 -A 127.0.0.1:50000
+./openolt -C 127.0.0.1:55001
 ```
 
 > **NOTE**: the two executables will remain open in the terminals, unless they
@@ -117,7 +117,7 @@ At the VOLTHA CLI, preprovision and enable the OLT:
 
 ### Supported BAL API versions
 
-Currently, OpenOLT support the Broadcom BAL APIs, version *2.4.3.6*.
+Currently, OpenOLT support the Broadcom BAL APIs, version *2.6.0.1*.
 
 ### Proprietary software requirements
 
@@ -158,7 +158,7 @@ Copy the Broadcom source and patch files to the openolt/download directory:
 
 ```shell
 cd openolt/download
-cp SW-BCM68620_2_4_3_6.zip sdk-all-6.5.7.tar.gz ACCTON_BAL_2.4.3.6-V201710131639.patch OPENOLT_BAL_2.4.3.6.zip ./download
+cp SW-BCM68620_2_6_0_1.zip sdk-all-6.5.7.tar.gz ACCTON_BAL_2.6.0.1-V201804301043.patch OPENOLT_BAL_2.6.0.1.patch ./download
 ```
 
 Run *make prereq* to install the package dependencies.
