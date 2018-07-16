@@ -26,6 +26,7 @@
 #include "core.h"
 #include "indications.h"
 #include "stats_collection.h"
+#include "error_format.h"
 
 extern "C"
 {
@@ -44,9 +45,10 @@ Status Enable_() {
         key.access_term_id = DEFAULT_ATERM_ID;
         BCMBAL_CFG_INIT(&acc_term_obj, access_terminal, key);
         BCMBAL_CFG_PROP_SET(&acc_term_obj, access_terminal, admin_state, BCMBAL_STATE_UP);
-        if (bcmbal_cfg_set(DEFAULT_ATERM_ID, &(acc_term_obj.hdr))) {
+        bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(acc_term_obj.hdr));
+        if (err) {
             std::cout << "ERROR: Failed to enable OLT" << std::endl;
-            return Status(grpc::StatusCode::INTERNAL, "Failed to enable OLT");
+            return bcm_to_grpc_err(err, "Failed to enable OLT");
         }
         enabled = true;
     }
@@ -63,9 +65,10 @@ Status EnablePonIf_(uint32_t intf_id) {
     BCMBAL_CFG_INIT(&interface_obj, interface, interface_key);
     BCMBAL_CFG_PROP_SET(&interface_obj, interface, admin_state, BCMBAL_STATE_UP);
 
-    if (bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr))) {
+    bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
+    if (err) {
         std::cout << "ERROR: Failed to enable PON interface: " << intf_id << std::endl;
-        return Status(grpc::StatusCode::INTERNAL, "Failed to enable PON interface");
+        return bcm_to_grpc_err(err, "Failed to enable PON interface");
     }
 
     return Status::OK;
@@ -81,9 +84,10 @@ Status DisablePonIf_(uint32_t intf_id) {
     BCMBAL_CFG_INIT(&interface_obj, interface, interface_key);
     BCMBAL_CFG_PROP_SET(&interface_obj, interface, admin_state, BCMBAL_STATE_DOWN);
 
-    if (bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr))) {
+    bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
+    if (err) {
         std::cout << "ERROR: Failed to disable PON interface: " << intf_id << std::endl;
-        return Status(grpc::StatusCode::INTERNAL, "Failed to disable PON interface");
+        return bcm_to_grpc_err(err, "Failed to disable PON interface");
     }
 
     return Status::OK;
@@ -121,9 +125,10 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
 
     BCMBAL_CFG_PROP_SET(&sub_term_obj, subscriber_terminal, admin_state, BCMBAL_STATE_UP);
 
-    if (bcmbal_cfg_set(DEFAULT_ATERM_ID, &(sub_term_obj.hdr))) {
+    bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(sub_term_obj.hdr));
+    if (err) {
         std::cout << "ERROR: Failed to enable ONU: " << std::endl;
-        return Status(grpc::StatusCode::INTERNAL, "Failed to enable ONU");
+        return bcm_to_grpc_err(err, "Failed to enable ONU");
     }
 
     return SchedAdd_(intf_id, onu_id, mk_agg_port_id(onu_id));
@@ -259,7 +264,7 @@ Status FlowAdd_(uint32_t onu_id,
         key.flow_type = BCMBAL_FLOW_TYPE_DOWNSTREAM;
     } else {
         std::cout << "Invalid flow type " << flow_type << std::endl;
-        return Status::CANCELLED;
+        return bcm_to_grpc_err(BCM_ERR_PARM, "Invalid flow type");
     }
 
     BCMBAL_CFG_INIT(&cfg, flow, key);
@@ -422,9 +427,10 @@ Status FlowAdd_(uint32_t onu_id,
         BCMBAL_CFG_PROP_SET(&cfg, flow, dba_tm_sched_id, val);
     }
 
-    if (bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr))) {
+    err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr));
+    if (err) {
         std::cout << "ERROR: flow add failed" << std::endl;
-        return Status(grpc::StatusCode::INTERNAL, "flow add failed");
+        return bcm_to_grpc_err(err, "flow add failed");
     }
 
     register_new_flow(key);
@@ -456,12 +462,13 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id) {
         BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, val);
     }
 
-    if (bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr))) {
+    bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr));
+    if (err) {
         std::cout << "ERROR: Failed to create upstream DBA sched"
                   << " id:" << key.id
                   << " intf_id:" << intf_id
                   << " onu_id:" << onu_id << std::endl;
-        return Status(grpc::StatusCode::INTERNAL, "Failed to create upstream DBA sched");
+        return bcm_to_grpc_err(err, "Failed to create upstream DBA sched");
         //return 1;
     }
     std::cout << "create upstream DBA sched"
