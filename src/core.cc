@@ -241,7 +241,7 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt) {
 Status FlowAdd_(uint32_t onu_id,
                 uint32_t flow_id, const std::string flow_type,
                 uint32_t access_intf_id, uint32_t network_intf_id,
-                uint32_t gemport_id,
+                uint32_t gemport_id, uint32_t priority_value,
                 const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action) {
     bcmos_errno err;
@@ -274,6 +274,8 @@ Status FlowAdd_(uint32_t onu_id,
     BCMBAL_CFG_PROP_SET(&cfg, flow, network_int_id, network_intf_id);
     BCMBAL_CFG_PROP_SET(&cfg, flow, sub_term_id, onu_id);
     BCMBAL_CFG_PROP_SET(&cfg, flow, svc_port_id, gemport_id);
+    BCMBAL_CFG_PROP_SET(&cfg, flow, priority, priority_value);
+
 
     {
         bcmbal_classifier val = { };

@@ -33,7 +33,7 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt);
 Status FlowAdd_(uint32_t onu_id,
                 uint32_t flow_id, const std::string flow_type,
                 uint32_t access_intf_id, uint32_t network_intf_id,
-                uint32_t gemport_id,
+                uint32_t gemport_id, uint32_t priority,
                 const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action);
 

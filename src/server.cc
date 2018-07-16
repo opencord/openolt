@@ -96,6 +96,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->access_intf_id(),
             request->network_intf_id(),
             request->gemport_id(),
+            request->priority(),
             request->classifier(),
             request->action());
     }
