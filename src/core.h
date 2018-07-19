@@ -25,6 +25,10 @@ using grpc::Status;
 Status Enable_();
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific);
+Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
+    const char *vendor_id, const char *vendor_specific);
+Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
+    const char *vendor_id, const char *vendor_specific);
 Status EnablePonIf_(uint32_t intf_id);
 Status DisablePonIf_(uint32_t intf_id);
 Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
@@ -38,6 +42,7 @@ Status FlowAdd_(uint32_t onu_id,
                 const ::openolt::Action& action);
 
 static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id);
+static Status SchedRemove_(int intf_id, int onu_id, int agg_port_id);
 
 static inline int mk_sched_id(int onu_id) {
     return 1023 + onu_id;

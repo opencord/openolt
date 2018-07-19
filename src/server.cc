@@ -56,6 +56,28 @@ class OpenoltService final : public openolt::Openolt::Service {
             ((request->serial_number()).vendor_specific()).c_str());
     }
 
+    Status DeactivateOnu(
+            ServerContext* context,
+            const openolt::Onu* request,
+            openolt::Empty* response) override {
+        return DeactivateOnu_(
+            request->intf_id(),
+            request->onu_id(),
+            ((request->serial_number()).vendor_id()).c_str(),
+            ((request->serial_number()).vendor_specific()).c_str());
+    }
+
+    Status DeleteOnu(
+            ServerContext* context,
+            const openolt::Onu* request,
+            openolt::Empty* response) override {
+        return DeleteOnu_(
+            request->intf_id(),
+            request->onu_id(),
+            ((request->serial_number()).vendor_id()).c_str(),
+            ((request->serial_number()).vendor_specific()).c_str());
+    }
+
     Status OmciMsgOut(
             ServerContext* context,
             const openolt::OmciMsg* request,

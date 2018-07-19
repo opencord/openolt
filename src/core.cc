@@ -136,6 +136,65 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     //return Status::OK;
 }
 
+Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
+    const char *vendor_id, const char *vendor_specific) {
+
+    SchedRemove_(intf_id, onu_id, mk_agg_port_id(onu_id));
+
+    bcmbal_subscriber_terminal_cfg sub_term_obj = {};
+    bcmbal_subscriber_terminal_key subs_terminal_key;
+
+    std::cout << "Deactivating ONU " << onu_id << " on PON " << intf_id << std::endl;
+    std::cout << "Vendor Id " << vendor_id
+              << "Vendor Specific Id " << vendor_specific
+              << std::endl;
+
+    subs_terminal_key.sub_term_id = onu_id;
+    subs_terminal_key.intf_id = intf_id;
+    BCMBAL_CFG_INIT(&sub_term_obj, subscriber_terminal, subs_terminal_key);
+
+    BCMBAL_CFG_PROP_SET(&sub_term_obj, subscriber_terminal, admin_state, BCMBAL_STATE_DOWN);
+
+    if (bcmbal_cfg_set(DEFAULT_ATERM_ID, &(sub_term_obj.hdr))) {
+        std::cout << "ERROR: Failed to deactivate ONU: " << std::endl;
+        return Status(grpc::StatusCode::INTERNAL, "Failed to deactivate ONU");
+    }
+
+    return Status::OK;
+}
+
+Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
+    const char *vendor_id, const char *vendor_specific) {
+    bcmos_errno err = BCM_ERR_OK;
+    bcmbal_subscriber_terminal_cfg cfg;
+    bcmbal_subscriber_terminal_key key = { };
+
+    std::cout << "Processing subscriber terminal cfg clear for sub_term_id = "
+              << onu_id << " and intf_id = " << intf_id << std::endl;
+
+    key.sub_term_id = onu_id ;
+    key.intf_id = intf_id ;
+
+    if (0 == key.sub_term_id)
+    {
+            std::cout << "Invalid Key to handle subscriber terminal clear subscriber_terminal_id = "
+                      << onu_id << " Interface ID = " << intf_id << std::endl;
+            return Status(grpc::StatusCode::INTERNAL, "Failed to delete ONU");
+    }
+
+    BCMBAL_CFG_INIT(&cfg, subscriber_terminal, key);
+
+    err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &cfg.hdr);
+    if (err != BCM_ERR_OK)
+    {
+       std::cout << "Failed to clear information for BAL subscriber_terminal_id = "
+                << onu_id << " Interface ID = " << intf_id << std::endl;
+        return Status(grpc::StatusCode::INTERNAL, "Failed to delete ONU");
+    }
+
+    return Status::OK;;
+}
+
 #define MAX_CHAR_LENGTH  20
 #define MAX_OMCI_MSG_LENGTH 44
 Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt) {
@@ -474,6 +533,33 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id) {
         //return 1;
     }
     std::cout << "create upstream DBA sched"
+              << " id:" << key.id
+              << " intf_id:" << intf_id
+              << " onu_id:" << onu_id << std::endl;
+
+    return Status::OK;
+    //return 0;
+}
+
+Status SchedRemove_(int intf_id, int onu_id, int agg_port_id) {
+    bcmbal_tm_sched_cfg cfg;
+    bcmbal_tm_sched_key key = { };
+    bcmbal_tm_sched_type sched_type;
+
+    key.id = mk_sched_id(onu_id);
+    key.dir = BCMBAL_TM_SCHED_DIR_US;
+
+    BCMBAL_CFG_INIT(&cfg, tm_sched, key);
+
+    if (bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(cfg.hdr))) {
+      std::cout << "ERROR: Failed to remove upstream DBA sched"
+                << " id:" << key.id
+                << " intf_id:" << intf_id
+                << " onu_id:" << onu_id << std::endl;
+      return Status(grpc::StatusCode::INTERNAL, "Failed to remove upstream DBA sched");
+    }
+
+    std::cout << "remove upstream DBA sched"
               << " id:" << key.id
               << " intf_id:" << intf_id
               << " onu_id:" << onu_id << std::endl;
