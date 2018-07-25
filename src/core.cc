@@ -94,7 +94,7 @@ Status DisablePonIf_(uint32_t intf_id) {
 }
 
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
-    const char *vendor_id, const char *vendor_specific) {
+    const char *vendor_id, const char *vendor_specific, uint32_t pir) {
 
     bcmbal_subscriber_terminal_cfg sub_term_obj = {};
     bcmbal_subscriber_terminal_key subs_terminal_key;
@@ -104,6 +104,7 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     std::cout << "Enabling ONU " << onu_id << " on PON " << intf_id << std::endl;
     std::cout << "Vendor Id " << vendor_id
               << "Vendor Specific Id " << vendor_specific
+              << "pir " << pir
               << std::endl;
 
     subs_terminal_key.sub_term_id = onu_id;
@@ -129,6 +130,49 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     if (err) {
         std::cout << "ERROR: Failed to enable ONU: " << std::endl;
         return bcm_to_grpc_err(err, "Failed to enable ONU");
+    }
+
+    /* Create subscriber's tm_sched */
+    {
+        bcmbal_tm_sched_cfg cfg;
+        bcmbal_tm_sched_key key = { };
+        key.dir = BCMBAL_TM_SCHED_DIR_DS;
+        key.id = intf_id << 7 | onu_id;
+        BCMBAL_CFG_INIT(&cfg, tm_sched, key);
+
+        bcmbal_tm_sched_owner owner = { };
+        owner.type = BCMBAL_TM_SCHED_OWNER_TYPE_SUB_TERM;
+        owner.u.sub_term.intf_id = intf_id;
+        owner.u.sub_term.sub_term_id = onu_id;
+        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, owner);
+
+        bcmbal_tm_sched_parent parent = { };
+        parent.sched_id = intf_id + 16384;
+        parent.presence_mask = parent.presence_mask | BCMBAL_TM_SCHED_PARENT_ID_SCHED_ID;
+        parent.weight = 1;
+        parent.presence_mask = parent.presence_mask | BCMBAL_TM_SCHED_PARENT_ID_WEIGHT;
+        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, sched_parent, parent);
+
+        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, sched_type, BCMBAL_TM_SCHED_TYPE_WFQ);
+
+        bcmbal_tm_shaping shaping = { };
+        shaping.pir = pir;
+        shaping.presence_mask = shaping.presence_mask | BCMBAL_TM_SHAPING_ID_PIR;
+        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, rate, shaping);
+
+        bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
+    }
+
+    /* Create tm_queue */
+    {
+        bcmbal_tm_queue_cfg cfg;
+        bcmbal_tm_queue_key key = { };
+        key.sched_id = intf_id << 7 | onu_id;
+        key.sched_dir = BCMBAL_TM_SCHED_DIR_DS;
+        key.id = 0;
+        BCMBAL_CFG_INIT(&cfg, tm_queue, key);
+        BCMBAL_CFG_PROP_SET(&cfg, tm_queue, weight, 1);
+        bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
     }
 
     return SchedAdd_(intf_id, onu_id, mk_agg_port_id(onu_id));
@@ -486,6 +530,13 @@ Status FlowAdd_(uint32_t onu_id,
         bcmbal_tm_sched_id val;
         val = (bcmbal_tm_sched_id) mk_sched_id(onu_id);
         BCMBAL_CFG_PROP_SET(&cfg, flow, dba_tm_sched_id, val);
+    }
+
+    if (key.flow_type == BCMBAL_FLOW_TYPE_DOWNSTREAM) {
+        bcmbal_tm_queue_ref val = { };
+        val.sched_id = access_intf_id << 7 | onu_id;
+        val.queue_id = 0;
+        BCMBAL_CFG_PROP_SET(&cfg, flow, queue, val);
     }
 
     err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr));

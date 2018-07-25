@@ -53,7 +53,8 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->intf_id(),
             request->onu_id(),
             ((request->serial_number()).vendor_id()).c_str(),
-            ((request->serial_number()).vendor_specific()).c_str());
+            ((request->serial_number()).vendor_specific()).c_str(),
+            request->pir());
     }
 
     Status DeactivateOnu(
