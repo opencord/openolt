@@ -198,7 +198,7 @@ make clean-all
 
 ## FAQ
 
-### Change speed of ASFVOLT16 NNI interface
+### How to change speed of ASFVOLT16 NNI interface?
 
 Auto-negotiation on the NNI (uplink) interfaces is not tested. By default, the OpenOLT driver sets the speed of the NNI interfaces to 100G. To downgrade the network interface speed to 40G, add the following lines at the end of the qax.soc (/broadcom/qax.soc) configuration file. A restart of the bal_core_dist and openolt executables is required after the change.
 
@@ -213,3 +213,119 @@ d/s/shell
 port ce128 speed=40000
 ```
 (It is safe to ignore the error msgs.)
+
+### How do I configure rate limiting?
+
+By default, the full 1G xgs-pon bandwidth is available to an ONU when no rate-limiting is applied. There is experimental support available to change the default bandwith and also rate-limit specific ONUs from the voltha CLI.
+
+
+Configure default rate limit (PIR = 5Mbps):
+
+```shell
+(voltha) xpon
+(voltha-xpon )traffic_descriptor_profile create -n "default" -f 1000 -a 1000 -m 5000
+```
+
+
+Configure ONU BRCM12345678 to be rate-limited to 100Mbps:
+```shell
+(voltha) xpon
+(voltha-xpon )traffic_descriptor_profile create -n "default" -f 50000 -a 70000 -m 100000
+```
+
+### Why does the Broadcom ONU not forward eapol packets?
+
+The firmware on the ONU is likely not setup to forward 802.1x on the linux bridge. Drop down to the shell in the Broadcom ONU's console and configure the Linux bridge to forward 802.1x.
+
+```shell
+> sh
+# echo 8 > /sys/class/net/bronu513/bridge/group_fwd_mask
+```
+
+### How do I check packet counters on the ONU?
+
+LAN port packet counters:
+
+```shell
+bs /b/e port/index=lan{0,1,2,3,4,5,6}
+```
+
+WAN port packt counters:
+```shell
+bs /b/e port/index=wan0
+```
+
+### How do I check packet counters on the OLT's PON interface?
+
+Following is an example of retrieving the interface description for PON intf_id 0 (TODO: document PON interface numbering for Edgecore OLT).
+
+```shell
+ACC.0>b/t clear=no object=interface intf_id=0 intf_type=pon
+[-- API Start: bcmbal_stat_get --]
+[-- API Message Data --]
+object: interface - BAL interface object
+get stat: response: OK
+key:
+   intf_id=0
+   intf_type=pon
+data:
+   rx_bytes=18473516
+   rx_packets=176416
+   rx_ucast_packets=30627
+   rx_mcast_packets=2230
+   rx_bcast_packets=143559
+   rx_error_packets=0
+   rx_unknown_protos=0
+   rx_crc_errors=0
+   bip_errors=0
+   tx_bytes=5261350
+   tx_packets=39164
+   tx_ucast_packets=30583
+   tx_mcast_packets=0
+   tx_bcast_packets=8581
+   tx_error_packets=0
+[-- API Complete: 0 (OK) --]
+```
+
+#### How do I check packet counters on the OLT's NNI interface?
+
+Following command retrieves NNI intf_id 0:
+
+```shell
+ACC.0>b/t clear=no object=interface intf_id=0 intf_type=nniCollecting statistics
+[-- API Start: bcmbal_stat_get --]
+[-- API Message Data --]
+object: interface - BAL interface object
+get stat: response: OK
+key:
+   intf_id=0
+   intf_type=nni
+data:
+   rx_bytes=8588348
+   rx_packets=69774
+   rx_ucast_packets=61189
+   rx_mcast_packets=0
+   rx_bcast_packets=8585
+   rx_error_packets=0
+   rx_unknown_protos=0
+   tx_bytes=35354878
+   tx_packets=347167
+   tx_ucast_packets=61274
+   tx_mcast_packets=4447
+   tx_bcast_packets=281446
+   tx_error_packets=0
+[-- API Complete: 0 (OK) --]
+```
+
+### How do I list flows installed in the OLT?
+
+In the bal_core_dist CLI:
+
+```shell
+> ~, Debug/, Maple/, Board/, Cld/, Transport/, Logger/, Quit
+> Debug
+.../Debug> Rsc_mgr/, Mac_util/, Switch/, sLeep, sHow_config, os/
+> Mac_util
+.../Mac_util> Print_flows, pRint_flows_for_gem, prInt_flows_for_alloc_id, Epon_helper
+> Print_flow
+```
