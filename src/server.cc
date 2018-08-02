@@ -172,6 +172,18 @@ class OpenoltService final : public openolt::Openolt::Service {
         return DisablePonIf_(request->intf_id());
     }
 
+    Status Reboot(
+            ServerContext* context,
+            const openolt::Empty* request,
+            openolt::Empty* response) override {
+
+        system("shutdown -r now");
+
+        return Status::OK;
+
+    }
+
+
 };
 
 void RunServer() {
