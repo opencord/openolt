@@ -45,6 +45,20 @@ int signature;
 
 class OpenoltService final : public openolt::Openolt::Service {
 
+    Status DisableOlt(
+            ServerContext* context,
+            const openolt::Empty* request,
+            openolt::Empty* response) override {
+        return Disable_();
+    }
+
+    Status ReenableOlt(
+            ServerContext* context,
+            const openolt::Empty* request,
+            openolt::Empty* response) override {
+        return Reenable_();
+    }
+
     Status ActivateOnu(
             ServerContext* context,
             const openolt::Onu* request,

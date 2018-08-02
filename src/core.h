@@ -31,6 +31,8 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific);
 Status EnablePonIf_(uint32_t intf_id);
 Status DisablePonIf_(uint32_t intf_id);
+Status EnableUplinkIf_(uint32_t intf_id);
+Status DisableUplinkIf_(uint32_t intf_id);
 Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
 Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
 Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt);
@@ -40,6 +42,9 @@ Status FlowAdd_(uint32_t onu_id,
                 uint32_t gemport_id, uint32_t priority,
                 const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action);
+Status Disable_();
+Status Reenable_();
+
 
 static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id);
 static Status SchedRemove_(int intf_id, int onu_id, int agg_port_id);

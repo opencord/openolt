@@ -27,6 +27,7 @@
 #include "indications.h"
 #include "stats_collection.h"
 #include "error_format.h"
+#include "state.h"
 
 extern "C"
 {
@@ -35,12 +36,12 @@ extern "C"
 #include <bal_api_end.h>
 }
 
+
 Status Enable_() {
-    static bool enabled = false;
     bcmbal_access_terminal_cfg acc_term_obj;
     bcmbal_access_terminal_key key = { };
 
-    if (!enabled) {
+    if (!state::is_activated()) {
         std::cout << "Enable OLT" << std::endl;
         key.access_term_id = DEFAULT_ATERM_ID;
         BCMBAL_CFG_INIT(&acc_term_obj, access_terminal, key);
@@ -50,9 +51,58 @@ Status Enable_() {
             std::cout << "ERROR: Failed to enable OLT" << std::endl;
             return bcm_to_grpc_err(err, "Failed to enable OLT");
         }
-        enabled = true;
     }
+    //If already enabled, generate an extra indication ????
     return Status::OK;
+
+}
+
+Status Disable_() {
+    // bcmbal_access_terminal_cfg acc_term_obj;
+    // bcmbal_access_terminal_key key = { };
+    //
+    // if (state::is_activated) {
+    //     std::cout << "Disable OLT" << std::endl;
+    //     key.access_term_id = DEFAULT_ATERM_ID;
+    //     BCMBAL_CFG_INIT(&acc_term_obj, access_terminal, key);
+    //     BCMBAL_CFG_PROP_SET(&acc_term_obj, access_terminal, admin_state, BCMBAL_STATE_DOWN);
+    //     bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(acc_term_obj.hdr));
+    //     if (err) {
+    //         std::cout << "ERROR: Failed to disable OLT" << std::endl;
+    //         return bcm_to_grpc_err(err, "Failed to disable OLT");
+    //     }
+    // }
+    // //If already disabled, generate an extra indication ????
+    // return Status::OK;
+    //This fails with Operation Not Supported, bug ???
+
+    //TEMPORARY WORK AROUND
+    Status status = DisableUplinkIf_(0);
+    if (status.ok()) {
+        state::deactivate();
+        openolt::Indication ind;
+        openolt::OltIndication* olt_ind = new openolt::OltIndication;
+        olt_ind->set_oper_state("down");
+        ind.set_allocated_olt_ind(olt_ind);
+        std::cout << "Disable OLT, add an extra indication" << std::endl;
+        oltIndQ.push(ind);
+    }
+    return status;
+
+}
+
+Status Reenable_() {
+    Status status = EnableUplinkIf_(0);
+    if (status.ok()) {
+        state::activate();
+        openolt::Indication ind;
+        openolt::OltIndication* olt_ind = new openolt::OltIndication;
+        olt_ind->set_oper_state("up");
+        ind.set_allocated_olt_ind(olt_ind);
+        std::cout << "Reenable OLT, add an extra indication" << std::endl;
+        oltIndQ.push(ind);
+    }
+    return status;
 }
 
 Status EnablePonIf_(uint32_t intf_id) {
@@ -69,6 +119,44 @@ Status EnablePonIf_(uint32_t intf_id) {
     if (err) {
         std::cout << "ERROR: Failed to enable PON interface: " << intf_id << std::endl;
         return bcm_to_grpc_err(err, "Failed to enable PON interface");
+    }
+
+    return Status::OK;
+}
+
+Status DisableUplinkIf_(uint32_t intf_id) {
+    bcmbal_interface_cfg interface_obj;
+    bcmbal_interface_key interface_key;
+
+    interface_key.intf_id = intf_id;
+    interface_key.intf_type = BCMBAL_INTF_TYPE_NNI;
+
+    BCMBAL_CFG_INIT(&interface_obj, interface, interface_key);
+    BCMBAL_CFG_PROP_SET(&interface_obj, interface, admin_state, BCMBAL_STATE_DOWN);
+
+    bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
+    if (err) {
+        std::cout << "ERROR: Failed to disable Uplink interface: " << intf_id << std::endl;
+        return bcm_to_grpc_err(err, "Failed to disable Uplink interface");
+    }
+
+    return Status::OK;
+}
+
+Status EnableUplinkIf_(uint32_t intf_id) {
+    bcmbal_interface_cfg interface_obj;
+    bcmbal_interface_key interface_key;
+
+    interface_key.intf_id = intf_id;
+    interface_key.intf_type = BCMBAL_INTF_TYPE_NNI;
+
+    BCMBAL_CFG_INIT(&interface_obj, interface, interface_key);
+    BCMBAL_CFG_PROP_SET(&interface_obj, interface, admin_state, BCMBAL_STATE_UP);
+
+    bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
+    if (err) {
+        std::cout << "ERROR: Failed to enable Uplink interface: " << intf_id << std::endl;
+        return bcm_to_grpc_err(err, "Failed to enable Uplink interface");
     }
 
     return Status::OK;
