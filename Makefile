@@ -184,6 +184,19 @@ protos-clean:
 ########################################################################
 ##
 ##
+##        openoltsim
+##
+##
+SIM_SRCS = $(wildcard openoltsim/*.cc)
+SIM_OBJS = $(SIM_SRCS:.cc=.o)
+SIM_DEPS = $(SIM_SRCS:.cc=.d)
+openoltsim: $(BUILD_DIR)/openoltsim
+$(BUILD_DIR)/openoltsim: protos $(SIM_OBJS)
+	$(CXX) -pthread -L/usr/local/lib $(SIM_OBJS) $(OPENOLT_API_LIB) /usr/local/lib/libprotobuf.a -o $@ -lgrpc++ -lgrpc -lpthread -ldl
+
+########################################################################
+##
+##
 ##        Main
 ##
 ##
@@ -238,4 +251,4 @@ clean: protos-clean deb-cleanup
 distclean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: onl sdk bal protos prereq
+.PHONY: onl sdk bal protos prereq openoltsim
