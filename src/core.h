@@ -22,6 +22,10 @@
 using grpc::Status;
 #include <openolt.grpc.pb.h>
 
+#include "state.h"
+
+extern State state;
+
 Status Enable_();
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific, uint32_t pir);

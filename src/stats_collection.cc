@@ -1,7 +1,6 @@
 #include "stats_collection.h"
 
 #include <unistd.h>
-#include <pthread.h>
 
 #include <openolt.grpc.pb.h>
 #include "indications.h"
@@ -14,29 +13,13 @@ extern "C"
 #include <flow_fsm.h>
 }
 
-#define COLLECTION_PERIOD 15
 //FIXME
 #define FLOWS_COUNT 100
 
-bool isCollectingStatistics;
 bcmbal_flow_key* flows_keys = new bcmbal_flow_key[FLOWS_COUNT];
-bool init_done = false;
 
-
-void start_collecting_statistics() {
-    if (!init_done) {
-        memset(flows_keys, 0, FLOWS_COUNT * sizeof(bcmbal_flow_key));
-        init_done = true;
-    }
-    pthread_t statisticsCollectionThread;
-    isCollectingStatistics = true;
-    pthread_create(&statisticsCollectionThread, NULL, stats_collection, NULL);
-
-    std::cout << "Statistics collection thread started" << std::endl;
-}
-
-void stop_collecting_statistics() {
-    isCollectingStatistics = false;
+void init_stats() {
+    memset(flows_keys, 0, FLOWS_COUNT * sizeof(bcmbal_flow_key));
 }
 
 openolt::PortStatistics* get_default_port_statistics() {
@@ -162,77 +145,68 @@ openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_fl
 #endif
 
 
-void* stats_collection(void* x) {
+void* stats_collection() {
 
     time_t now;
 
-    while(isCollectingStatistics) {
+    std::cout << "Collecting statistics" << std::endl;
 
-        std::cout << "Collecting statistics" << std::endl;
+    //Ports statistics
 
-        //Ports statistics
-
-        //Uplink ports
-        for (int i = 0; i < 4; i++) {
-            openolt::PortStatistics* port_stats = collectPortStatistics(i, BCMBAL_INTF_TYPE_NNI);
-            //FIXME Use clean port translation
-            port_stats->set_intf_id(128 + i);
-            time(&now);
-            port_stats->set_timestamp((int)now);
-            openolt::Indication ind;
-            ind.set_allocated_port_stats(port_stats);
-            oltIndQ.push(ind);
-        }
-        //Pon ports
-        for (int i = 0; i < 16; i++) {
-            openolt::PortStatistics* port_stats = collectPortStatistics(i, BCMBAL_INTF_TYPE_PON);
-            //FIXME Use clean port translation
-            port_stats->set_intf_id((0x2 << 28) + i);
-            time(&now);
-            port_stats->set_timestamp((int)now);
-            openolt::Indication ind;
-            ind.set_allocated_port_stats(port_stats);
-            oltIndQ.push(ind);
-        }
-
-        //Flows statistics
-        // flow_inst *current_entry = NULL;
-        //
-        // TAILQ_FOREACH(current_entry,
-        //               &FLOW_FSM_FLOW_LIST_CTX_PTR->active_flow_list,
-        //               flow_inst_next) {
-        // int flows_measurements = 0;
-        //
-        // for (int i = 0; i < FLOWS_COUNT; i++) {
-        //
-        //     // bcmbal_flow_id flow_id = current_entry->api_req_flow_info.key.flow_id;
-        //     // bcmbal_flow_type flow_type = current_entry->api_req_flow_info.key.flow_type;
-        //
-        //     if (flows_keys[i].flow_id != 0) {
-        //         openolt::FlowStatistics* flow_stats = collectFlowStatistics(flows_keys[i].flow_id, flows_keys[i].flow_type);
-        //         if (flow_stats->rx_packets() == -1) {
-        //             //It Failed
-        //             flows_keys[i].flow_id = 0;
-        //         } else {
-        //             flow_stats->set_flow_id(flows_keys[i].flow_id);
-        //             time(&now);
-        //             flow_stats->set_timestamp((int)now);
-        //             openolt::Indication ind;
-        //             ind.set_allocated_flow_stats(flow_stats);
-        //             oltIndQ.push(ind);
-        //             flows_measurements ++;
-        //         }
-        //     }
-        //
-        // }
-        // std::cout << "Stats of " << flows_measurements << " flows retrieved" << std::endl;
-
-        sleep(COLLECTION_PERIOD);
-
+    //Uplink ports
+    for (int i = 0; i < 4; i++) {
+        openolt::PortStatistics* port_stats = collectPortStatistics(i, BCMBAL_INTF_TYPE_NNI);
+        //FIXME Use clean port translation
+        port_stats->set_intf_id(128 + i);
+        time(&now);
+        port_stats->set_timestamp((int)now);
+        openolt::Indication ind;
+        ind.set_allocated_port_stats(port_stats);
+        oltIndQ.push(ind);
+    }
+    //Pon ports
+    for (int i = 0; i < 16; i++) {
+        openolt::PortStatistics* port_stats = collectPortStatistics(i, BCMBAL_INTF_TYPE_PON);
+        //FIXME Use clean port translation
+        port_stats->set_intf_id((0x2 << 28) + i);
+        time(&now);
+        port_stats->set_timestamp((int)now);
+        openolt::Indication ind;
+        ind.set_allocated_port_stats(port_stats);
+        oltIndQ.push(ind);
     }
 
-    std::cout << "Statistics collection thread terminated" << std::endl;
-
+    //Flows statistics
+    // flow_inst *current_entry = NULL;
+    //
+    // TAILQ_FOREACH(current_entry,
+    //               &FLOW_FSM_FLOW_LIST_CTX_PTR->active_flow_list,
+    //               flow_inst_next) {
+    // int flows_measurements = 0;
+    //
+    // for (int i = 0; i < FLOWS_COUNT; i++) {
+    //
+    //     // bcmbal_flow_id flow_id = current_entry->api_req_flow_info.key.flow_id;
+    //     // bcmbal_flow_type flow_type = current_entry->api_req_flow_info.key.flow_type;
+    //
+    //     if (flows_keys[i].flow_id != 0) {
+    //         openolt::FlowStatistics* flow_stats = collectFlowStatistics(flows_keys[i].flow_id, flows_keys[i].flow_type);
+    //         if (flow_stats->rx_packets() == -1) {
+    //             //It Failed
+    //             flows_keys[i].flow_id = 0;
+    //         } else {
+    //             flow_stats->set_flow_id(flows_keys[i].flow_id);
+    //             time(&now);
+    //             flow_stats->set_timestamp((int)now);
+    //             openolt::Indication ind;
+    //             ind.set_allocated_flow_stats(flow_stats);
+    //             oltIndQ.push(ind);
+    //             flows_measurements ++;
+    //         }
+    //     }
+    //
+    // }
+    // std::cout << "Stats of " << flows_measurements << " flows retrieved" << std::endl;
 
 }
 

@@ -8,7 +8,9 @@ extern "C"
 #include <bal_model_types.h>
 }
 
-void start_collecting_statistics();
+#define COLLECTION_PERIOD 15
+
+void init_stats();
 void stop_collecting_statistics();
 openolt::PortStatistics* get_default_port_statistics();
 openolt::PortStatistics* collectPortStatistics(int intf_id, bcmbal_intf_type intf_type);
@@ -16,7 +18,7 @@ openolt::PortStatistics* collectPortStatistics(int intf_id, bcmbal_intf_type int
 openolt::FlowStatistics* get_default_flow_statistics();
 openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_flow_type flow_type);
 #endif
-void* stats_collection(void* x);
+void* stats_collection();
 void register_new_flow(bcmbal_flow_key key);
 
 

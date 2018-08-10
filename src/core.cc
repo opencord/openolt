@@ -36,12 +36,13 @@ extern "C"
 #include <bal_api_end.h>
 }
 
+State state;
 
 Status Enable_() {
     bcmbal_access_terminal_cfg acc_term_obj;
     bcmbal_access_terminal_key key = { };
 
-    if (!state::is_activated()) {
+    if (!state.is_activated()) {
         std::cout << "Enable OLT" << std::endl;
         key.access_term_id = DEFAULT_ATERM_ID;
         BCMBAL_CFG_INIT(&acc_term_obj, access_terminal, key);
@@ -51,10 +52,11 @@ Status Enable_() {
             std::cout << "ERROR: Failed to enable OLT" << std::endl;
             return bcm_to_grpc_err(err, "Failed to enable OLT");
         }
+        init_stats();
     }
+
     //If already enabled, generate an extra indication ????
     return Status::OK;
-
 }
 
 Status Disable_() {
@@ -79,7 +81,7 @@ Status Disable_() {
     //TEMPORARY WORK AROUND
     Status status = DisableUplinkIf_(0);
     if (status.ok()) {
-        state::deactivate();
+        state.deactivate();
         openolt::Indication ind;
         openolt::OltIndication* olt_ind = new openolt::OltIndication;
         olt_ind->set_oper_state("down");
@@ -94,7 +96,7 @@ Status Disable_() {
 Status Reenable_() {
     Status status = EnableUplinkIf_(0);
     if (status.ok()) {
-        state::activate();
+        state.activate();
         openolt::Indication ind;
         openolt::OltIndication* olt_ind = new openolt::OltIndication;
         olt_ind->set_oper_state("up");

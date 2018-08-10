@@ -11,22 +11,34 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <chrono>
 
 template <typename T>
 class Queue
 {
  public:
 
-  T pop() 
+  std::pair<T, bool> pop(int timeout)
   {
+    std::cv_status status = std::cv_status::no_timeout;
     std::unique_lock<std::mutex> mlock(mutex_);
+    static int duration = 0;
     while (queue_.empty())
     {
-      cond_.wait(mlock);
+      status = cond_.wait_for(mlock, std::chrono::seconds(1));
+      if (status == std::cv_status::timeout)
+      {
+        duration++;
+        if (duration > timeout)
+        {
+          duration = 0;
+          return std::pair<T, bool>({}, false);
+        }
+      }
     }
     auto val = queue_.front();
     queue_.pop();
-    return val;
+    return std::pair<T, bool>(val, true);
   }
 
   void pop(T& item)
