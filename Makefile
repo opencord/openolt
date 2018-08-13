@@ -175,7 +175,7 @@ bal-clean:
 ##
 OPENOLT_PROTOS_DIR = ./protos
 OPENOLT_API_LIB = $(OPENOLT_PROTOS_DIR)/libopenoltapi.a
-CXXFLAGS += -I./$(OPENOLT_PROTOS_DIR) -I $(OPENOLT_PROTOS_DIR)/googleapis/gens
+CXXFLAGS += -I$(OPENOLT_PROTOS_DIR) -I$(OPENOLT_PROTOS_DIR)/googleapis/gens
 protos:
 	make -C $(OPENOLT_PROTOS_DIR) all
 protos-clean:
@@ -184,23 +184,36 @@ protos-clean:
 ########################################################################
 ##
 ##
-##        openoltsim
+##        common
 ##
 ##
-SIM_SRCS = $(wildcard openoltsim/*.cc)
-SIM_OBJS = $(SIM_SRCS:.cc=.o)
-SIM_DEPS = $(SIM_SRCS:.cc=.d)
-openoltsim: $(BUILD_DIR)/openoltsim
-$(BUILD_DIR)/openoltsim: protos $(SIM_OBJS)
-	$(CXX) -pthread -L/usr/local/lib $(SIM_OBJS) $(OPENOLT_API_LIB) /usr/local/lib/libprotobuf.a -o $@ -lgrpc++ -lgrpc -lpthread -ldl
+common/%.o: common/%.cc
+	$(CXX) $(CXXFLAGS) -I./common -c $< -o $@
 
 ########################################################################
 ##
 ##
-##        Main
+##        sim
 ##
 ##
-SRCS = $(wildcard src/*.cc)
+SIM_SRCS = $(wildcard sim/*.cc) $(wildcard common/*.cc)
+SIM_OBJS = $(SIM_SRCS:.cc=.o)
+SIM_DEPS = $(SIM_SRCS:.cc=.d)
+sim: sim/openoltsim
+sim/openoltsim: protos $(SIM_OBJS)
+	$(CXX) -pthread -L/usr/local/lib $(SIM_OBJS) $(OPENOLT_API_LIB) /usr/local/lib/libprotobuf.a -o $@ -lgrpc++ -lgrpc -lpthread -ldl
+sim/%.o: sim/%.cc
+	$(CXX) -std=c++11 -fpermissive -Wno-literal-suffix -I./common -I$(OPENOLT_PROTOS_DIR) -I$(OPENOLT_PROTOS_DIR)/googleapis/gens -c $< -o $@
+clean-sim:
+	rm -f sim/openoltsim $(SIM_OBJS) $(SIM_DEPS)
+
+########################################################################
+##
+##
+##        openolt
+##
+##
+SRCS = $(wildcard src/*.cc) $(wildcard common/*.cc)
 OBJS = $(SRCS:.cc=.o)
 DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
@@ -212,6 +225,8 @@ $(BUILD_DIR)/openolt: sdk protos $(OBJS)
 	ln -sf $(PWD)/$(BAL_DIR)/bal_release/build/core/src/apps/bal_core_dist/bal_core_dist $(BUILD_DIR)/.
 	ln -sf $(shell ldconfig -p | grep libgrpc.so.6 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc.so.6
 	ln -sf $(shell ldconfig -p | grep libgrpc++.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++.so.1
+src/%.o: src/%.cc
+	$(CXX) $(CXXFLAGS) -I./common -c $< -o $@
 
 deb:
 	cp $(BUILD_DIR)/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz mkdebian/debian
@@ -251,4 +266,4 @@ clean: protos-clean deb-cleanup
 distclean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: onl sdk bal protos prereq openoltsim
+.PHONY: onl sdk bal protos prereq sim

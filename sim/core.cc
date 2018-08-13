@@ -18,14 +18,39 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <unistd.h>
 
 #include "Queue.h"
 #include <iostream>
 #include <sstream>
 
 #include "core.h"
+#include "state.h"
 
-Status Enable_() {
+State state;
+
+void* RunSim(void *) {
+    while (!state.is_connected()) {
+        sleep(5);
+    }
+
+    // Send Olt up indication
+    {
+        openolt::Indication ind;
+        openolt::OltIndication* olt_ind = new openolt::OltIndication;
+        olt_ind->set_oper_state("up");
+        ind.set_allocated_olt_ind(olt_ind);
+        std::cout << "olt indication, oper_state:" << ind.olt_ind().oper_state() << std::endl;
+        oltIndQ.push(ind);
+    }
+
+    // TODO - Add interface and onu indication events
+}
+
+Status Enable_(int argc, char *argv[]) {
+    pthread_t simThread;
+
+    pthread_create(&simThread, NULL, RunSim, NULL);
     return Status::OK;
 }
 
@@ -95,4 +120,11 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id) {
 
 Status SchedRemove_(int intf_id, int onu_id, int agg_port_id) {
     return Status::OK;
+}
+
+Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
+    return Status::OK;
+}
+
+void* stats_collection() {
 }

@@ -25,7 +25,7 @@ using grpc::Status;
 
 extern Queue<openolt::Indication> oltIndQ;
 
-Status Enable_();
+Status Enable_(int argc, char *argv[]);
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific, uint32_t pir);
 Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,

@@ -32,7 +32,7 @@ extern "C"
 
 using grpc::Status;
 
-Queue<openolt::Indication> oltIndQ;
+extern Queue<openolt::Indication> oltIndQ;
 //Queue<openolt::Indication*> oltIndQ;
 
 

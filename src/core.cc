@@ -38,12 +38,34 @@ extern "C"
 
 State state;
 
-Status Enable_() {
+static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id);
+static Status SchedRemove_(int intf_id, int onu_id, int agg_port_id);
+
+static inline int mk_sched_id(int onu_id) {
+    return 1023 + onu_id;
+}
+
+static inline int mk_agg_port_id(int onu_id) {
+    return 1023 + onu_id;
+}
+
+Status Enable_(int argc, char *argv[]) {
     bcmbal_access_terminal_cfg acc_term_obj;
     bcmbal_access_terminal_key key = { };
 
     if (!state.is_activated()) {
         std::cout << "Enable OLT" << std::endl;
+
+        bcmbal_init(argc, argv, NULL);
+
+        Status status = SubscribeIndication();
+        if (!status.ok()) {
+            std::cout << "ERROR: SubscribeIndication failed - "
+                      << status.error_code() << ": " << status.error_message()
+                      << std::endl;
+            return status;
+        }
+
         key.access_term_id = DEFAULT_ATERM_ID;
         BCMBAL_CFG_INIT(&acc_term_obj, access_terminal, key);
         BCMBAL_CFG_PROP_SET(&acc_term_obj, access_terminal, admin_state, BCMBAL_STATE_UP);

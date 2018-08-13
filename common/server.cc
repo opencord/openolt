@@ -138,22 +138,39 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->action());
     }
 
+    Status FlowRemove(
+            ServerContext* context,
+            const openolt::Flow* request,
+            openolt::Empty* response) override {
+        return FlowRemove_(
+            request->flow_id(),
+            request->flow_type());
+    }
+
     Status EnableIndication(
             ServerContext* context,
             const ::openolt::Empty* request,
             ServerWriter<openolt::Indication>* writer) override {
+
         std::cout << "Connection to Voltha established. Indications enabled"
         << std::endl;
-        state::connect();
 
-        while (state::is_connected) {
-            auto oltInd = oltIndQ.pop();
+        state.connect();
+
+        while (state.is_connected()) {
+            std::pair<openolt::Indication, bool> ind = oltIndQ.pop(COLLECTION_PERIOD);
+            if (ind.second == false) {
+                /* timeout - do lower priority periodic stuff like stats */
+                stats_collection();
+                continue;
+            }
+            openolt::Indication oltInd = ind.first;
             bool isConnected = writer->Write(oltInd);
             if (!isConnected) {
                 //Lost connectivity to this Voltha instance
                 //Put the indication back in the queue for next connecting instance
                 oltIndQ.push(oltInd);
-                state::disconnect();
+                state.disconnect();
             }
             //oltInd.release_olt_ind()
         }
@@ -191,7 +208,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             const openolt::Empty* request,
             openolt::Empty* response) override {
 
-        //system("shutdown -r now");
+        system("shutdown -r now");
 
         return Status::OK;
 

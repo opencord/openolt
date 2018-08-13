@@ -24,9 +24,11 @@ using grpc::Status;
 
 #include "state.h"
 
+#define COLLECTION_PERIOD 15
+
 extern State state;
 
-Status Enable_();
+Status Enable_(int argc, char *argv[]);
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific, uint32_t pir);
 Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
@@ -50,16 +52,5 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type);
 Status Disable_();
 Status Reenable_();
 
-
-static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id);
-static Status SchedRemove_(int intf_id, int onu_id, int agg_port_id);
-
-static inline int mk_sched_id(int onu_id) {
-    return 1023 + onu_id;
-}
-
-static inline int mk_agg_port_id(int onu_id) {
-    return 1023 + onu_id;
-}
-
+void* stats_collection();
 #endif

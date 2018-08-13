@@ -16,36 +16,12 @@
 */
 #include <iostream>
 
-#include "indications.h"
 #include "server.h"
 #include "core.h"
 
-extern "C"
-{
-#include <bal_api.h>
-#include <bal_api_end.h>
-}
-
 int main(int argc, char** argv) {
 
-/*
-    if (argc < 5) {
-        std::cout << "Missing arguments" << std::endl;
-        exit(1);
-    }
-*/
-
-    bcmbal_init(argc, argv, NULL);
-
-    Status status = SubscribeIndication();
-    if (!status.ok()) {
-        std::cout << "ERROR: SubscribeIndication failed - "
-                  << status.error_code() << ": " << status.error_message()
-                  << std::endl;
-        return 1;
-    }
-
-    status = Enable_();
+    Status status = Enable_(argc, argv);
     if (!status.ok()) {
         std::cout << "ERROR: Enable_ failed - "
                   << status.error_code() << ": " << status.error_message()
@@ -55,5 +31,5 @@ int main(int argc, char** argv) {
 
     RunServer();
 
-  return 0;
+    return 0;
 }
