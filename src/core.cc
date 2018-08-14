@@ -22,6 +22,8 @@
 #include "Queue.h"
 #include <iostream>
 #include <sstream>
+#include <chrono>
+#include <thread>
 
 #include "core.h"
 #include "indications.h"
@@ -38,7 +40,7 @@ extern "C"
 
 State state;
 
-static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id);
+static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int pir);
 static Status SchedRemove_(int intf_id, int onu_id, int agg_port_id);
 
 static inline int mk_sched_id(int onu_id) {
@@ -244,58 +246,13 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
         return bcm_to_grpc_err(err, "Failed to enable ONU");
     }
 
-    /* Create subscriber's tm_sched */
-    {
-        bcmbal_tm_sched_cfg cfg;
-        bcmbal_tm_sched_key key = { };
-        key.dir = BCMBAL_TM_SCHED_DIR_DS;
-        key.id = intf_id << 7 | onu_id;
-        BCMBAL_CFG_INIT(&cfg, tm_sched, key);
-
-        bcmbal_tm_sched_owner owner = { };
-        owner.type = BCMBAL_TM_SCHED_OWNER_TYPE_SUB_TERM;
-        owner.u.sub_term.intf_id = intf_id;
-        owner.u.sub_term.sub_term_id = onu_id;
-        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, owner);
-
-        bcmbal_tm_sched_parent parent = { };
-        parent.sched_id = intf_id + 16384;
-        parent.presence_mask = parent.presence_mask | BCMBAL_TM_SCHED_PARENT_ID_SCHED_ID;
-        parent.weight = 1;
-        parent.presence_mask = parent.presence_mask | BCMBAL_TM_SCHED_PARENT_ID_WEIGHT;
-        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, sched_parent, parent);
-
-        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, sched_type, BCMBAL_TM_SCHED_TYPE_WFQ);
-
-        bcmbal_tm_shaping shaping = { };
-        shaping.pir = pir;
-        shaping.presence_mask = shaping.presence_mask | BCMBAL_TM_SHAPING_ID_PIR;
-        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, rate, shaping);
-
-        bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
-    }
-
-    /* Create tm_queue */
-    {
-        bcmbal_tm_queue_cfg cfg;
-        bcmbal_tm_queue_key key = { };
-        key.sched_id = intf_id << 7 | onu_id;
-        key.sched_dir = BCMBAL_TM_SCHED_DIR_DS;
-        key.id = 0;
-        BCMBAL_CFG_INIT(&cfg, tm_queue, key);
-        BCMBAL_CFG_PROP_SET(&cfg, tm_queue, weight, 1);
-        bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
-    }
-
-    return SchedAdd_(intf_id, onu_id, mk_agg_port_id(onu_id));
+    return SchedAdd_(intf_id, onu_id, mk_agg_port_id(onu_id), pir);
 
     //return Status::OK;
 }
 
 Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific) {
-
-    SchedRemove_(intf_id, onu_id, mk_agg_port_id(onu_id));
 
     bcmbal_subscriber_terminal_cfg sub_term_obj = {};
     bcmbal_subscriber_terminal_key subs_terminal_key;
@@ -321,6 +278,17 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
 
 Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific) {
+
+    // Need to deactivate before removing it (BAL rules)
+
+    DeactivateOnu_(intf_id, onu_id, vendor_id, vendor_specific);
+    // Sleep to allow the state to propagate
+    // We need the subscriber terminal object to be admin down before removal
+    // Without sleep the race condition is lost by ~ 20 ms
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    SchedRemove_(intf_id, onu_id, mk_agg_port_id(onu_id));
+
     bcmos_errno err = BCM_ERR_OK;
     bcmbal_subscriber_terminal_cfg cfg;
     bcmbal_subscriber_terminal_key key = { };
@@ -692,7 +660,75 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
     return Status::OK;
 }
 
-Status SchedAdd_(int intf_id, int onu_id, int agg_port_id) {
+Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int pir) {
+
+    bcmos_errno err;
+
+    /* Downstream */
+
+    /* Create subscriber's tm_sched */
+    {
+        bcmbal_tm_sched_cfg cfg;
+        bcmbal_tm_sched_key key = { };
+        key.dir = BCMBAL_TM_SCHED_DIR_DS;
+        key.id = intf_id << 7 | onu_id;
+        BCMBAL_CFG_INIT(&cfg, tm_sched, key);
+
+        bcmbal_tm_sched_owner owner = { };
+        owner.type = BCMBAL_TM_SCHED_OWNER_TYPE_SUB_TERM;
+        owner.u.sub_term.intf_id = intf_id;
+        owner.u.sub_term.sub_term_id = onu_id;
+        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, owner);
+
+        bcmbal_tm_sched_parent parent = { };
+        parent.sched_id = intf_id + 16384;
+        parent.presence_mask = parent.presence_mask | BCMBAL_TM_SCHED_PARENT_ID_SCHED_ID;
+        parent.weight = 1;
+        parent.presence_mask = parent.presence_mask | BCMBAL_TM_SCHED_PARENT_ID_WEIGHT;
+        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, sched_parent, parent);
+
+        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, sched_type, BCMBAL_TM_SCHED_TYPE_WFQ);
+
+        bcmbal_tm_shaping shaping = { };
+        shaping.pir = pir;
+        shaping.presence_mask = shaping.presence_mask | BCMBAL_TM_SHAPING_ID_PIR;
+        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, rate, shaping);
+
+        err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
+        if (err) {
+            std::cout << "ERROR: Failed to create subscriber downstream sched"
+                      << " id:" << key.id
+                      << " intf_id:" << intf_id
+                      << " onu_id:" << onu_id << std::endl;
+            return bcm_to_grpc_err(err, "Failed to create subscriber downstream sched");
+        }
+    }
+
+    /* Create tm_queue */
+    {
+        bcmbal_tm_queue_cfg cfg;
+        bcmbal_tm_queue_key key = { };
+        key.sched_id = intf_id << 7 | onu_id;
+        key.sched_dir = BCMBAL_TM_SCHED_DIR_DS;
+        key.id = 0;
+
+        BCMBAL_CFG_INIT(&cfg, tm_queue, key);
+        BCMBAL_CFG_PROP_SET(&cfg, tm_queue, weight, 1);
+        err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
+
+        if (err) {
+            std::cout << "ERROR: Failed to create subscriber downstream tm queue"
+                      << " id: " << key.id
+                      << " sched_id: " << key.sched_id
+                      << " intf_id: " << intf_id
+                      << " onu_id: " << onu_id << std::endl;
+            return bcm_to_grpc_err(err, "Failed to create subscriber downstream tm queue");
+        }
+
+    }
+
+    /* Upstream */
+
     bcmbal_tm_sched_cfg cfg;
     bcmbal_tm_sched_key key = { };
     bcmbal_tm_sched_type sched_type;
@@ -716,14 +752,13 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id) {
         BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, val);
     }
 
-    bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr));
+    err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr));
     if (err) {
         std::cout << "ERROR: Failed to create upstream DBA sched"
                   << " id:" << key.id
                   << " intf_id:" << intf_id
                   << " onu_id:" << onu_id << std::endl;
         return bcm_to_grpc_err(err, "Failed to create upstream DBA sched");
-        //return 1;
     }
     std::cout << "create upstream DBA sched"
               << " id:" << key.id
@@ -731,29 +766,83 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id) {
               << " onu_id:" << onu_id << std::endl;
 
     return Status::OK;
-    //return 0;
 }
 
 Status SchedRemove_(int intf_id, int onu_id, int agg_port_id) {
-    bcmbal_tm_sched_cfg cfg;
-    bcmbal_tm_sched_key key = { };
-    bcmbal_tm_sched_type sched_type;
 
-    key.id = mk_sched_id(onu_id);
-    key.dir = BCMBAL_TM_SCHED_DIR_US;
+    bcmos_errno err;
 
-    BCMBAL_CFG_INIT(&cfg, tm_sched, key);
+    /* Upstream */
 
-    if (bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(cfg.hdr))) {
-      std::cout << "ERROR: Failed to remove upstream DBA sched"
-                << " id:" << key.id
+    bcmbal_tm_sched_cfg tm_cfg_us;
+    bcmbal_tm_sched_key tm_key_us = { };
+
+    tm_key_us.id = mk_sched_id(onu_id);
+    tm_key_us.dir = BCMBAL_TM_SCHED_DIR_US;
+
+    BCMBAL_CFG_INIT(&tm_cfg_us, tm_sched, tm_key_us);
+
+    err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(tm_cfg_us.hdr));
+    if (err) {
+        std::cout << "ERROR: Failed to remove upstream DBA sched"
+                << " id:" << tm_key_us.id
                 << " intf_id:" << intf_id
                 << " onu_id:" << onu_id << std::endl;
-      return Status(grpc::StatusCode::INTERNAL, "Failed to remove upstream DBA sched");
+        return Status(grpc::StatusCode::INTERNAL, "Failed to remove upstream DBA sched");
     }
 
     std::cout << "remove upstream DBA sched"
-              << " id:" << key.id
+              << " id:" << tm_key_us.id
+              << " intf_id:" << intf_id
+              << " onu_id:" << onu_id << std::endl;
+
+    /* Downstream */
+
+    // Queue
+
+    bcmbal_tm_queue_cfg queue_cfg;
+    bcmbal_tm_queue_key queue_key = { };
+    queue_key.sched_id = intf_id << 7 | onu_id;
+    queue_key.sched_dir = BCMBAL_TM_SCHED_DIR_DS;
+    queue_key.id = 0;
+
+    BCMBAL_CFG_INIT(&queue_cfg, tm_queue, queue_key);
+
+    err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(queue_cfg.hdr));
+    if (err) {
+        std::cout << "ERROR: Failed to remove downstream tm queue"
+                << " id:" << queue_key.id
+                << " sched_id:" << queue_key.sched_id
+                << " intf_id:" << intf_id
+                << " onu_id:" << onu_id << std::endl;
+        return Status(grpc::StatusCode::INTERNAL, "Failed to remove downstream tm queue");
+    }
+
+    std::cout << "remove upstream DBA sched"
+              << " id:" << queue_key.id
+              << " sched_id:" << queue_key.sched_id
+              << " intf_id:" << intf_id
+              << " onu_id:" << onu_id << std::endl;
+
+    // Sheduler
+
+    bcmbal_tm_sched_cfg tm_cfg_ds;
+    bcmbal_tm_sched_key tm_key_ds = { };
+    tm_key_ds.dir = BCMBAL_TM_SCHED_DIR_DS;
+    tm_key_ds.id = intf_id << 7 | onu_id;
+    BCMBAL_CFG_INIT(&tm_cfg_ds, tm_sched, tm_key_ds);
+
+    err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(tm_cfg_ds.hdr));
+    if (err) {
+        std::cout << "ERROR: Failed to remove sub downstream sched"
+                << " id:" << tm_key_us.id
+                << " intf_id:" << intf_id
+                << " onu_id:" << onu_id << std::endl;
+        return Status(grpc::StatusCode::INTERNAL, "Failed to remove sub downstream sched");
+    }
+
+    std::cout << "remove sub downstream sched"
+              << " id:" << tm_key_us.id
               << " intf_id:" << intf_id
               << " onu_id:" << onu_id << std::endl;
 
