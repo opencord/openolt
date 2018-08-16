@@ -4,9 +4,13 @@
 echo "kill running time application"
 [ -n "`pidof bcm_user_appl`" ] && killall bcm_user_appl
 [ -n "`pidof bcm.user`" ] && killall bcm.user
-[ -n "`pidof bal_core_dist`" ] && killall bal_core_dist 
 [ -n "`pidof voltha_bal_driver`" ] && killall voltha_bal_driver
+# service bal_core_dist stop
+# service openolt stop
+[ -n "`pidof bal_core_dist`" ] && killall bal_core_dist 
+rm -f /var/run/bal_core_dist.pid
 [ -n "`pidof openolt`" ] && killall openolt
+rm -f /var/run/openolt.pid
 
 # unload drivers
 echo "unload kernel drivers"

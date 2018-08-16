@@ -233,6 +233,7 @@ deb:
 	cp $(BUILD_DIR)/openolt mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc.so.6 mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc++.so.1 mkdebian/debian
+	cp -a scripts/init.d mkdebian/debian
 	cd mkdebian && ./build_$(DEVICE)_deb.sh
 	mv *.deb $(BUILD_DIR)/openolt.deb
 	make deb-cleanup

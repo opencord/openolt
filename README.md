@@ -72,13 +72,31 @@ Install the *openolt.deb* package using *dpkg*:
 dpkg -i openolt.deb
 ```
 
-Reboot the OLT:
+## Run OpenOLT as a Linux service
 
+Rebooting the OLT (after the installation) will start bal_core_dist and openolt as init.d services:
+
+Rebooting the OLT will start the bal_core_dist and openolt services:
 ```shell
 reboot
 ```
+The services can also be stopped/started manually:
+```shell 
+service bal_core_dist stop
+service openolt stop
+service bal_core_dist start
+service openolt start
+```
 
-## Run OpenOLT
+Check the status of the services:
+```shell
+service bal_core_dist status
+service openolt status
+```
+
+## Run OpenOLT in foreground
+
+Running the bal_core_dist and/or openolt services in the forground is useful for development and debugging. Make sure to first stop the services if they are running in background.
 
 Open a terminal and run the Broadcom BAL software (*bal_core_dist*):
 
