@@ -4,6 +4,7 @@
 
 #include <openolt.grpc.pb.h>
 #include "indications.h"
+#include "core.h"
 
 extern "C"
 {
@@ -146,6 +147,15 @@ openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_fl
 
 
 void* stats_collection() {
+
+    if (!state.is_connected()) {
+        std::cout << "Voltha is not connected, do not collect stats" << std::endl;
+        return;
+    }
+    if (!state.is_activated()) {
+        std::cout << "The OLT is not up, do not collect stats" << std::endl;
+        return;
+    }
 
     time_t now;
 
