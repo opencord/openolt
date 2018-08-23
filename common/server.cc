@@ -155,6 +155,22 @@ class OpenoltService final : public openolt::Openolt::Service {
         std::cout << "Connection to Voltha established. Indications enabled"
         << std::endl;
 
+        if (state.previsouly_connected()) {
+            // Reconciliation / recovery case
+            if (state.is_activated()){
+                // Adding extra olt indication of current state
+                openolt::Indication ind;
+                openolt::OltIndication* oltInd = new openolt::OltIndication();
+                if (state.is_activated()) {
+                    oltInd->set_oper_state("up");
+                } else {
+                    oltInd->set_oper_state("down");
+                }
+                ind.set_allocated_olt_ind(oltInd);
+                oltIndQ.push(ind);
+            }
+        }
+
         state.connect();
 
         while (state.is_connected()) {

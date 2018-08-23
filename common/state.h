@@ -12,8 +12,13 @@ class State {
         return activated;
     }
 
+    bool previsouly_connected() {
+        return connected_once;
+    }
+
     void connect() {
         connected_to_voltha = true;
+        connected_once = true;
     }
 
     void disconnect() {
@@ -31,5 +36,6 @@ class State {
   private:
     bool connected_to_voltha = false;
     bool activated = false;
+    bool connected_once = false;
 };
 #endif
