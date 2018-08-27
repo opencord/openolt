@@ -40,8 +40,8 @@ extern "C"
 
 State state;
 
-static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int pir);
-static Status SchedRemove_(int intf_id, int onu_id, int agg_port_id);
+static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, int pir);
+static Status SchedRemove_(int intf_id, int onu_id, int agg_port_id, int sched_id);
 
 static inline int mk_sched_id(int intf_id, int onu_id) {
     return 1023 + intf_id * 112 + onu_id;
@@ -208,7 +208,8 @@ Status DisablePonIf_(uint32_t intf_id) {
 }
 
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
-    const char *vendor_id, const char *vendor_specific, uint32_t pir) {
+    const char *vendor_id, const char *vendor_specific, uint32_t pir,
+    uint32_t agg_port_id, uint32_t sched_id) {
 
     bcmbal_subscriber_terminal_cfg sub_term_obj = {};
     bcmbal_subscriber_terminal_key subs_terminal_key;
@@ -246,7 +247,11 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
         return bcm_to_grpc_err(err, "Failed to enable ONU");
     }
 
-    return SchedAdd_(intf_id, onu_id, mk_agg_port_id(intf_id, onu_id), pir);
+    if (agg_port_id != 0) {
+        return SchedAdd_(intf_id, onu_id, agg_port_id, sched_id, pir);
+    } else {
+        return SchedAdd_(intf_id, onu_id, mk_agg_port_id(intf_id, onu_id), sched_id, pir);
+    }
 
     //return Status::OK;
 }
@@ -277,7 +282,8 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
 }
 
 Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
-    const char *vendor_id, const char *vendor_specific) {
+    const char *vendor_id, const char *vendor_specific,
+    uint32_t agg_port_id, uint32_t sched_id) {
 
     // Need to deactivate before removing it (BAL rules)
 
@@ -287,7 +293,11 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     // Without sleep the race condition is lost by ~ 20 ms
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    SchedRemove_(intf_id, onu_id, mk_agg_port_id(intf_id, onu_id));
+    if (agg_port_id != 0) {
+        SchedRemove_(intf_id, onu_id, agg_port_id, sched_id);
+    } else {
+        SchedRemove_(intf_id, onu_id, mk_agg_port_id(intf_id, onu_id), sched_id);
+    }
 
     bcmos_errno err = BCM_ERR_OK;
     bcmbal_subscriber_terminal_cfg cfg;
@@ -424,7 +434,8 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt) {
 Status FlowAdd_(uint32_t onu_id,
                 uint32_t flow_id, const std::string flow_type,
                 uint32_t access_intf_id, uint32_t network_intf_id,
-                uint32_t gemport_id, uint32_t priority_value,
+                uint32_t gemport_id, uint32_t sched_id,
+                uint32_t priority_value,
                 const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action) {
     bcmos_errno err;
@@ -608,7 +619,11 @@ Status FlowAdd_(uint32_t onu_id,
 
     {
         bcmbal_tm_sched_id val;
+        if (sched_id != 0) {
+            val = sched_id;
+        } else {
         val = (bcmbal_tm_sched_id) mk_sched_id(access_intf_id, onu_id);
+        }
         BCMBAL_CFG_PROP_SET(&cfg, flow, dba_tm_sched_id, val);
     }
 
@@ -660,7 +675,7 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
     return Status::OK;
 }
 
-Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int pir) {
+Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, int pir) {
 
     bcmos_errno err;
 
@@ -733,7 +748,11 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int pir) {
     bcmbal_tm_sched_key key = { };
     bcmbal_tm_sched_type sched_type;
 
+    if (sched_id != 0) {
+        key.id = sched_id;
+    } else {
     key.id = mk_sched_id(intf_id, onu_id);
+    }
     key.dir = BCMBAL_TM_SCHED_DIR_US;
 
     BCMBAL_CFG_INIT(&cfg, tm_sched, key);
@@ -768,7 +787,7 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int pir) {
     return Status::OK;
 }
 
-Status SchedRemove_(int intf_id, int onu_id, int agg_port_id) {
+Status SchedRemove_(int intf_id, int onu_id, int agg_port_id, int sched_id) {
 
     bcmos_errno err;
 
@@ -777,7 +796,11 @@ Status SchedRemove_(int intf_id, int onu_id, int agg_port_id) {
     bcmbal_tm_sched_cfg tm_cfg_us;
     bcmbal_tm_sched_key tm_key_us = { };
 
+    if (sched_id != 0) {
+        tm_key_us.id = sched_id;
+    } else {
     tm_key_us.id = mk_sched_id(intf_id, onu_id);
+    }
     tm_key_us.dir = BCMBAL_TM_SCHED_DIR_US;
 
     BCMBAL_CFG_INIT(&tm_cfg_us, tm_sched, tm_key_us);

@@ -30,11 +30,13 @@ extern State state;
 
 Status Enable_(int argc, char *argv[]);
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
-    const char *vendor_id, const char *vendor_specific, uint32_t pir);
+    const char *vendor_id, const char *vendor_specific, uint32_t pir,
+    uint32_t agg_port_id, uint32_t alloc_id);
 Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific);
 Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
-    const char *vendor_id, const char *vendor_specific);
+    const char *vendor_id, const char *vendor_specific,
+    uint32_t agg_port_id, uint32_t alloc_id);
 Status EnablePonIf_(uint32_t intf_id);
 Status DisablePonIf_(uint32_t intf_id);
 Status EnableUplinkIf_(uint32_t intf_id);
@@ -45,7 +47,7 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt);
 Status FlowAdd_(uint32_t onu_id,
                 uint32_t flow_id, const std::string flow_type,
                 uint32_t access_intf_id, uint32_t network_intf_id,
-                uint32_t gemport_id, uint32_t priority,
+                uint32_t gemport_id, uint32_t alloc_id, uint32_t priority,
                 const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action);
 Status FlowRemove_(uint32_t flow_id, const std::string flow_type);
