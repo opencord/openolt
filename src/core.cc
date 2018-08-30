@@ -347,9 +347,9 @@ Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt) {
     char str2[MAX_CHAR_LENGTH];
     memset(&arraySend, 0, buf.len);
 
-    std::cout << "Sending omci msg to ONU of length is "
-         << buf.len
-         << std::endl;
+    // std::cout << "Sending omci msg to ONU of length is "
+    //      << buf.len
+    //      << std::endl;
 
     for (idx1=0,idx2=0; idx1<((buf.len)*2); idx1++,idx2++) {
        sprintf(str1,"%c", pkt[idx1]);
@@ -360,15 +360,15 @@ Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt) {
 
     buf.val = (uint8_t *)malloc((buf.len)*sizeof(uint8_t));
     memcpy(buf.val, (uint8_t *)arraySend, buf.len);
-
-    std::cout << "After converting bytes to hex "
-              << buf.val << buf.len << std::endl;
+    //
+    // std::cout << "After converting bytes to hex "
+    //           << buf.val << buf.len << std::endl;
 
     err = bcmbal_pkt_send(0, proxy_pkt_dest, (const char *)(buf.val), buf.len);
 
-    std::cout << "OMCI request msg of length " << buf.len
-              << " sent to ONU" << onu_id
-              << " through PON " << intf_id << std::endl;
+    // std::cout << "OMCI request msg of length " << buf.len
+    //           << " sent to ONU" << onu_id
+    //           << " through PON " << intf_id << std::endl;
 
     free(buf.val);
 

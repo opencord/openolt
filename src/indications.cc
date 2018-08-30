@@ -327,7 +327,7 @@ bcmos_errno OmciIndication(bcmbal_obj *obj) {
     bcmbal_packet_itu_omci_channel_rx *in =
         (bcmbal_packet_itu_omci_channel_rx *)obj;
 
-    std::cout << "omci indication" << std::endl;
+    // std::cout << "omci indication" << std::endl;
 
     omci_ind->set_intf_id(in->key.packet_send_dest.u.itu_omci_channel.intf_id);
     omci_ind->set_onu_id(in->key.packet_send_dest.u.itu_omci_channel.sub_term_id);

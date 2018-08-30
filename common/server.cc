@@ -157,14 +157,17 @@ class OpenoltService final : public openolt::Openolt::Service {
 
         if (state.previsouly_connected()) {
             // Reconciliation / recovery case
+            std::cout << "Reconciliation / Recovery case" << std::endl;
             if (state.is_activated()){
                 // Adding extra olt indication of current state
                 openolt::Indication ind;
                 openolt::OltIndication* oltInd = new openolt::OltIndication();
                 if (state.is_activated()) {
                     oltInd->set_oper_state("up");
+                    std::cout << "Extra OLT indication up" << std::endl;
                 } else {
                     oltInd->set_oper_state("down");
+                    std::cout << "Extra OLT indication down" << std::endl;
                 }
                 ind.set_allocated_olt_ind(oltInd);
                 oltIndQ.push(ind);
