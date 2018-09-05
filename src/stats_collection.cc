@@ -5,6 +5,7 @@
 #include <openolt.grpc.pb.h>
 #include "indications.h"
 #include "core.h"
+#include "translation.h"
 
 extern "C"
 {
@@ -57,17 +58,13 @@ openolt::FlowStatistics* get_default_flow_statistics() {
 }
 #endif
 
-openolt::PortStatistics* collectPortStatistics(int intf_id, bcmbal_intf_type intf_type) {
+openolt::PortStatistics* collectPortStatistics(bcmbal_interface_key key) {
 
     bcmos_errno err;
     bcmbal_interface_stat stat;     /**< declare main API struct */
-    bcmbal_interface_key key = { }; /**< declare key */
     bcmos_bool clear_on_read = false;
 
     openolt::PortStatistics* port_stats = get_default_port_statistics();
-    // build key
-    key.intf_id = (bcmbal_intf_id) intf_id;
-    key.intf_type = intf_type;
 
     /* init the API struct */
     BCMBAL_STAT_INIT(&stat, interface, key);
@@ -97,9 +94,14 @@ openolt::PortStatistics* collectPortStatistics(int intf_id, bcmbal_intf_type int
 
     } else {
         std::cout << "ERROR: Failed to retrieve port statistics"
-                  << " intf_id:" << intf_id
-                  << " intf_type:" << intf_type << std::endl;
+                  << " intf_id:" << key.intf_id
+                  << " intf_type:" << key.intf_type << std::endl;
     }
+
+    port_stats->set_intf_id(interface_key_to_port_no(key));
+    time_t now;
+    time(&now);
+    port_stats->set_timestamp((int)now);
 
     return port_stats;
 
@@ -146,7 +148,7 @@ openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_fl
 #endif
 
 
-void* stats_collection() {
+void stats_collection() {
 
     if (!state.is_connected()) {
         std::cout << "Voltha is not connected, do not collect stats" << std::endl;
@@ -157,7 +159,6 @@ void* stats_collection() {
         return;
     }
 
-    time_t now;
 
     std::cout << "Collecting statistics" << std::endl;
 
@@ -165,22 +166,24 @@ void* stats_collection() {
 
     //Uplink ports
     for (int i = 0; i < 4; i++) {
-        openolt::PortStatistics* port_stats = collectPortStatistics(i, BCMBAL_INTF_TYPE_NNI);
-        //FIXME Use clean port translation
-        port_stats->set_intf_id(128 + i);
-        time(&now);
-        port_stats->set_timestamp((int)now);
+        bcmbal_interface_key nni_interface;
+        nni_interface.intf_type = BCMBAL_INTF_TYPE_NNI;
+        nni_interface.intf_id = i;
+
+        openolt::PortStatistics* port_stats = collectPortStatistics(nni_interface);
+
         openolt::Indication ind;
         ind.set_allocated_port_stats(port_stats);
         oltIndQ.push(ind);
     }
     //Pon ports
     for (int i = 0; i < 16; i++) {
-        openolt::PortStatistics* port_stats = collectPortStatistics(i, BCMBAL_INTF_TYPE_PON);
-        //FIXME Use clean port translation
-        port_stats->set_intf_id((0x2 << 28) + i);
-        time(&now);
-        port_stats->set_timestamp((int)now);
+        bcmbal_interface_key pon_interface;
+        pon_interface.intf_type = BCMBAL_INTF_TYPE_PON;
+        pon_interface.intf_id = i;
+
+        openolt::PortStatistics* port_stats = collectPortStatistics(pon_interface);
+
         openolt::Indication ind;
         ind.set_allocated_port_stats(port_stats);
         oltIndQ.push(ind);
@@ -221,11 +224,11 @@ void* stats_collection() {
 }
 
 /* Storing flow keys, temporary */
-void register_new_flow(bcmbal_flow_key key) {
-    for (int i = 0; i < FLOWS_COUNT; i++) {
-        if (flows_keys[i].flow_id == 0) {
-            flows_keys[i] = key;
-            break;
-        }
-    }
-}
+// void register_new_flow(bcmbal_flow_key key) {
+//     for (int i = 0; i < FLOWS_COUNT; i++) {
+//         if (flows_keys[i].flow_id == 0) {
+//             flows_keys[i] = key;
+//             break;
+//         }
+//     }
+// }

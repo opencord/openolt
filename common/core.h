@@ -54,5 +54,5 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type);
 Status Disable_();
 Status Reenable_();
 
-void* stats_collection();
+void stats_collection();
 #endif

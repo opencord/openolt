@@ -640,7 +640,7 @@ Status FlowAdd_(uint32_t onu_id,
         return bcm_to_grpc_err(err, "flow add failed");
     }
 
-    register_new_flow(key);
+    // register_new_flow(key);
 
     return Status::OK;
 }

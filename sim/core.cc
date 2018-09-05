@@ -126,5 +126,5 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
     return Status::OK;
 }
 
-void* stats_collection() {
+void stats_collection() {
 }
