@@ -38,6 +38,10 @@ extern "C"
 #include <bal_api_end.h>
 }
 
+#define NUM_OF_PON_PORTS 16
+const std::string technology = "xgspon";
+const std::string firmware_version = "BAL.2.6.0.1__Openolt.2018.09.05";
+
 State state;
 
 static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, int pir);
@@ -49,6 +53,25 @@ static inline int mk_sched_id(int intf_id, int onu_id) {
 
 static inline int mk_agg_port_id(int intf_id, int onu_id) {
     return 1023 + intf_id * 112 + onu_id;
+}
+
+
+Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
+
+    device_info->set_vendor("EdgeCore");
+    device_info->set_model("asfvolt16");
+    device_info->set_hardware_version("");
+    device_info->set_firmware_version(firmware_version);
+    device_info->set_technology(technology);
+    device_info->set_onu_id_start(1);
+    device_info->set_onu_id_end(XGPON_NUM_OF_ONUS - 1);
+    device_info->set_alloc_id_start(1024);
+    device_info->set_alloc_id_end(XGPON_NUM_OF_ALLOC_IDS * NUM_OF_PON_PORTS - 1);
+    device_info->set_gemport_id_start(RSC_MGR_XGPON_MIN_BASE_SERVICE_PORT_ID);
+    device_info->set_gemport_id_end(XGPON_NUM_OF_GEM_PORT_IDS_PER_PON * NUM_OF_PON_PORTS - 1);
+    device_info->set_pon_ports(NUM_OF_PON_PORTS);
+
+    return Status::OK;
 }
 
 Status Enable_(int argc, char *argv[]) {

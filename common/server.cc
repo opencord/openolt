@@ -246,6 +246,18 @@ class OpenoltService final : public openolt::Openolt::Service {
 
     }
 
+    Status GetDeviceInfo(
+            ServerContext* context,
+            const openolt::Empty* request,
+            openolt::DeviceInfo* response) override {
+
+        GetDeviceInfo_(response);
+
+        return Status::OK;
+
+    }
+
+
 
 };
 

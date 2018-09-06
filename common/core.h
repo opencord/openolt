@@ -53,6 +53,7 @@ Status FlowAdd_(uint32_t onu_id,
 Status FlowRemove_(uint32_t flow_id, const std::string flow_type);
 Status Disable_();
 Status Reenable_();
+Status GetDeviceInfo_(openolt::DeviceInfo* device_info);
 
 void stats_collection();
 #endif

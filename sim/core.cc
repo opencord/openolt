@@ -128,3 +128,7 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
 
 void stats_collection() {
 }
+
+Status GetDeviceInfo_(openolt::DeviceInfo* deviceInfo) {
+    return Status::OK;
+}
