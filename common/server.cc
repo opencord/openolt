@@ -225,6 +225,16 @@ class OpenoltService final : public openolt::Openolt::Service {
         return DisablePonIf_(request->intf_id());
     }
 
+    Status CollectStatistics(
+            ServerContext* context,
+            const openolt::Empty* request,
+            openolt::Empty* response) override {
+
+        stats_collection();
+
+        return Status::OK;
+    }
+
     Status Reboot(
             ServerContext* context,
             const openolt::Empty* request,
