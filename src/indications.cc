@@ -54,7 +54,7 @@ bcmos_errno OltIndication(bcmbal_obj *obj) {
         state.deactivate();
     }
     ind.set_allocated_olt_ind(olt_ind);
-    std::cout << "olt indication, oper_state:" << ind.olt_ind().oper_state() << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "Olt indication, oper_state: %s\n", ind.olt_ind().oper_state().c_str());
     oltIndQ.push(ind);
 
 #define MAX_SUPPORTED_INTF 16
@@ -92,7 +92,7 @@ bcmos_errno LosIndication(bcmbal_obj *obj) {
     int intf_id = interface_key_to_port_no(bcm_los_ind->key);
     std::string status = alarm_status_to_string(bcm_los_ind->data.status);
 
-    std::cout << "LOS indication : " << intf_id << "  " << status << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "LOS indication : %d status %s\n", intf_id, status.c_str());
 
     los_ind->set_intf_id(intf_id);
     los_ind->set_status(status);
@@ -108,8 +108,8 @@ bcmos_errno IfIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
     openolt::IntfIndication* intf_ind = new openolt::IntfIndication;
 
-    std::cout << "intf indication, intf_id:"
-              << ((bcmbal_interface_oper_status_change *)obj)->key.intf_id << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "intf indication, intf_id: %d\n",
+        ((bcmbal_interface_oper_status_change *)obj)->key.intf_id );
 
     intf_ind->set_intf_id(((bcmbal_interface_oper_status_change *)obj)->key.intf_id);
     if (((bcmbal_interface_oper_status_change *)obj)->data.new_oper_status == BCMBAL_STATUS_UP) {
@@ -127,12 +127,11 @@ bcmos_errno IfIndication(bcmbal_obj *obj) {
 bcmos_errno IfOperIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
     openolt::IntfOperIndication* intf_oper_ind = new openolt::IntfOperIndication;
-    std::cout << "intf oper state indication, intf_id:"
-              << ((bcmbal_interface_oper_status_change *)obj)->key.intf_id
-              << " type:" << ((bcmbal_interface_oper_status_change *)obj)->key.intf_type
-              << " oper_state:" << ((bcmbal_interface_oper_status_change *)obj)->data.new_oper_status
-              << " admin_state:" << ((bcmbal_interface_oper_status_change *)obj)->data.admin_state
-              << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_id %d, type %d, oper_state %d, admin_state %d\n",
+        ((bcmbal_interface_oper_status_change *)obj)->key.intf_id,
+        ((bcmbal_interface_oper_status_change *)obj)->key.intf_type,
+        ((bcmbal_interface_oper_status_change *)obj)->data.new_oper_status,
+        ((bcmbal_interface_oper_status_change *)obj)->data.admin_state);
 
     intf_oper_ind->set_intf_id(((bcmbal_interface_oper_status_change *)obj)->key.intf_id);
 
@@ -167,12 +166,8 @@ bcmos_errno OnuAlarmIndication(bcmbal_obj *obj) {
     bcmbal_subscriber_terminal_alarms *alarms =
         &(((bcmbal_subscriber_terminal_sub_term_alarm*)obj)->data.alarm);
 
-    std::cout << "onu alarm indication intf_id:" << key->intf_id
-        << ", onu_id:"
-        << key->sub_term_id
-        << ", alarm: los " << alarms->los << ", lob " << alarms->lob
-        << ", lopc_miss " << alarms->lopc_miss << ", lopc_mic_error "
-        << alarms->lopc_mic_error << std::endl;
+    BCM_LOG(WARNING, openolt_log_id, "onu alarm indication intf_id %d, onu_id %d, alarm: los %d, lob %d, lopc_miss %d, lopc_mic_error %d\n",
+        key->intf_id, key->sub_term_id, alarms->los, alarms->lob, alarms->lopc_miss, alarms->lopc_mic_error);
 
     onu_alarm_ind->set_intf_id(key->intf_id);
     onu_alarm_ind->set_onu_id(key->sub_term_id);
@@ -200,12 +195,8 @@ bcmos_errno OnuDyingGaspIndication(bcmbal_obj *obj) {
         &(((bcmbal_subscriber_terminal_dgi*)obj)->data);
 
 
-    std::cout << "onu dying-gasp indication, intf_id:"
-         << key->intf_id
-         << ", onu_id:"
-         << key->sub_term_id
-         << ", alarm: "
-         << data->dgi_status << std::endl;
+    BCM_LOG(WARNING, openolt_log_id, "onu dying-gasp indication, intf_id %d, onu_id %d, alarm %d\n",
+        key->intf_id, key->sub_term_id, data->dgi_status);
 
     dg_ind->set_intf_id(key->intf_id);
     dg_ind->set_onu_id(key->sub_term_id);
@@ -231,10 +222,8 @@ bcmos_errno OnuDiscoveryIndication(bcmbal_cfg *obj) {
 
     bcmbal_serial_number *in_serial_number = &(data->serial_number);
 
-    std::cout << "onu discover indication, intf_id:"
-         << key->intf_id
-         << " serial_number:"
-         << serial_number_to_str(in_serial_number) << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "onu discover indication, intf_id %d, serial_number %s\n",
+        key->intf_id, serial_number_to_str(in_serial_number));
 
     onu_disc_ind->set_intf_id(key->intf_id);
     serial_number->set_vendor_id(reinterpret_cast<const char *>(in_serial_number->vendor_id), 4);
@@ -257,11 +246,8 @@ bcmos_errno OnuIndication(bcmbal_obj *obj) {
     bcmbal_subscriber_terminal_oper_status_change_data *data =
         &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->data);
 
-    std::cout << "onu indication, intf_id:"
-         << key->intf_id
-         << " oper_state:" << data->new_oper_status
-         << " admin_state:" << data->admin_state
-         << " onu_id:" << key->sub_term_id << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "onu indication, intf_id %d, onu_id %d, oper_state %d, admin_state %d\n",
+        key->intf_id, key->sub_term_id, data->new_oper_status, data->admin_state);
 
     onu_ind->set_intf_id(key->intf_id);
     onu_ind->set_onu_id(key->sub_term_id);
@@ -293,14 +279,8 @@ bcmos_errno OnuOperIndication(bcmbal_obj *obj) {
         &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->data);
 
 
-    std::cout << "onu oper state indication, intf_id:"
-         << key->intf_id
-         << " onu_id: "
-         << key->sub_term_id
-         << " old oper state: "
-         << data->old_oper_status
-         << " new oper state:"
-         << data->new_oper_status << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "onu oper state indication, intf_id %d, onu_id %d, old oper state %d, new oper state %d\n",
+        key->intf_id, key->sub_term_id, data->old_oper_status, data->new_oper_status);
 
     onu_ind->set_intf_id(key->intf_id);
     onu_ind->set_onu_id(key->sub_term_id);
@@ -327,7 +307,9 @@ bcmos_errno OmciIndication(bcmbal_obj *obj) {
     bcmbal_packet_itu_omci_channel_rx *in =
         (bcmbal_packet_itu_omci_channel_rx *)obj;
 
-    // std::cout << "omci indication" << std::endl;
+    BCM_LOG(DEBUG, omci_log_id, "OMCI indication: intf_id %d, onu_id %d\n",
+        in->key.packet_send_dest.u.itu_omci_channel.intf_id,
+        in->key.packet_send_dest.u.itu_omci_channel.sub_term_id);
 
     omci_ind->set_intf_id(in->key.packet_send_dest.u.itu_omci_channel.intf_id);
     omci_ind->set_onu_id(in->key.packet_send_dest.u.itu_omci_channel.sub_term_id);
@@ -344,11 +326,8 @@ bcmos_errno PacketIndication(bcmbal_obj *obj) {
     openolt::PacketIndication* pkt_ind = new openolt::PacketIndication;
     bcmbal_packet_bearer_channel_rx *in = (bcmbal_packet_bearer_channel_rx *)obj;
 
-    std::cout << "packet indication"
-              << " intf_id:" << in->data.intf_id
-              << " svc_port:" << in->data.svc_port
-              << " flow_id:" << in->data.flow_id
-              << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_id %d, svc_port %d, flow_id %d\n",
+        in->data.intf_id, in->data.svc_port, in->data.flow_id);
 
     pkt_ind->set_intf_id(in->data.intf_id);
     pkt_ind->set_gemport_id(in->data.svc_port);
@@ -363,31 +342,31 @@ bcmos_errno PacketIndication(bcmbal_obj *obj) {
 
 bcmos_errno FlowOperIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
-    std::cout << "flow oper state indication" << std::endl;
+    BCM_LOG(DEBUG, openolt_log_id, "flow oper state indication\n");
     return BCM_ERR_OK;
 }
 
 bcmos_errno FlowIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
-    std::cout << "flow indication" << std::endl;
+    BCM_LOG(DEBUG, openolt_log_id, "flow indication\n");
     return BCM_ERR_OK;
 }
 
 bcmos_errno TmQIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
-    std::cout << "traffic mgmt queue indication" << std::endl;
+    BCM_LOG(DEBUG, openolt_log_id, "traffic mgmt queue indication\n");
     return BCM_ERR_OK;
 }
 
 bcmos_errno TmSchedIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
-    std::cout << "traffic mgmt sheduler indication" << std::endl;
+    BCM_LOG(DEBUG, openolt_log_id,  "traffic mgmt sheduler indication\n");
     return BCM_ERR_OK;
 }
 
 bcmos_errno McastGroupIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
-    std::cout << "mcast group indication" << std::endl;
+    BCM_LOG(DEBUG, openolt_log_id, "mcast group indication\n");
     return BCM_ERR_OK;
 }
 
@@ -402,12 +381,8 @@ bcmos_errno OnuStartupFailureIndication(bcmbal_obj *obj) {
     bcmbal_subscriber_terminal_sufi_data *data =
         &(((bcmbal_subscriber_terminal_sufi*)obj)->data);
 
-    std::cout << "onu startup failure indication, intf_id:"
-         << key->intf_id
-         << ", onu_id:"
-         << key->sub_term_id
-         << ", alarm: "
-         << data->sufi_status << std::endl;
+    BCM_LOG(WARNING, openolt_log_id, "onu startup failure indication, intf_id %d, onu_id %d, alarm %d\n",
+        key->intf_id, key->sub_term_id, data->sufi_status);
 
     sufi_ind->set_intf_id(key->intf_id);
     sufi_ind->set_onu_id(key->sub_term_id);
@@ -431,13 +406,8 @@ bcmos_errno OnuSignalDegradeIndication(bcmbal_obj *obj) {
     bcmbal_subscriber_terminal_sdi_data *data =
         &(((bcmbal_subscriber_terminal_sdi*)obj)->data);
 
-    std::cout << "onu signal degrade indication, intf_id:"
-         << key->intf_id
-         << ", onu_id:"
-         << key->sub_term_id
-         << ", alarm: "
-         << data->sdi_status
-         << ", BER : " << data->ber << std::endl;
+    BCM_LOG(WARNING, openolt_log_id, "onu signal degrade indication, intf_id %d, onu_id %d, alarm %d, BER %d\n",
+        key->intf_id, key->sub_term_id, data->sdi_status, data->ber);
 
     sdi_ind->set_intf_id(key->intf_id);
     sdi_ind->set_onu_id(key->sub_term_id);
@@ -462,14 +432,8 @@ bcmos_errno OnuDriftOfWindowIndication(bcmbal_obj *obj) {
     bcmbal_subscriber_terminal_dowi_data *data =
         &(((bcmbal_subscriber_terminal_dowi*)obj)->data);
 
-    std::cout << "onu drift of window indication, intf_id:"
-         << key->intf_id
-         << ", onu_id:"
-         << key->sub_term_id
-         << ", alarm: "
-         << data->dowi_status
-         << ", drift : " << data->drift_value
-         << "new_eqd : " << data->new_eqd << std::endl;
+    BCM_LOG(WARNING, openolt_log_id, "onu drift of window indication, intf_id %d, onu_id %d, alarm %d, drift %d, new_eqd %d\n",
+        key->intf_id, key->sub_term_id, data->dowi_status, data->drift_value, data->new_eqd);
 
     dowi_ind->set_intf_id(key->intf_id);
     dowi_ind->set_onu_id(key->sub_term_id);
@@ -495,13 +459,8 @@ bcmos_errno OnuLossOfOmciChannelIndication(bcmbal_obj *obj) {
     bcmbal_subscriber_terminal_looci_data *data =
         &(((bcmbal_subscriber_terminal_looci*)obj)->data);
 
-    std::cout << "onu loss of OMCI channel indication, intf_id:"
-         << key->intf_id
-         << ", onu_id:"
-         << key->sub_term_id
-         << ", alarm: "
-         << data->looci_status << std::endl;
-
+    BCM_LOG(WARNING, openolt_log_id, "onu loss of OMCI channel indication, intf_id %d, onu_id %d, alarm %d\n",
+        key->intf_id, key->sub_term_id, data->looci_status);
 
     looci_ind->set_intf_id(key->intf_id);
     looci_ind->set_onu_id(key->sub_term_id);
@@ -525,13 +484,8 @@ bcmos_errno OnuSignalsFailureIndication(bcmbal_obj *obj) {
     bcmbal_subscriber_terminal_sfi_data *data =
         &(((bcmbal_subscriber_terminal_sfi*)obj)->data);
 
-    std::cout << "onu signals failure indication, intf_id:"
-         << key->intf_id
-         << ", onu_id:"
-         << key->sub_term_id
-         << ", alarm: "
-         << data->sfi_status
-         << ", BER: " << data->ber << std::endl;
+    BCM_LOG(WARNING, openolt_log_id,  "onu signals failure indication, intf_id %d, onu_id %d, alarm %d, BER %d\n",
+        key->intf_id, key->sub_term_id, data->sfi_status, data->ber);
 
 
     sfi_ind->set_intf_id(key->intf_id);
@@ -557,13 +511,8 @@ bcmos_errno OnuTransmissionInterferenceWarningIndication(bcmbal_obj *obj) {
     bcmbal_subscriber_terminal_tiwi_data *data =
         &(((bcmbal_subscriber_terminal_tiwi*)obj)->data);
 
-    std::cout << "onu transmission interference warning indication, intf_id:"
-         << key->intf_id
-         << ", onu_id:"
-         << key->sub_term_id
-         << ", alarm: "
-         << data->tiwi_status
-         << ", drift: " << data->drift_value << std::endl;
+    BCM_LOG(WARNING, openolt_log_id,  "onu transmission interference warning indication, intf_id %d, onu_id %d, alarm %d, drift %d\n",
+        key->intf_id, key->sub_term_id, data->tiwi_status, data->drift_value);
 
     tiwi_ind->set_intf_id(key->intf_id);
     tiwi_ind->set_onu_id(key->sub_term_id);
@@ -585,10 +534,8 @@ bcmos_errno OnuActivationFailureIndication(bcmbal_obj *obj) {
     bcmbal_subscriber_terminal_key *key =
         &(((bcmbal_subscriber_terminal_sub_term_act_fail*)obj)->key);
 
-    std::cout << "onu activation failure indication, intf_id:"
-         << key->intf_id
-         << ", onu_id:"
-         << key->sub_term_id << std::endl;
+    BCM_LOG(WARNING, openolt_log_id, "onu activation failure indication, intf_id %d, onu_id %d\n",
+        key->intf_id, key->sub_term_id);
 
 
     activation_fail_ind->set_intf_id(key->intf_id);
@@ -609,10 +556,8 @@ bcmos_errno OnuProcessingErrorIndication(bcmbal_obj *obj) {
     bcmbal_subscriber_terminal_key *key =
         &(((bcmbal_subscriber_terminal_processing_error*)obj)->key);
 
-    std::cout << "onu processing error indication, intf_id:"
-         << key->intf_id
-         << ", onu_id:"
-         << key->sub_term_id << std::endl;
+    BCM_LOG(WARNING, openolt_log_id, "onu processing error indication, intf_id %d, onu_id %d\n",
+        key->intf_id, key->sub_term_id);
 
 
     onu_proc_error_ind->set_intf_id(key->intf_id);

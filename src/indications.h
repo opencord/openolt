@@ -22,7 +22,13 @@
 #include <openolt.grpc.pb.h>
 #include "Queue.h"
 
+extern "C" {
+    #include <bcm_dev_log_task.h>
+}
+
 extern Queue<openolt::Indication> oltIndQ;
 extern grpc::Status SubscribeIndication();
+extern dev_log_id openolt_log_id;
+extern dev_log_id omci_log_id;
 
 #endif

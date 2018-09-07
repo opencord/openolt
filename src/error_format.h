@@ -12,6 +12,7 @@ extern "C"
 }
 
 grpc::Status bcm_to_grpc_err(bcmos_errno bcm_err, std::string message);
+std::string grpc_status_code_to_string(grpc::StatusCode status_code);
 
 
 #endif

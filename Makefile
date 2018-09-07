@@ -135,7 +135,7 @@ BAL_INC = -I$(BAL_DIR)/bal_release/src/common/os_abstraction \
 	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/api \
 	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_reference/cli
 CXXFLAGS += $(BAL_INC) -I $(BAL_DIR)/lib/cmdline
-CXXFLAGS += -DBCMOS_MSG_QUEUE_DOMAIN_SOCKET -DBCMOS_MSG_QUEUE_UDP_SOCKET -DBCMOS_MEM_CHECK -DBCMOS_SYS_UNITTEST
+CXXFLAGS += -DBCMOS_MSG_QUEUE_DOMAIN_SOCKET -DBCMOS_MSG_QUEUE_UDP_SOCKET -DBCMOS_MEM_CHECK -DBCMOS_SYS_UNITTEST -DENABLE_LOG
 
 sdk: onl
 ifeq ("$(wildcard $(BAL_DIR))","")

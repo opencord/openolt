@@ -1,0 +1,10 @@
+/var/log/bal_core_dist.log
+/var/log/openolt.log
+{
+  rotate 7
+  daily
+  compress
+  missingok
+  delaycompress
+  copytruncate
+}

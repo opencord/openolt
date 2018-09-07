@@ -7,6 +7,7 @@ grep -q '\/opt\/bcm68620\/svk_init.sh' /etc/rc.local || sed -i -e '$i \/opt\/bcm
 rm -f /run/bcm68620
 cp /tmp/init.d/bal_core_dist /etc/init.d
 cp /tmp/init.d/openolt /etc/init.d
+cp /tmp/logrotate.d/openolt /etc/logrotate.d
 chmod +x /etc/init.d/bal_core_dist
 chmod +x /etc/init.d/openolt
 update-rc.d bal_core_dist defaults

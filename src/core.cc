@@ -38,11 +38,16 @@ extern "C"
 #include <bal_api_end.h>
 // FIXME : dependency problem
 // #include <bcm_common_gpon.h>
+// #include <bcm_dev_log_task.h>
 }
+
+dev_log_id openolt_log_id = bcm_dev_log_id_register("OPENOLT", DEV_LOG_LEVEL_INFO, DEV_LOG_ID_TYPE_BOTH);
+dev_log_id omci_log_id = bcm_dev_log_id_register("OMCI", DEV_LOG_LEVEL_INFO, DEV_LOG_ID_TYPE_BOTH);
+
 
 #define NUM_OF_PON_PORTS 16
 const std::string technology = "xgspon";
-const std::string firmware_version = "BAL.2.6.0.1__Openolt.2018.09.05";
+const std::string firmware_version = "BAL.2.6.0.1__Openolt.2018.09.10";
 
 State state;
 
@@ -90,15 +95,16 @@ Status Enable_(int argc, char *argv[]) {
     bcmbal_access_terminal_key key = { };
 
     if (!state.is_activated()) {
-        std::cout << "Enable OLT" << std::endl;
+        BCM_LOG(INFO, openolt_log_id, "Enable OLT");
 
         bcmbal_init(argc, argv, NULL);
 
         Status status = SubscribeIndication();
         if (!status.ok()) {
-            std::cout << "ERROR: SubscribeIndication failed - "
-                      << status.error_code() << ": " << status.error_message()
-                      << std::endl;
+            BCM_LOG(ERROR, openolt_log_id, "SubscribeIndication failed - %s : %s\n",
+                grpc_status_code_to_string(status.error_code()).c_str(),
+                status.error_message().c_str());
+
             return status;
         }
 
@@ -107,7 +113,7 @@ Status Enable_(int argc, char *argv[]) {
         BCMBAL_CFG_PROP_SET(&acc_term_obj, access_terminal, admin_state, BCMBAL_STATE_UP);
         bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(acc_term_obj.hdr));
         if (err) {
-            std::cout << "ERROR: Failed to enable OLT" << std::endl;
+            BCM_LOG(ERROR, openolt_log_id, "Failed to enable OLT\n");
             return bcm_to_grpc_err(err, "Failed to enable OLT");
         }
         init_stats();
@@ -144,7 +150,7 @@ Status Disable_() {
         openolt::OltIndication* olt_ind = new openolt::OltIndication;
         olt_ind->set_oper_state("down");
         ind.set_allocated_olt_ind(olt_ind);
-        std::cout << "Disable OLT, add an extra indication" << std::endl;
+        BCM_LOG(INFO, openolt_log_id, "Disable OLT, add an extra indication\n");
         oltIndQ.push(ind);
     }
     return status;
@@ -159,7 +165,7 @@ Status Reenable_() {
         openolt::OltIndication* olt_ind = new openolt::OltIndication;
         olt_ind->set_oper_state("up");
         ind.set_allocated_olt_ind(olt_ind);
-        std::cout << "Reenable OLT, add an extra indication" << std::endl;
+        BCM_LOG(INFO, openolt_log_id, "Reenable OLT, add an extra indication\n");
         oltIndQ.push(ind);
     }
     return status;
@@ -177,7 +183,7 @@ Status EnablePonIf_(uint32_t intf_id) {
 
     bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
     if (err) {
-        std::cout << "ERROR: Failed to enable PON interface: " << intf_id << std::endl;
+        BCM_LOG(ERROR, openolt_log_id, "Failed to enable PON interface: %d\n", intf_id);
         return bcm_to_grpc_err(err, "Failed to enable PON interface");
     }
 
@@ -196,7 +202,7 @@ Status DisableUplinkIf_(uint32_t intf_id) {
 
     bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
     if (err) {
-        std::cout << "ERROR: Failed to disable Uplink interface: " << intf_id << std::endl;
+        BCM_LOG(ERROR, openolt_log_id, "Failed to disable Uplink interface: %d\n", intf_id);
         return bcm_to_grpc_err(err, "Failed to disable Uplink interface");
     }
 
@@ -215,7 +221,7 @@ Status EnableUplinkIf_(uint32_t intf_id) {
 
     bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
     if (err) {
-        std::cout << "ERROR: Failed to enable Uplink interface: " << intf_id << std::endl;
+        BCM_LOG(ERROR, openolt_log_id, "Failed to enable Uplink interface: %d\n", intf_id);
         return bcm_to_grpc_err(err, "Failed to enable Uplink interface");
     }
 
@@ -234,7 +240,7 @@ Status DisablePonIf_(uint32_t intf_id) {
 
     bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
     if (err) {
-        std::cout << "ERROR: Failed to disable PON interface: " << intf_id << std::endl;
+        BCM_LOG(ERROR, openolt_log_id, "Failed to disable PON interface: %d\n", intf_id);
         return bcm_to_grpc_err(err, "Failed to disable PON interface");
     }
 
@@ -250,11 +256,8 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     bcmbal_serial_number serial_num = {};
     bcmbal_registration_id registration_id = {};
 
-    std::cout << "Enabling ONU " << onu_id << " on PON " << intf_id << std::endl;
-    std::cout << "Vendor Id " << vendor_id
-              << "Vendor Specific Id " << vendor_specific
-              << "pir " << pir
-              << std::endl;
+    BCM_LOG(INFO, openolt_log_id,  "Enabling ONU %d on PON %d : vendor id %s, vendor specific %s, pir %d\n",
+        onu_id, intf_id, vendor_id, vendor_specific, pir);
 
     subs_terminal_key.sub_term_id = onu_id;
     subs_terminal_key.intf_id = intf_id;
@@ -277,7 +280,7 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
 
     bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(sub_term_obj.hdr));
     if (err) {
-        std::cout << "ERROR: Failed to enable ONU: " << std::endl;
+        BCM_LOG(ERROR, openolt_log_id, "Failed to enable ONU %d on PON %d\n", onu_id, intf_id);
         return bcm_to_grpc_err(err, "Failed to enable ONU");
     }
 
@@ -296,10 +299,8 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     bcmbal_subscriber_terminal_cfg sub_term_obj = {};
     bcmbal_subscriber_terminal_key subs_terminal_key;
 
-    std::cout << "Deactivating ONU " << onu_id << " on PON " << intf_id << std::endl;
-    std::cout << "Vendor Id " << vendor_id
-              << "Vendor Specific Id " << vendor_specific
-              << std::endl;
+    BCM_LOG(INFO, openolt_log_id,  "Deactivating ONU %d on PON %d : vendor id %s, vendor specific %s\n",
+        onu_id, intf_id, vendor_id, vendor_specific);
 
     subs_terminal_key.sub_term_id = onu_id;
     subs_terminal_key.intf_id = intf_id;
@@ -308,7 +309,7 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     BCMBAL_CFG_PROP_SET(&sub_term_obj, subscriber_terminal, admin_state, BCMBAL_STATE_DOWN);
 
     if (bcmbal_cfg_set(DEFAULT_ATERM_ID, &(sub_term_obj.hdr))) {
-        std::cout << "ERROR: Failed to deactivate ONU: " << std::endl;
+        BCM_LOG(ERROR, openolt_log_id,  "Failed to deactivate ONU %d on PON %d\n", onu_id, intf_id);
         return Status(grpc::StatusCode::INTERNAL, "Failed to deactivate ONU");
     }
 
@@ -337,16 +338,16 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     bcmbal_subscriber_terminal_cfg cfg;
     bcmbal_subscriber_terminal_key key = { };
 
-    std::cout << "Processing subscriber terminal cfg clear for sub_term_id = "
-              << onu_id << " and intf_id = " << intf_id << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "Processing subscriber terminal cfg clear for sub_term_id %d  and intf_id %d\n",
+        onu_id, intf_id);
 
     key.sub_term_id = onu_id ;
     key.intf_id = intf_id ;
 
     if (0 == key.sub_term_id)
     {
-            std::cout << "Invalid Key to handle subscriber terminal clear subscriber_terminal_id = "
-                      << onu_id << " Interface ID = " << intf_id << std::endl;
+            BCM_LOG(INFO, openolt_log_id,"Invalid Key to handle subscriber terminal clear subscriber_terminal_id %d, Interface ID %d\n",
+                onu_id, intf_id);
             return Status(grpc::StatusCode::INTERNAL, "Failed to delete ONU");
     }
 
@@ -355,8 +356,8 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &cfg.hdr);
     if (err != BCM_ERR_OK)
     {
-       std::cout << "Failed to clear information for BAL subscriber_terminal_id = "
-                << onu_id << " Interface ID = " << intf_id << std::endl;
+       BCM_LOG(ERROR, openolt_log_id, "Failed to clear information for BAL subscriber_terminal_id %d, Interface ID %d\n",
+            onu_id, intf_id);
         return Status(grpc::StatusCode::INTERNAL, "Failed to delete ONU");
     }
 
@@ -391,10 +392,6 @@ Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt) {
     char str2[MAX_CHAR_LENGTH];
     memset(&arraySend, 0, buf.len);
 
-    // std::cout << "Sending omci msg to ONU of length is "
-    //      << buf.len
-    //      << std::endl;
-
     for (idx1=0,idx2=0; idx1<((buf.len)*2); idx1++,idx2++) {
        sprintf(str1,"%c", pkt[idx1]);
        sprintf(str2,"%c", pkt[++idx1]);
@@ -404,15 +401,15 @@ Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt) {
 
     buf.val = (uint8_t *)malloc((buf.len)*sizeof(uint8_t));
     memcpy(buf.val, (uint8_t *)arraySend, buf.len);
-    //
-    // std::cout << "After converting bytes to hex "
-    //           << buf.val << buf.len << std::endl;
 
     err = bcmbal_pkt_send(0, proxy_pkt_dest, (const char *)(buf.val), buf.len);
 
-    // std::cout << "OMCI request msg of length " << buf.len
-    //           << " sent to ONU" << onu_id
-    //           << " through PON " << intf_id << std::endl;
+    if (err) {
+        BCM_LOG(ERROR, omci_log_id, "Error sending OMCI message to ONU %d on PON %d\n", onu_id, intf_id);
+    } else {
+        BCM_LOG(DEBUG, omci_log_id, "OMCI request msg of length %d sent to ONU %d on PON %d : %s\n",
+            buf.len, onu_id, intf_id, buf.val);
+    }
 
     free(buf.val);
 
@@ -434,9 +431,8 @@ Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt) {
 
     err = bcmbal_pkt_send(0, proxy_pkt_dest, (const char *)(buf.val), buf.len);
 
-    std::cout << "Packet out of length " << buf.len
-              << " sent to ONU" << onu_id
-              << " through PON " << intf_id << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "Packet out of length %d sent to ONU %d on PON %d\n",
+        buf.len, onu_id, intf_id);
 
     free(buf.val);
 
@@ -457,8 +453,8 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt) {
 
     err = bcmbal_pkt_send(0, proxy_pkt_dest, (const char *)(buf.val), buf.len);
 
-    std::cout << "Packet out of length " << buf.len
-              << " sent through uplink port " << intf_id << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "Packet out of length %d sent through uplink port %d\n",
+        buf.len, intf_id);
 
     free(buf.val);
 
@@ -476,14 +472,8 @@ Status FlowAdd_(uint32_t onu_id,
     bcmbal_flow_cfg cfg;
     bcmbal_flow_key key = { };
 
-    std::cout << "flow add -"
-              << " intf_id:" << access_intf_id
-              << " onu_id:" << onu_id
-              << " flow_id:" << flow_id
-              << " flow_type:" << flow_type
-              << " gemport_id:" << gemport_id
-              << " network_intf_id:" << network_intf_id
-              << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "flow add - intf_id %d, onu_id %d, fow_id %d, `flow_type` %s, gemport_id %d, network_intf_id %d\n",
+        access_intf_id, onu_id, flow_id, flow_type.c_str(), gemport_id, network_intf_id);
 
     key.flow_id = flow_id;
     if (flow_type.compare("upstream") == 0 ) {
@@ -491,7 +481,7 @@ Status FlowAdd_(uint32_t onu_id,
     } else if (flow_type.compare("downstream") == 0) {
         key.flow_type = BCMBAL_FLOW_TYPE_DOWNSTREAM;
     } else {
-        std::cout << "Invalid flow type " << flow_type << std::endl;
+        BCM_LOG(WARNING, openolt_log_id, "Invalid flow type %s\n", flow_type.c_str());
         return bcm_to_grpc_err(BCM_ERR_PARM, "Invalid flow type");
     }
 
@@ -670,7 +660,7 @@ Status FlowAdd_(uint32_t onu_id,
 
     err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr));
     if (err) {
-        std::cout << "ERROR: flow add failed" << std::endl;
+        BCM_LOG(ERROR, openolt_log_id,  "Flow add failed\n");
         return bcm_to_grpc_err(err, "flow add failed");
     }
 
@@ -691,7 +681,7 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
     } else if (flow_type.compare("downstream") == 0) {
         key.flow_type = BCMBAL_FLOW_TYPE_DOWNSTREAM;
     } else {
-        std::cout << "Invalid flow type " << flow_type << std::endl;
+        BCM_LOG(WARNING, openolt_log_id, "Invalid flow type %s\n", flow_type.c_str());
         return bcm_to_grpc_err(BCM_ERR_PARM, "Invalid flow type");
     }
 
@@ -700,12 +690,12 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
 
     bcmos_errno err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &cfg.hdr);
     if (err) {
-        std::cout << "Error " << err << " while removing flow "
-            << flow_id << ", " << flow_type << std::endl;
+        BCM_LOG(ERROR, openolt_log_id, "Error %d while removing flow %d, %s\n",
+            err, flow_id, flow_type.c_str());
         return Status(grpc::StatusCode::INTERNAL, "Failed to remove flow");
     }
 
-    std::cout << "Flow " << flow_id << ", " << flow_type << " removed";
+    BCM_LOG(INFO, openolt_log_id, "Flow %d, %s removed\n", flow_id, flow_type.c_str());
     return Status::OK;
 }
 
@@ -745,10 +735,8 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, int pir
 
         err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
         if (err) {
-            std::cout << "ERROR: Failed to create subscriber downstream sched"
-                      << " id:" << key.id
-                      << " intf_id:" << intf_id
-                      << " onu_id:" << onu_id << std::endl;
+            BCM_LOG(ERROR, openolt_log_id, "Failed to create subscriber downstream sched, id %d, intf_id %d, onu_id %d\n",
+                key.id, intf_id, onu_id);
             return bcm_to_grpc_err(err, "Failed to create subscriber downstream sched");
         }
     }
@@ -766,11 +754,8 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, int pir
         err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
 
         if (err) {
-            std::cout << "ERROR: Failed to create subscriber downstream tm queue"
-                      << " id: " << key.id
-                      << " sched_id: " << key.sched_id
-                      << " intf_id: " << intf_id
-                      << " onu_id: " << onu_id << std::endl;
+            BCM_LOG(ERROR, openolt_log_id, "Failed to create subscriber downstream tm queue, id %d, sched_id %d, intf_id %d, onu_id %d\n",
+                key.id, key.sched_id, intf_id, onu_id);
             return bcm_to_grpc_err(err, "Failed to create subscriber downstream tm queue");
         }
 
@@ -807,16 +792,12 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, int pir
 
     err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr));
     if (err) {
-        std::cout << "ERROR: Failed to create upstream DBA sched"
-                  << " id:" << key.id
-                  << " intf_id:" << intf_id
-                  << " onu_id:" << onu_id << std::endl;
+        BCM_LOG(ERROR, openolt_log_id, "Failed to create upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
+            key.id, intf_id,  onu_id);
         return bcm_to_grpc_err(err, "Failed to create upstream DBA sched");
     }
-    std::cout << "create upstream DBA sched"
-              << " id:" << key.id
-              << " intf_id:" << intf_id
-              << " onu_id:" << onu_id << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "Create upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
+        key.id,intf_id,onu_id);
 
     return Status::OK;
 }
@@ -841,17 +822,13 @@ Status SchedRemove_(int intf_id, int onu_id, int agg_port_id, int sched_id) {
 
     err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(tm_cfg_us.hdr));
     if (err) {
-        std::cout << "ERROR: Failed to remove upstream DBA sched"
-                << " id:" << tm_key_us.id
-                << " intf_id:" << intf_id
-                << " onu_id:" << onu_id << std::endl;
+        BCM_LOG(ERROR, openolt_log_id, "Failed to remove upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
+            tm_key_us.id, intf_id, onu_id);
         return Status(grpc::StatusCode::INTERNAL, "Failed to remove upstream DBA sched");
     }
 
-    std::cout << "remove upstream DBA sched"
-              << " id:" << tm_key_us.id
-              << " intf_id:" << intf_id
-              << " onu_id:" << onu_id << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "Remove upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
+        tm_key_us.id, intf_id, onu_id);
 
     /* Downstream */
 
@@ -867,19 +844,13 @@ Status SchedRemove_(int intf_id, int onu_id, int agg_port_id, int sched_id) {
 
     err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(queue_cfg.hdr));
     if (err) {
-        std::cout << "ERROR: Failed to remove downstream tm queue"
-                << " id:" << queue_key.id
-                << " sched_id:" << queue_key.sched_id
-                << " intf_id:" << intf_id
-                << " onu_id:" << onu_id << std::endl;
+        BCM_LOG(ERROR, openolt_log_id, "Failed to remove downstream tm queue, id %d, sched_id %d, intf_id %d, onu_id %d\n",
+            queue_key.id, queue_key.sched_id, intf_id, onu_id);
         return Status(grpc::StatusCode::INTERNAL, "Failed to remove downstream tm queue");
     }
 
-    std::cout << "remove upstream DBA sched"
-              << " id:" << queue_key.id
-              << " sched_id:" << queue_key.sched_id
-              << " intf_id:" << intf_id
-              << " onu_id:" << onu_id << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "Remove upstream DBA sched, id %d, sched_id %d, intf_id %d, onu_id %d\n",
+        queue_key.id, queue_key.sched_id, intf_id, onu_id);
 
     // Sheduler
 
@@ -891,17 +862,13 @@ Status SchedRemove_(int intf_id, int onu_id, int agg_port_id, int sched_id) {
 
     err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(tm_cfg_ds.hdr));
     if (err) {
-        std::cout << "ERROR: Failed to remove sub downstream sched"
-                << " id:" << tm_key_us.id
-                << " intf_id:" << intf_id
-                << " onu_id:" << onu_id << std::endl;
+        BCM_LOG(ERROR, openolt_log_id, "Failed to remove sub downstream sched, id %d, intf_id %d, onu_id %d\n",
+            tm_key_us.id, intf_id, onu_id);
         return Status(grpc::StatusCode::INTERNAL, "Failed to remove sub downstream sched");
     }
 
-    std::cout << "remove sub downstream sched"
-              << " id:" << tm_key_us.id
-              << " intf_id:" << intf_id
-              << " onu_id:" << onu_id << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "Remove sub downstream sched, id %d, intf_id %d, onu_id %d\n",
+        tm_key_us.id, intf_id, onu_id);
 
     return Status::OK;
     //return 0;

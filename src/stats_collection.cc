@@ -93,9 +93,8 @@ openolt::PortStatistics* collectPortStatistics(bcmbal_interface_key key) {
         port_stats->set_bip_errors(stat.data.bip_errors);
 
     } else {
-        std::cout << "ERROR: Failed to retrieve port statistics"
-                  << " intf_id:" << key.intf_id
-                  << " intf_type:" << key.intf_type << std::endl;
+        BCM_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d\n",
+            (int)key.intf_id, (int)key.intf_type);
     }
 
     port_stats->set_intf_id(interface_key_to_port_no(key));
@@ -151,16 +150,16 @@ openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_fl
 void stats_collection() {
 
     if (!state.is_connected()) {
-        std::cout << "Voltha is not connected, do not collect stats" << std::endl;
+        BCM_LOG(INFO, openolt_log_id, "Voltha is not connected, do not collect stats\n");
         return;
     }
     if (!state.is_activated()) {
-        std::cout << "The OLT is not up, do not collect stats" << std::endl;
+        BCM_LOG(INFO, openolt_log_id, "The OLT is not up, do not collect stats\n");
         return;
     }
 
 
-    std::cout << "Collecting statistics" << std::endl;
+    BCM_LOG(INFO, openolt_log_id, "Collecting statistics\n");
 
     //Ports statistics
 
