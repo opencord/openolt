@@ -2,7 +2,7 @@
 
 int interface_key_to_port_no(bcmbal_interface_key key) {
     if (key.intf_type == BCMBAL_INTF_TYPE_NNI) {
-        return (0x1 << 15) + key.intf_id;
+        return (0x1 << 16) + key.intf_id;
     }
     if (key.intf_type == BCMBAL_INTF_TYPE_PON) {
         return (0x2 << 28) + key.intf_id;
