@@ -36,6 +36,8 @@ extern "C"
 #include <bcmos_system.h>
 #include <bal_api.h>
 #include <bal_api_end.h>
+// FIXME : dependency problem
+// #include <bcm_common_gpon.h>
 }
 
 #define NUM_OF_PON_PORTS 16
@@ -63,13 +65,22 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
     device_info->set_hardware_version("");
     device_info->set_firmware_version(firmware_version);
     device_info->set_technology(technology);
-    device_info->set_onu_id_start(1);
-    device_info->set_onu_id_end(XGPON_NUM_OF_ONUS - 1);
-    device_info->set_alloc_id_start(1024);
-    device_info->set_alloc_id_end(XGPON_NUM_OF_ALLOC_IDS * NUM_OF_PON_PORTS - 1);
-    device_info->set_gemport_id_start(RSC_MGR_XGPON_MIN_BASE_SERVICE_PORT_ID);
-    device_info->set_gemport_id_end(XGPON_NUM_OF_GEM_PORT_IDS_PER_PON * NUM_OF_PON_PORTS - 1);
     device_info->set_pon_ports(NUM_OF_PON_PORTS);
+    device_info->set_onu_id_start(1);
+    device_info->set_onu_id_end(257);
+    device_info->set_alloc_id_start(1024);
+    device_info->set_alloc_id_end(16383);
+    device_info->set_gemport_id_start(1024);
+    device_info->set_gemport_id_end(65535);
+
+    // FIXME: Once dependency problem is fixed
+    // device_info->set_pon_ports(NUM_OF_PON_PORTS);
+    // device_info->set_onu_id_end(XGPON_NUM_OF_ONUS - 1);
+    // device_info->set_alloc_id_start(1024);
+    // device_info->set_alloc_id_end(XGPON_NUM_OF_ALLOC_IDS * NUM_OF_PON_PORTS ? - 1);
+    // device_info->set_gemport_id_start(XGPON_MIN_BASE_SERVICE_PORT_ID);
+    // device_info->set_gemport_id_end(XGPON_NUM_OF_GEM_PORT_IDS_PER_PON * NUM_OF_PON_PORTS ? - 1);
+    // device_info->set_pon_ports(NUM_OF_PON_PORTS);
 
     return Status::OK;
 }
