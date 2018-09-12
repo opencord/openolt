@@ -72,7 +72,7 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
     device_info->set_technology(technology);
     device_info->set_pon_ports(NUM_OF_PON_PORTS);
     device_info->set_onu_id_start(1);
-    device_info->set_onu_id_end(257);
+    device_info->set_onu_id_end(255);
     device_info->set_alloc_id_start(1024);
     device_info->set_alloc_id_end(16383);
     device_info->set_gemport_id_start(1024);
