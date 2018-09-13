@@ -44,10 +44,11 @@ Status DisableUplinkIf_(uint32_t intf_id);
 Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
 Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
 Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt);
-Status FlowAdd_(uint32_t onu_id,
+Status FlowAdd_(int32_t onu_id,
                 uint32_t flow_id, const std::string flow_type,
-                uint32_t access_intf_id, uint32_t network_intf_id,
-                uint32_t gemport_id, uint32_t alloc_id, uint32_t priority,
+                int32_t access_intf_id, int32_t network_intf_id,
+                uint32_t gemport_id, uint32_t sched_id,
+                int32_t priority_value,
                 const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action);
 Status FlowRemove_(uint32_t flow_id, const std::string flow_type);

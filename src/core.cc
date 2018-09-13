@@ -461,18 +461,18 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt) {
     return Status::OK;
 }
 
-Status FlowAdd_(uint32_t onu_id,
+Status FlowAdd_(int32_t onu_id,
                 uint32_t flow_id, const std::string flow_type,
-                uint32_t access_intf_id, uint32_t network_intf_id,
+                int32_t access_intf_id, int32_t network_intf_id,
                 uint32_t gemport_id, uint32_t sched_id,
-                uint32_t priority_value,
+                int32_t priority_value,
                 const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action) {
     bcmos_errno err;
     bcmbal_flow_cfg cfg;
     bcmbal_flow_key key = { };
 
-    BCM_LOG(INFO, openolt_log_id, "flow add - intf_id %d, onu_id %d, fow_id %d, `flow_type` %s, gemport_id %d, network_intf_id %d\n",
+    BCM_LOG(INFO, openolt_log_id, "flow add - intf_id %d, onu_id %d, flow_id %d, `flow_type` %s, gemport_id %d, network_intf_id %d\n",
         access_intf_id, onu_id, flow_id, flow_type.c_str(), gemport_id, network_intf_id);
 
     key.flow_id = flow_id;
@@ -488,12 +488,21 @@ Status FlowAdd_(uint32_t onu_id,
     BCMBAL_CFG_INIT(&cfg, flow, key);
 
     BCMBAL_CFG_PROP_SET(&cfg, flow, admin_state, BCMBAL_STATE_UP);
-    BCMBAL_CFG_PROP_SET(&cfg, flow, access_int_id, access_intf_id);
-    BCMBAL_CFG_PROP_SET(&cfg, flow, network_int_id, network_intf_id);
-    BCMBAL_CFG_PROP_SET(&cfg, flow, sub_term_id, onu_id);
-    BCMBAL_CFG_PROP_SET(&cfg, flow, svc_port_id, gemport_id);
-    BCMBAL_CFG_PROP_SET(&cfg, flow, priority, priority_value);
-
+    if (access_intf_id >= 0) {
+        BCMBAL_CFG_PROP_SET(&cfg, flow, access_int_id, access_intf_id);
+    }
+    if (network_intf_id >= 0) {
+        BCMBAL_CFG_PROP_SET(&cfg, flow, network_int_id, network_intf_id);
+    }
+    if (onu_id >= 0) {
+        BCMBAL_CFG_PROP_SET(&cfg, flow, sub_term_id, onu_id);
+    }
+    if (gemport_id >= 0) {
+        BCMBAL_CFG_PROP_SET(&cfg, flow, svc_port_id, gemport_id);
+    }
+    if (priority_value >= 0) {
+        BCMBAL_CFG_PROP_SET(&cfg, flow, priority, priority_value);
+    }
 
     {
         bcmbal_classifier val = { };
@@ -641,21 +650,21 @@ Status FlowAdd_(uint32_t onu_id,
         BCMBAL_CFG_PROP_SET(&cfg, flow, action, val);
     }
 
-    {
+    if ((access_intf_id >= 0) && (onu_id >= 0)) {
         bcmbal_tm_sched_id val;
         if (sched_id != 0) {
             val = sched_id;
         } else {
-        val = (bcmbal_tm_sched_id) mk_sched_id(access_intf_id, onu_id);
+            val = (bcmbal_tm_sched_id) mk_sched_id(access_intf_id, onu_id);
         }
         BCMBAL_CFG_PROP_SET(&cfg, flow, dba_tm_sched_id, val);
-    }
 
-    if (key.flow_type == BCMBAL_FLOW_TYPE_DOWNSTREAM) {
-        bcmbal_tm_queue_ref val = { };
-        val.sched_id = access_intf_id << 7 | onu_id;
-        val.queue_id = 0;
-        BCMBAL_CFG_PROP_SET(&cfg, flow, queue, val);
+        if (key.flow_type == BCMBAL_FLOW_TYPE_DOWNSTREAM) {
+            bcmbal_tm_queue_ref val = { };
+            val.sched_id = access_intf_id << 7 | onu_id;
+            val.queue_id = 0;
+            BCMBAL_CFG_PROP_SET(&cfg, flow, queue, val);
+        }
     }
 
     err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr));
