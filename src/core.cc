@@ -55,11 +55,11 @@ static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, 
 static Status SchedRemove_(int intf_id, int onu_id, int agg_port_id, int sched_id);
 
 static inline int mk_sched_id(int intf_id, int onu_id) {
-    return 1023 + intf_id * 112 + onu_id;
+    return 1023 + intf_id * 32 + onu_id;
 }
 
 static inline int mk_agg_port_id(int intf_id, int onu_id) {
-    return 1023 + intf_id * 112 + onu_id;
+    return 1023 + intf_id * 32 + onu_id;
 }
 
 
