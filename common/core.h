@@ -31,12 +31,12 @@ extern State state;
 Status Enable_(int argc, char *argv[]);
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific, uint32_t pir,
-    uint32_t agg_port_id, uint32_t alloc_id);
+    uint32_t alloc_id);
 Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific);
 Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific,
-    uint32_t agg_port_id, uint32_t alloc_id);
+    uint32_t alloc_id);
 Status EnablePonIf_(uint32_t intf_id);
 Status DisablePonIf_(uint32_t intf_id);
 Status EnableUplinkIf_(uint32_t intf_id);

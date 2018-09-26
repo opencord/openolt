@@ -68,8 +68,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->onu_id(),
             ((request->serial_number()).vendor_id()).c_str(),
             ((request->serial_number()).vendor_specific()).c_str(),
-            request->pir(), request->agg_port_id(),
-            request->sched_id());
+            request->pir(), request->alloc_id());
     }
 
     Status DeactivateOnu(
@@ -92,7 +91,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->onu_id(),
             ((request->serial_number()).vendor_id()).c_str(),
             ((request->serial_number()).vendor_specific()).c_str(),
-            request->agg_port_id(), request->sched_id());
+            request->alloc_id());
     }
 
     Status OmciMsgOut(

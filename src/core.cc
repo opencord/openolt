@@ -249,7 +249,7 @@ Status DisablePonIf_(uint32_t intf_id) {
 
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific, uint32_t pir,
-    uint32_t agg_port_id, uint32_t sched_id) {
+    uint32_t alloc_id) {
 
     bcmbal_subscriber_terminal_cfg sub_term_obj = {};
     bcmbal_subscriber_terminal_key subs_terminal_key;
@@ -284,10 +284,15 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
         return bcm_to_grpc_err(err, "Failed to enable ONU");
     }
 
-    if (agg_port_id != 0) {
-        return SchedAdd_(intf_id, onu_id, agg_port_id, sched_id, pir);
+    if (alloc_id != 0) {
+        // Use alloc_id as both agg_port_id and sched_id.
+        // Additional Notes:
+        // The agg_port_id is a BAL nomenclature for alloc_id (TCONT identifier).
+        // The TCONT is associated with its own DBA scheduler with a unique scheduler ID.
+        // Use the alloc_id itself as the DBA Scheduler identifier (sched_id).
+        return SchedAdd_(intf_id, onu_id, alloc_id, alloc_id, pir);
     } else {
-        return SchedAdd_(intf_id, onu_id, mk_agg_port_id(intf_id, onu_id), sched_id, pir);
+        return SchedAdd_(intf_id, onu_id, mk_agg_port_id(intf_id, onu_id), mk_sched_id(intf_id, onu_id), pir);
     }
 
     //return Status::OK;
@@ -318,7 +323,7 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
 
 Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific,
-    uint32_t agg_port_id, uint32_t sched_id) {
+    uint32_t alloc_id) {
 
     // Need to deactivate before removing it (BAL rules)
 
@@ -328,10 +333,15 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     // Without sleep the race condition is lost by ~ 20 ms
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    if (agg_port_id != 0) {
-        SchedRemove_(intf_id, onu_id, agg_port_id, sched_id);
+    if (alloc_id != 0) {
+        // Use alloc_id as both agg_port_id and sched_id
+        // Additional Notes:
+        // The agg_port_id is a BAL nomenclature for alloc_id (TCONT identifier).
+        // The TCONT is associated with its own DBA scheduler with a unique scheduler ID.
+        // Use the alloc_id itself as the DBA Scheduler identifier (sched_id).
+        SchedRemove_(intf_id, onu_id, alloc_id, alloc_id);
     } else {
-        SchedRemove_(intf_id, onu_id, mk_agg_port_id(intf_id, onu_id), sched_id);
+        SchedRemove_(intf_id, onu_id, mk_agg_port_id(intf_id, onu_id), mk_sched_id(intf_id, onu_id));
     }
 
     bcmos_errno err = BCM_ERR_OK;
