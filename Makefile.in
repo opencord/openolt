@@ -19,16 +19,16 @@
 ##        Config
 ##
 ##
-DEVICE = asfvolt16
+DEVICE ?= asfvolt16
 #
 # Three vendor proprietary source files are required to build BAL.
 # SW-BCM68620_<VER>.zip - Broadcom BAL source and Maple SDK.
 # sdk-all-<SDK_VER>.tar.gz - Broadcom Qumran SDK.
-# ACCTON_BAL_<BAL_VER>-<ACCTON_VER>.patch - Accton/Edgecore's patch.
+# ACCTON_BAL_<BAL_VER>-<DEV_VER>.patch - Accton/Edgecore's patch.
 BAL_MAJOR_VER = 02.06
 BAL_VER = 2.6.0.1
 SDK_VER = 6.5.7
-ACCTON_VER = 201804301043
+DEV_VER ?= 201804301043
 #
 # Version of Open Network Linux (ONL).
 ONL_KERN_VER_MAJOR = 3.7
@@ -53,10 +53,18 @@ USER := $(shell echo $(USER))
 HOST_SYSTEM = $(shell uname | cut -f 1 -d_)
 SYSTEM ?= $(HOST_SYSTEM)
 
-CXX = g++
+LIBGRPC_PATH=$(shell pkg-config --libs-only-L grpc | sed s/-L// | sed s/\ //g)
+LIBPROTOBUF_PATH=$(shell PKG_CONFIG_ALLOW_SYSTEM_LIBS=true pkg-config --libs-only-L protobuf | sed s/-L// | sed s/\ //g)
+
+CXX = @CXX@
+CXXFLAGS += @CXXFLAGS@
+CXXFLAGS += $(shell pkg-config --cflags-only-I grpc++)
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
-LDFLAGS += -L/usr/local/lib `pkg-config --libs grpc++ grpc` -ldl
+LDFLAGS += @LDFLAGS@
+LDFLAGS += `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
+
+export CXX CXXFLAGS
 
 prereq:
 	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
@@ -109,7 +117,7 @@ distclean-onl:
 ##
 BAL_ZIP = SW-BCM68620_$(subst .,_,$(BAL_VER)).zip
 SDK_ZIP = sdk-all-$(SDK_VER).tar.gz
-ACCTON_PATCH = ACCTON_BAL_$(BAL_VER)-V$(ACCTON_VER).patch
+ACCTON_PATCH = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER).patch
 OPENOLT_BAL_PATCH = OPENOLT_BAL_$(BAL_VER).patch
 BAL_DIR = $(BUILD_DIR)/$(DEVICE)-bal
 ONL_KERNDIR = $(PWD)/$(ONL_DIR)/OpenNetworkLinux/packages/base/amd64/kernels/kernel-$(ONL_KERN_VER_MAJOR)-x86-64-all/builds
@@ -219,17 +227,17 @@ DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
 all: $(BUILD_DIR)/openolt
 $(BUILD_DIR)/openolt: sdk protos $(OBJS)
-	$(CXX) -pthread -L/usr/local/lib -L$(BALLIBDIR) $(OBJS) $(OPENOLT_API_LIB) /usr/local/lib/libprotobuf.a -o $@ -l$(BALLIBNAME) -lgrpc++ -lgrpc -lpthread -ldl
-	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(DEVICE)/release/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz $(BUILD_DIR)/.
+	$(CXX) -pthread $(LDFLAGS) -L$(BALLIBDIR) $(OBJS) $(OPENOLT_API_LIB) $(LIBPROTOBUF_PATH)/libprotobuf.a -o $@ -l$(BALLIBNAME)
+	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(DEVICE)/release/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
 	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(DEVICE)/release/broadcom/libbal_api_dist.so $(BUILD_DIR)/.
 	ln -sf $(PWD)/$(BAL_DIR)/bal_release/build/core/src/apps/bal_core_dist/bal_core_dist $(BUILD_DIR)/.
-	ln -sf $(shell ldconfig -p | grep libgrpc.so.6 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc.so.6
-	ln -sf $(shell ldconfig -p | grep libgrpc++.so.1 | tr ' ' '\n' | grep /) $(BUILD_DIR)/libgrpc++.so.1
+	ln -sf $(LIBGRPC_PATH)/libgrpc.so.6 $(BUILD_DIR)/libgrpc.so.6
+	ln -sf $(LIBGRPC_PATH)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++.so.1
 src/%.o: src/%.cc
 	$(CXX) $(CXXFLAGS) -I./common -c $< -o $@
 
 deb:
-	cp $(BUILD_DIR)/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz mkdebian/debian
+	cp $(BUILD_DIR)/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz mkdebian/debian
 	cp $(BUILD_DIR)/openolt mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc.so.6 mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc++.so.1 mkdebian/debian
@@ -250,9 +258,9 @@ deb-cleanup:
 	rm -f mkdebian/debian/libgrpc++.so.1
 	rm -f mkdebian/debian/libgrpc.so.6
 	rm -f mkdebian/debian/openolt
-	rm -f mkdebian/debian/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz
+	rm -f mkdebian/debian/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz
 	rm -rf mkdebian/debian/tmp/
-	rm -f $(DEVICE)_$(BAL_VER)+edgecore-V$(ACCTON_VER)_amd64.changes
+	rm -f $(DEVICE)_$(BAL_VER)+edgecore-V$(DEV_VER)_amd64.changes
 
 clean: protos-clean deb-cleanup
 	rm -f $(OBJS) $(DEPS)
@@ -261,7 +269,7 @@ clean: protos-clean deb-cleanup
 	rm -f $(BUILD_DIR)/libbal_api_dist.so
 	rm -f $(BUILD_DIR)/openolt
 	rm -f $(BUILD_DIR)/bal_core_dist
-	rm -f $(BUILD_DIR)/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(ACCTON_VER).tar.gz
+	rm -f $(BUILD_DIR)/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz
 	rm -f $(BUILD_DIR)/openolt.deb
 
 distclean:

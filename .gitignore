@@ -1,0 +1,20 @@
+# Autoconf files
+Makefile
+config.h
+config.log
+config.status
+autom4te.cache
+**/.cmake.state
+
+# Google APIs
+protos/googleapis
+
+# Protobuf intermediate files
+**/*.pb.*
+
+# C++ output files
+**/*.o
+**/*.a
+
+# Build output
+build

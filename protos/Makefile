@@ -14,7 +14,8 @@
 
 HOST_SYSTEM = $(shell uname | cut -f 1 -d_)
 SYSTEM ?= $(HOST_SYSTEM)
-CXX = g++
+CXX ?= g++
+#powerpc64-fsl-linux-g++
 CPPFLAGS += `pkg-config --cflags protobuf grpc` -I googleapis/gens
 CXXFLAGS += -std=c++11
 #LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc` -ldl
@@ -36,7 +37,7 @@ googleapis:
                 cd googleapis; \
                 git checkout 475d72b7405c92f06d7f2d4aba866278eb5ad8e9; \
                 cd ..; \
-		make -C googleapis LANGUAGE=cpp all; \
+		make -C googleapis LANGUAGE=cpp GRPCPLUGIN=$(GRPC_CPP_PLUGIN_PATH) all; \
 	fi;
 
 .PRECIOUS: %.grpc.pb.cc

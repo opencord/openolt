@@ -179,6 +179,13 @@ cd openolt/download
 cp SW-BCM68620_2_6_0_1.zip sdk-all-6.5.7.tar.gz ACCTON_BAL_2.6.0.1-V201804301043.patch OPENOLT_BAL_2.6.0.1.patch ./download
 ```
 
+Run Autoconfig to generate the appropriate makefile scaffolding for the desired target
+
+```shell
+cd openolt
+./configure
+```
+
 Run *make prereq* to install the package dependencies.
 This is usually a one-time thing, unless there is a change in the dependencies.
 
