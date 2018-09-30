@@ -1,13 +1,13 @@
-# OpenOLT driver
+# OpenOLT agent
 
-The *OpenOLT driver* runs on white box Optical Line Terminals (OLTs) and
+The *OpenOLT agent* runs on white box Optical Line Terminals (OLTs) and
 provides a gRPC-based management and control interface to OLTs.
 
-The OpenOLT driver is used by [VOLTHA](https://github.com/opencord/voltha)
+The OpenOLT agent is used by [VOLTHA](https://github.com/opencord/voltha)
 through the [OpenOLT
 adapter](https://github.com/opencord/voltha/tree/master/voltha/adapters/openolt).
 
-OpenOLT driver currently supports Broadcom's Maple/Qumran chipsets.
+OpenOLT agent currently supports Broadcom's Maple/Qumran chipsets.
 
 ```text
 
@@ -23,13 +23,15 @@ OpenOLT driver currently supports Broadcom's Maple/Qumran chipsets.
 +--------------------- ---------------+
 |                  |                  |
 |         +------------------+        |
-|         | OpenOLT driver   |        |
+|         |   OpenOLT agent  |        |
 |         +--------+---------+        |
 |                  |                  |
-| Broadcom BAL API |                  |
+| Vendor specific  | (e.g. Broadcom   |
+|       API        |     BAL API      |
 |                  |                  |
 |         +------------------+        |
-|         | Maple/Qumran SDK |        |
+|         | Vendor SoC/FPGA  |        |
+|         |(e.g Maple/Qumran)|        |
 |         +------------------+        |
 |                                     |
 |           White box OLT             |
@@ -43,15 +45,12 @@ A list of tested devices and optics can be found in the [CORD hardware
 requirements](https://github.com/opencord/docs/blob/master/prereqs/hardware.md#suggested-hardware)
 guide, in the *R-CORD access equipment and optics* section.
 
-## Get the pre-built debian package
+## Pre-built debian packages of OpenOLT agent for Accton/Edgecore ASFVOLT16
 
-Currently, [EdgeCore](mailto:jeff_catlin@edge-core.com) can privately
-distribute the latest OpenOLT debian package to its customers. Contact [Jeff
-Catlin](mailto:jeff_catlin@edge-core.com) for more information.
+Accton/Edgecore makes available pre-built debian packages of OpenOLT agent to their customers.
+Contact your Accton/Edgecore representative for more information.
 
-## Prerequisites
-
-The debian package has been tested on [this specific version of
+The pre-built debian packages have been tested on [this specific version of
 OpenNetworkingLinux
 (ONL)](https://github.com/opencord/OpenNetworkLinux/releases/download/20180124-olt-kernel-3.7.10/ONL-2.0.0_ONL-OS_2018-01-24.0118-1303f20_AMD64_INSTALLED_INSTALLER).
 
@@ -127,7 +126,7 @@ At the VOLTHA CLI, preprovision and enable the OLT:
 
 ### Additional notes
 
-* *9191* is the TCP port that the *OpenOLT* driver uses for its gRPC channel
+* *9191* is the TCP port that the *OpenOLT* agent uses for its gRPC channel
 * In the commands above, you can either use the loopback IP address (127.0.0.1)
   or substitute all its occurrences with the management IP of your OLT
 
@@ -139,7 +138,7 @@ Currently, OpenOLT support the Broadcom BAL APIs, version *2.6.0.1*.
 
 ### Proprietary software requirements
 
-The following proprietary source code is required to build the OpenOLT driver.
+The following proprietary source code is required to build the OpenOLT agent.
 
 * `SW-BCM68620_<BAL_VER>.zip` - Broadcom BAL source and Maple SDK
 * `sdk-all-<SDK_VER>.tar.gz` - Broadcom Qumran SDK
@@ -147,7 +146,7 @@ The following proprietary source code is required to build the OpenOLT driver.
 * `OPENOLT_BAL_<BAL_VER>.patch` - A patch to Broadcom software to allow
   compilation with C++ based openolt
 
-The versions currently supported by the OpenOLT driver are:
+The versions currently supported by the OpenOLT agent are:
 
 * SW-BCM68620_2_6_0_1.zip
 * sdk-all-6.5.7.tar.gz
@@ -155,12 +154,12 @@ The versions currently supported by the OpenOLT driver are:
 * OPENOLT_BAL_2.6.0.1.patch
 
 > NOTE: the repository does not contain the above four source packages.  These
-> are needed to build the OpenOLT driver executable. Contact
+> are needed to build the OpenOLT agent executable. Contact
 > [Broadcom](mailto:dave.baron@broadcom.com) to access the source packages.
 
 ### System Requirements
 
-OpenOLT driver builds on *Ubuntu 14.04 LTS*.
+OpenOLT agent builds on *Ubuntu 14.04 LTS*.
 
 ### Build procedure
 
@@ -195,7 +194,7 @@ make prereq
 
 Run *make*. This can take a while to complete the first time, since it builds
 ONL and the Broadcom SDKs. Following runs will be much faster, as they only
-build the OpenOLT driver source.
+build the OpenOLT agent source.
 
 ```shell
 make
@@ -225,7 +224,7 @@ make clean-all
 
 ### How to change speed of ASFVOLT16 NNI interface?
 
-Auto-negotiation on the NNI (uplink) interfaces is not tested. By default, the OpenOLT driver sets the speed of the NNI interfaces to 100G. To downgrade the network interface speed to 40G, add the following lines at the end of the qax.soc (/broadcom/qax.soc) configuration file. A restart of the bal_core_dist and openolt executables is required after the change.
+Auto-negotiation on the NNI (uplink) interfaces is not tested. By default, the OpenOLT agent sets the speed of the NNI interfaces to 100G. To downgrade the network interface speed to 40G, add the following lines at the end of the qax.soc (/broadcom/qax.soc) configuration file. A restart of the bal_core_dist and openolt executables is required after the change.
 
 ```shell
 port ce128 sp=40000

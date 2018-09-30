@@ -326,9 +326,16 @@ bcmos_errno PacketIndication(bcmbal_obj *obj) {
     openolt::PacketIndication* pkt_ind = new openolt::PacketIndication;
     bcmbal_packet_bearer_channel_rx *in = (bcmbal_packet_bearer_channel_rx *)obj;
 
-    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_id %d, svc_port %d, flow_id %d\n",
-        in->data.intf_id, in->data.svc_port, in->data.flow_id);
+    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_type %d, intf_id %d, svc_port %d, flow_id %d\n",
+        in->data.intf_type, in->data.intf_id, in->data.svc_port, in->data.flow_id);
 
+    if (in->data.intf_type == BCMBAL_INTF_TYPE_NNI) {
+        pkt_ind->set_intf_type("nni");
+    } else if (in->data.intf_type == BCMBAL_INTF_TYPE_PON) {
+        pkt_ind->set_intf_type("pon");
+    } else {
+        pkt_ind->set_intf_type("unknown");
+    }
     pkt_ind->set_intf_id(in->data.intf_id);
     pkt_ind->set_gemport_id(in->data.svc_port);
     pkt_ind->set_flow_id(in->data.flow_id);

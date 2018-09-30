@@ -199,6 +199,7 @@ message OmciIndication {
 }
 
 message PacketIndication {
+    string intf_type = 5;		// nni, pon, unknown
     fixed32 intf_id = 1;
     fixed32 gemport_id = 2;
     fixed32 flow_id = 3;
