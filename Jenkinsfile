@@ -26,10 +26,10 @@ node ('openolt_deb_onf_agent') {
           sh returnStdout: true, script: 'cp ../../build-files/OPENOLT_BAL_2.4.3.6.patch download'
         }
         stage ('Build packages and libraries') {
-          sh returnStdout: true, script: '/bin/bash -c make'
+          sh returnStdout: true, script: '/bin/bash -c ./configure && make DEVICE=asfvolt16'
         }
         stage ('Create Debian file') {
-          sh returnStdout: true, script: '/bin/bash -c "make deb"'
+          sh returnStdout: true, script: '/bin/bash -c "make DEVICE=asfvolt16 deb"'
         }
         stage ('Publish executables and DEB package to web server') {
           sh returnStdout: true, script: 'sudo mkdir -p /var/www/voltha-bal/executables'

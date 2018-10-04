@@ -41,8 +41,12 @@ Status EnablePonIf_(uint32_t intf_id);
 Status DisablePonIf_(uint32_t intf_id);
 Status EnableUplinkIf_(uint32_t intf_id);
 Status DisableUplinkIf_(uint32_t intf_id);
+unsigned NumNniIf_();
+unsigned NumPonIf_();
 Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
 Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
+Status ProbeDeviceCapabilities_();
+Status ProbePonIfTechnology_();
 Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt);
 Status FlowAdd_(int32_t onu_id,
                 uint32_t flow_id, const std::string flow_type,

@@ -164,7 +164,7 @@ void stats_collection() {
     //Ports statistics
 
     //Uplink ports
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < NumNniIf_(); i++) {
         bcmbal_interface_key nni_interface;
         nni_interface.intf_type = BCMBAL_INTF_TYPE_NNI;
         nni_interface.intf_id = i;
@@ -176,7 +176,7 @@ void stats_collection() {
         oltIndQ.push(ind);
     }
     //Pon ports
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < NumPonIf_(); i++) {
         bcmbal_interface_key pon_interface;
         pon_interface.intf_type = BCMBAL_INTF_TYPE_PON;
         pon_interface.intf_id = i;

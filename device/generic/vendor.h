@@ -15,19 +15,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef OPENOLT_UTILS_H_
-#define OPENOLT_UTILS_H_
-
-#include <string>
-
-extern "C"
-{
-#include <bcmos_system.h>
-#include <bal_api.h>
-#include <bal_api_end.h>
-}
-
-std::string serial_number_to_str(bcmbal_serial_number* serial_number);
-std::string vendor_specific_to_str(const char* const serial_number);
-
+#ifndef __VENDOR_H__
+#define __VENDOR_H__
+#define VENDOR_ID "generic"
+#define MODEL_ID  "generic"
 #endif

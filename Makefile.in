@@ -19,7 +19,8 @@
 ##        Config
 ##
 ##
-DEVICE ?= asfvolt16
+DEVICE ?= generic
+
 #
 # Three vendor proprietary source files are required to build BAL.
 # SW-BCM68620_<VER>.zip - Broadcom BAL source and Maple SDK.
@@ -63,6 +64,7 @@ CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
 LDFLAGS += @LDFLAGS@
 LDFLAGS += `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
+CXXFLAGSDEVICE = -I./device -I./device/$(DEVICE) -I./device/generic
 
 export CXX CXXFLAGS
 
@@ -201,6 +203,18 @@ common/%.o: common/%.cc
 ########################################################################
 ##
 ##
+##        device
+##
+##
+device/$(DEVICE)/%.o: device/$(DEVICE)/%.cc
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -c $< -o $@
+
+device/generic/%.o: device/generic/%.cc
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -c $< -o $@
+
+########################################################################
+##
+##
 ##        sim
 ##
 ##
@@ -221,7 +235,7 @@ clean-sim:
 ##        openolt
 ##
 ##
-SRCS = $(wildcard src/*.cc) $(wildcard common/*.cc)
+SRCS = $(wildcard src/*.cc) $(wildcard common/*.cc) $(wildcard device/$(DEVICE)/*.cc)
 OBJS = $(SRCS:.cc=.o)
 DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
@@ -234,7 +248,7 @@ $(BUILD_DIR)/openolt: sdk protos $(OBJS)
 	ln -sf $(LIBGRPC_PATH)/libgrpc.so.6 $(BUILD_DIR)/libgrpc.so.6
 	ln -sf $(LIBGRPC_PATH)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++.so.1
 src/%.o: src/%.cc
-	$(CXX) $(CXXFLAGS) -I./common -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I./common -c $< -o $@
 
 deb:
 	cp $(BUILD_DIR)/release_$(DEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz mkdebian/debian

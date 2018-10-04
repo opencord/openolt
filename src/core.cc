@@ -25,11 +25,13 @@
 #include <chrono>
 #include <thread>
 
+#include "device.h"
 #include "core.h"
 #include "indications.h"
 #include "stats_collection.h"
 #include "error_format.h"
 #include "state.h"
+#include "utils.h"
 
 extern "C"
 {
@@ -44,10 +46,16 @@ extern "C"
 dev_log_id openolt_log_id = bcm_dev_log_id_register("OPENOLT", DEV_LOG_LEVEL_INFO, DEV_LOG_ID_TYPE_BOTH);
 dev_log_id omci_log_id = bcm_dev_log_id_register("OMCI", DEV_LOG_LEVEL_INFO, DEV_LOG_ID_TYPE_BOTH);
 
+#define MAX_SUPPORTED_INTF 16
+#define BAL_RSC_MANAGER_BASE_TM_SCHED_ID 16384
 
-#define NUM_OF_PON_PORTS 16
-const std::string technology = "xgspon";
-const std::string firmware_version = "BAL.2.6.0.1__Openolt.2018.09.10";
+static unsigned int num_of_nni_ports = 0;
+static unsigned int num_of_pon_ports = 0;
+static std::string intf_technology[MAX_SUPPORTED_INTF];
+static const std::string UNKNOWN_TECH("unknown");
+static std::string technology(UNKNOWN_TECH);
+
+static std::string firmware_version = "Openolt.2018.10.04";
 
 State state;
 
@@ -59,33 +67,50 @@ static inline int mk_sched_id(int intf_id, int onu_id) {
 }
 
 static inline int mk_agg_port_id(int intf_id, int onu_id) {
+    if (technology == "gpon") return 511 + intf_id * 32 + onu_id;
     return 1023 + intf_id * 32 + onu_id;
 }
 
-
 Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
-
-    device_info->set_vendor("EdgeCore");
-    device_info->set_model("asfvolt16");
+    device_info->set_vendor(VENDOR_ID);
+    device_info->set_model(MODEL_ID);
     device_info->set_hardware_version("");
     device_info->set_firmware_version(firmware_version);
     device_info->set_technology(technology);
-    device_info->set_pon_ports(NUM_OF_PON_PORTS);
-    device_info->set_onu_id_start(1);
-    device_info->set_onu_id_end(255);
-    device_info->set_alloc_id_start(1024);
-    device_info->set_alloc_id_end(16383);
-    device_info->set_gemport_id_start(1024);
-    device_info->set_gemport_id_end(65535);
+    device_info->set_pon_ports(num_of_pon_ports);
+    if (technology == "xgspon") {
+        device_info->set_onu_id_start(1);
+        device_info->set_onu_id_end(255);
+        device_info->set_alloc_id_start(1024);
+        device_info->set_alloc_id_end(16383);
+        device_info->set_gemport_id_start(1024);
+        device_info->set_gemport_id_end(65535);
+    }
+    else if (technology == "gpon") {
+        device_info->set_onu_id_start(0);
+        device_info->set_onu_id_end(127);
+        device_info->set_alloc_id_start(256);
+        device_info->set_alloc_id_end(767);
+        device_info->set_gemport_id_start(0);
+        device_info->set_gemport_id_end(4095);
+    }
+    else {
+        device_info->set_onu_id_start(0);
+        device_info->set_onu_id_end(0);
+        device_info->set_alloc_id_start(0);
+        device_info->set_alloc_id_end(0);
+        device_info->set_gemport_id_start(0);
+        device_info->set_gemport_id_end(0);
+    }
 
     // FIXME: Once dependency problem is fixed
-    // device_info->set_pon_ports(NUM_OF_PON_PORTS);
+    // device_info->set_pon_ports(num_of_pon_ports);
     // device_info->set_onu_id_end(XGPON_NUM_OF_ONUS - 1);
     // device_info->set_alloc_id_start(1024);
-    // device_info->set_alloc_id_end(XGPON_NUM_OF_ALLOC_IDS * NUM_OF_PON_PORTS ? - 1);
+    // device_info->set_alloc_id_end(XGPON_NUM_OF_ALLOC_IDS * num_of_pon_ports ? - 1);
     // device_info->set_gemport_id_start(XGPON_MIN_BASE_SERVICE_PORT_ID);
-    // device_info->set_gemport_id_end(XGPON_NUM_OF_GEM_PORT_IDS_PER_PON * NUM_OF_PON_PORTS ? - 1);
-    // device_info->set_pon_ports(NUM_OF_PON_PORTS);
+    // device_info->set_gemport_id_end(XGPON_NUM_OF_GEM_PORT_IDS_PER_PON * num_of_pon_ports ? - 1);
+    // device_info->set_pon_ports(num_of_pon_ports);
 
     return Status::OK;
 }
@@ -95,9 +120,11 @@ Status Enable_(int argc, char *argv[]) {
     bcmbal_access_terminal_key key = { };
 
     if (!state.is_activated()) {
-        BCM_LOG(INFO, openolt_log_id, "Enable OLT");
 
+        vendor_init();
         bcmbal_init(argc, argv, NULL);
+
+        BCM_LOG(INFO, openolt_log_id, "Enable OLT - %s-%s\n", VENDOR_ID, MODEL_ID);
 
         Status status = SubscribeIndication();
         if (!status.ok()) {
@@ -116,6 +143,7 @@ Status Enable_(int argc, char *argv[]) {
             BCM_LOG(ERROR, openolt_log_id, "Failed to enable OLT\n");
             return bcm_to_grpc_err(err, "Failed to enable OLT");
         }
+
         init_stats();
     }
 
@@ -209,6 +237,103 @@ Status DisableUplinkIf_(uint32_t intf_id) {
     return Status::OK;
 }
 
+Status ProbeDeviceCapabilities_() {
+    bcmbal_access_terminal_cfg acc_term_obj;
+    bcmbal_access_terminal_key key = { };
+
+    key.access_term_id = DEFAULT_ATERM_ID;
+    BCMBAL_CFG_INIT(&acc_term_obj, access_terminal, key);
+    BCMBAL_CFG_PROP_GET(&acc_term_obj, access_terminal, admin_state);
+    BCMBAL_CFG_PROP_GET(&acc_term_obj, access_terminal, oper_status);
+    BCMBAL_CFG_PROP_GET(&acc_term_obj, access_terminal, topology);
+    BCMBAL_CFG_PROP_GET(&acc_term_obj, access_terminal, sw_version);
+    BCMBAL_CFG_PROP_GET(&acc_term_obj, access_terminal, conn_id);
+    bcmos_errno err = bcmbal_cfg_get(DEFAULT_ATERM_ID, &(acc_term_obj.hdr));
+    if (err) {
+        BCM_LOG(ERROR, openolt_log_id, "Failed to query OLT\n");
+        return bcm_to_grpc_err(err, "Failed to query OLT");
+    }
+
+    BCM_LOG(INFO, openolt_log_id, "OLT capabilitites, admin_state: %s oper_state: %s\n", 
+            acc_term_obj.data.admin_state == BCMBAL_STATE_UP ? "up" : "down",
+            acc_term_obj.data.oper_status == BCMBAL_STATUS_UP ? "up" : "down");
+
+    std::string bal_version;
+    bal_version += std::to_string(acc_term_obj.data.sw_version.major_rev)
+                + "." + std::to_string(acc_term_obj.data.sw_version.minor_rev)
+                + "." + std::to_string(acc_term_obj.data.sw_version.release_rev);
+    firmware_version = "BAL." + bal_version + "__" + firmware_version;
+
+    BCM_LOG(INFO, openolt_log_id, "--------------- version %s object model: %d\n", bal_version.c_str(),
+            acc_term_obj.data.sw_version.om_version);
+
+    BCM_LOG(INFO, openolt_log_id, "--------------- topology nni:%d pon:%d dev:%d ppd:%d family: %d:%d\n",
+            acc_term_obj.data.topology.num_of_nni_ports,
+            acc_term_obj.data.topology.num_of_pon_ports,
+            acc_term_obj.data.topology.num_of_mac_devs,
+            acc_term_obj.data.topology.num_of_pons_per_mac_dev,
+            acc_term_obj.data.topology.pon_family,
+            acc_term_obj.data.topology.pon_sub_family
+            );
+
+    switch(acc_term_obj.data.topology.pon_sub_family)
+    {
+    case BCMBAL_PON_SUB_FAMILY_GPON:  technology = "gpon"; break;
+    case BCMBAL_PON_SUB_FAMILY_XGS:   technology = "xgspon"; break;
+    }
+
+    num_of_nni_ports = acc_term_obj.data.topology.num_of_nni_ports;
+    num_of_pon_ports = acc_term_obj.data.topology.num_of_pon_ports;
+
+    BCM_LOG(INFO, openolt_log_id, "PON num_intfs: %d global technology: %s\n", num_of_pon_ports, technology.c_str());
+
+    return Status::OK;
+}
+
+Status ProbePonIfTechnology_() {
+    // Probe maximum extent possible as configured into BAL driver to determine
+    // which are active in the current BAL topology. And for those
+    // that are active, determine each port's access technology, i.e. "gpon" or "xgspon".
+    for (uint32_t intf_id = 0; intf_id < num_of_pon_ports; ++intf_id) {
+        bcmbal_interface_cfg interface_obj;
+        bcmbal_interface_key interface_key;
+
+        interface_key.intf_id = intf_id;
+        interface_key.intf_type = BCMBAL_INTF_TYPE_PON;
+
+        BCMBAL_CFG_INIT(&interface_obj, interface, interface_key);
+        BCMBAL_CFG_PROP_GET(&interface_obj, interface, admin_state);
+        BCMBAL_CFG_PROP_GET(&interface_obj, interface, transceiver_type);
+
+        bcmos_errno err = bcmbal_cfg_get(DEFAULT_ATERM_ID, &(interface_obj.hdr));
+        if (err != BCM_ERR_OK) {
+            intf_technology[intf_id] = UNKNOWN_TECH;
+            if(err != BCM_ERR_RANGE) BCM_LOG(ERROR, openolt_log_id, "Failed to get PON config: %d\n", intf_id);
+        }
+        else {
+            switch(interface_obj.data.transceiver_type) {
+            case BCMBAL_TRX_TYPE_GPON_SPS_43_48:
+            case BCMBAL_TRX_TYPE_GPON_SPS_SOG_4321:
+            case BCMBAL_TRX_TYPE_GPON_LTE_3680_M:
+            case BCMBAL_TRX_TYPE_GPON_SOURCE_PHOTONICS:
+            case BCMBAL_TRX_TYPE_GPON_LTE_3680_P:
+                intf_technology[intf_id] = "gpon";
+                break;
+            default:
+                intf_technology[intf_id] = "xgspon";
+                break;
+            }
+            BCM_LOG(INFO, openolt_log_id, "PON intf_id: %d technology: %d:%s\n", intf_id, 
+                    interface_obj.data.transceiver_type, intf_technology[intf_id].c_str());
+        }
+    }
+
+    return Status::OK;
+}
+
+unsigned NumNniIf_() {return num_of_nni_ports;}
+unsigned NumPonIf_() {return num_of_pon_ports;}
+
 Status EnableUplinkIf_(uint32_t intf_id) {
     bcmbal_interface_cfg interface_obj;
     bcmbal_interface_key interface_key;
@@ -256,8 +381,8 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     bcmbal_serial_number serial_num = {};
     bcmbal_registration_id registration_id = {};
 
-    BCM_LOG(INFO, openolt_log_id,  "Enabling ONU %d on PON %d : vendor id %s, vendor specific %s, pir %d\n",
-        onu_id, intf_id, vendor_id, vendor_specific, pir);
+    BCM_LOG(INFO, openolt_log_id,  "Enabling ONU %d on PON %d : vendor id %s, vendor specific %s, pir %d, alloc_id %d\n",
+        onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str(), pir, alloc_id);
 
     subs_terminal_key.sub_term_id = onu_id;
     subs_terminal_key.intf_id = intf_id;
@@ -418,7 +543,7 @@ Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt) {
         BCM_LOG(ERROR, omci_log_id, "Error sending OMCI message to ONU %d on PON %d\n", onu_id, intf_id);
     } else {
         BCM_LOG(DEBUG, omci_log_id, "OMCI request msg of length %d sent to ONU %d on PON %d : %s\n",
-            buf.len, onu_id, intf_id, buf.val);
+            buf.len, onu_id, intf_id, pkt.c_str());
     }
 
     free(buf.val);
@@ -739,7 +864,7 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, int pir
         BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, owner);
 
         bcmbal_tm_sched_parent parent = { };
-        parent.sched_id = intf_id + 16384;
+        parent.sched_id = intf_id + BAL_RSC_MANAGER_BASE_TM_SCHED_ID;
         parent.presence_mask = parent.presence_mask | BCMBAL_TM_SCHED_PARENT_ID_SCHED_ID;
         parent.weight = 1;
         parent.presence_mask = parent.presence_mask | BCMBAL_TM_SCHED_PARENT_ID_WEIGHT;

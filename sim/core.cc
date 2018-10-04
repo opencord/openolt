@@ -30,6 +30,9 @@
 State state;
 
 void* RunSim(void *) {
+
+    state.activate();
+
     while (!state.is_connected()) {
         sleep(5);
     }

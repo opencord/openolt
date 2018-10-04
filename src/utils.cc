@@ -17,10 +17,9 @@
 
 #include "utils.h"
 
-// NOTE - This function is not thread-safe.
-const char* serial_number_to_str(bcmbal_serial_number* serial_number) {
+std::string serial_number_to_str(bcmbal_serial_number* serial_number) {
 #define SERIAL_NUMBER_SIZE 12
-    static char buff[SERIAL_NUMBER_SIZE+1];
+    char buff[SERIAL_NUMBER_SIZE+1];
 
     sprintf(buff, "%c%c%c%c%1X%1X%1X%1X%1X%1X%1X%1X",
             serial_number->vendor_id[0],
@@ -38,3 +37,20 @@ const char* serial_number_to_str(bcmbal_serial_number* serial_number) {
 
     return buff;
 }
+
+std::string vendor_specific_to_str(char const * const vendor_specific) {
+    char buff[SERIAL_NUMBER_SIZE+1];
+
+    sprintf(buff, "%1X%1X%1X%1X%1X%1X%1X%1X",
+            vendor_specific[0]>>4 & 0x0f,
+            vendor_specific[0] & 0x0f,
+            vendor_specific[1]>>4 & 0x0f,
+            vendor_specific[1] & 0x0f,
+            vendor_specific[2]>>4 & 0x0f,
+            vendor_specific[2] & 0x0f,
+            vendor_specific[3]>>4 & 0x0f,
+            vendor_specific[3] & 0x0f);
+
+    return buff;
+}
+

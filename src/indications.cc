@@ -40,26 +40,47 @@ bool subscribed = false;
 
 bcmos_errno OmciIndication(bcmbal_obj *obj);
 
-bcmos_errno OltIndication(bcmbal_obj *obj) {
+std::string bcmbal_to_grpc_intf_type(bcmbal_intf_type intf_type)
+{
+    if (intf_type == BCMBAL_INTF_TYPE_NNI) {
+        return "nni";
+    } else if (intf_type == BCMBAL_INTF_TYPE_PON) {
+        return "pon";
+    }
+    return "unknown";
+}
+
+bcmos_errno OltOperIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
     openolt::OltIndication* olt_ind = new openolt::OltIndication;
     Status status;
 
     bcmbal_access_terminal_oper_status_change *acc_term_ind = (bcmbal_access_terminal_oper_status_change *)obj;
+    std::string admin_state;
+    if (acc_term_ind->data.admin_state == BCMBAL_STATE_UP) {
+        admin_state = "up";
+    } else {
+        admin_state = "down";
+    }
+
     if (acc_term_ind->data.new_oper_status == BCMBAL_STATUS_UP) {
+        // Determine device capabilities before transitionto acive state
+        ProbeDeviceCapabilities_();
         olt_ind->set_oper_state("up");
-        state.activate();
     } else {
         olt_ind->set_oper_state("down");
-        state.deactivate();
     }
     ind.set_allocated_olt_ind(olt_ind);
-    BCM_LOG(INFO, openolt_log_id, "Olt indication, oper_state: %s\n", ind.olt_ind().oper_state().c_str());
+
+    BCM_LOG(INFO, openolt_log_id, "Olt oper status indication, admin_state: %s oper_state: %s\n",
+            admin_state.c_str(),
+            olt_ind->oper_state().c_str());
+
     oltIndQ.push(ind);
 
-#define MAX_SUPPORTED_INTF 16
-    // Enable all PON interfaces.
-    for (int i = 0; i < MAX_SUPPORTED_INTF; i++) {
+    // Enable all PON interfaces. 
+    // 
+    for (int i = 0; i < NumPonIf_(); i++) {
         status = EnablePonIf_(i);
         if (!status.ok()) {
             // FIXME - raise alarm to report error in enabling PON
@@ -80,6 +101,14 @@ bcmos_errno OltIndication(bcmbal_obj *obj) {
         bcmbal_subscribe_ind(0, &cb_cfg);
     }
 
+    if (acc_term_ind->data.new_oper_status == BCMBAL_STATUS_UP) {
+        ProbePonIfTechnology_();
+        state.activate();
+    }
+    else {
+        state.deactivate();
+    }
+
     return BCM_ERR_OK;
 }
 
@@ -92,7 +121,8 @@ bcmos_errno LosIndication(bcmbal_obj *obj) {
     int intf_id = interface_key_to_port_no(bcm_los_ind->key);
     std::string status = alarm_status_to_string(bcm_los_ind->data.status);
 
-    BCM_LOG(INFO, openolt_log_id, "LOS indication : %d status %s\n", intf_id, status.c_str());
+    BCM_LOG(INFO, openolt_log_id, "LOS indication : intf_type: %d intf_id: %d port: %d status %s\n", 
+            bcm_los_ind->key.intf_type, bcm_los_ind->key.intf_id, intf_id, status.c_str());
 
     los_ind->set_intf_id(intf_id);
     los_ind->set_status(status);
@@ -104,50 +134,25 @@ bcmos_errno LosIndication(bcmbal_obj *obj) {
     return BCM_ERR_OK;
 }
 
-bcmos_errno IfIndication(bcmbal_obj *obj) {
-    openolt::Indication ind;
-    openolt::IntfIndication* intf_ind = new openolt::IntfIndication;
-
-    BCM_LOG(INFO, openolt_log_id, "intf indication, intf_id: %d\n",
-        ((bcmbal_interface_oper_status_change *)obj)->key.intf_id );
-
-    intf_ind->set_intf_id(((bcmbal_interface_oper_status_change *)obj)->key.intf_id);
-    if (((bcmbal_interface_oper_status_change *)obj)->data.new_oper_status == BCMBAL_STATUS_UP) {
-        intf_ind->set_oper_state("up");
-    } else {
-        intf_ind->set_oper_state("down");
-    }
-    ind.set_allocated_intf_ind(intf_ind);
-
-    oltIndQ.push(ind);
-
-    return BCM_ERR_OK;
-}
-
 bcmos_errno IfOperIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
     openolt::IntfOperIndication* intf_oper_ind = new openolt::IntfOperIndication;
-    BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_id %d, type %d, oper_state %d, admin_state %d\n",
-        ((bcmbal_interface_oper_status_change *)obj)->key.intf_id,
-        ((bcmbal_interface_oper_status_change *)obj)->key.intf_type,
-        ((bcmbal_interface_oper_status_change *)obj)->data.new_oper_status,
-        ((bcmbal_interface_oper_status_change *)obj)->data.admin_state);
+    bcmbal_interface_oper_status_change* bcm_if_oper_ind = (bcmbal_interface_oper_status_change *) obj;
 
-    intf_oper_ind->set_intf_id(((bcmbal_interface_oper_status_change *)obj)->key.intf_id);
+    intf_oper_ind->set_type(bcmbal_to_grpc_intf_type(bcm_if_oper_ind->key.intf_type));
+    intf_oper_ind->set_intf_id(bcm_if_oper_ind->key.intf_id);
 
-    if (((bcmbal_interface_oper_status_change *)obj)->key.intf_type == BCMBAL_INTF_TYPE_NNI) {
-        intf_oper_ind->set_type("nni");
-    } else if (((bcmbal_interface_oper_status_change *)obj)->key.intf_type == BCMBAL_INTF_TYPE_PON) {
-        intf_oper_ind->set_type("pon");
-    } else {
-        intf_oper_ind->set_type("unknown");
-    }
-
-    if (((bcmbal_interface_oper_status_change *)obj)->data.new_oper_status == BCMBAL_STATUS_UP) {
+    if (bcm_if_oper_ind->data.new_oper_status == BCMBAL_STATUS_UP) {
         intf_oper_ind->set_oper_state("up");
     } else {
         intf_oper_ind->set_oper_state("down");
     }
+
+    BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_type %s, intf_id %d, oper_state %d, admin_state %d\n",
+        intf_oper_ind->type().c_str(),
+        bcm_if_oper_ind->key.intf_id,
+        intf_oper_ind->oper_state().c_str(),
+        bcm_if_oper_ind->data.admin_state);
 
     ind.set_allocated_intf_oper_ind(intf_oper_ind);
 
@@ -223,7 +228,7 @@ bcmos_errno OnuDiscoveryIndication(bcmbal_cfg *obj) {
     bcmbal_serial_number *in_serial_number = &(data->serial_number);
 
     BCM_LOG(INFO, openolt_log_id, "onu discover indication, intf_id %d, serial_number %s\n",
-        key->intf_id, serial_number_to_str(in_serial_number));
+        key->intf_id, serial_number_to_str(in_serial_number).c_str());
 
     onu_disc_ind->set_intf_id(key->intf_id);
     serial_number->set_vendor_id(reinterpret_cast<const char *>(in_serial_number->vendor_id), 4);
@@ -233,38 +238,6 @@ bcmos_errno OnuDiscoveryIndication(bcmbal_cfg *obj) {
 
     oltIndQ.push(ind);
 
-    return BCM_ERR_OK;
-}
-
-bcmos_errno OnuIndication(bcmbal_obj *obj) {
-    openolt::Indication ind;
-    openolt::OnuIndication* onu_ind = new openolt::OnuIndication;
-
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->key);
-
-    bcmbal_subscriber_terminal_oper_status_change_data *data =
-        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->data);
-
-    BCM_LOG(INFO, openolt_log_id, "onu indication, intf_id %d, onu_id %d, oper_state %d, admin_state %d\n",
-        key->intf_id, key->sub_term_id, data->new_oper_status, data->admin_state);
-
-    onu_ind->set_intf_id(key->intf_id);
-    onu_ind->set_onu_id(key->sub_term_id);
-    if (data->new_oper_status == BCMBAL_STATE_UP) {
-        onu_ind->set_oper_state("up");
-    } else {
-        onu_ind->set_oper_state("down");
-    }
-    if (data->admin_state == BCMBAL_STATE_UP) {
-        onu_ind->set_admin_state("up");
-    } else {
-        onu_ind->set_admin_state("down");
-    }
-
-    ind.set_allocated_onu_ind(onu_ind);
-
-    oltIndQ.push(ind);
     return BCM_ERR_OK;
 }
 
@@ -278,10 +251,6 @@ bcmos_errno OnuOperIndication(bcmbal_obj *obj) {
     bcmbal_subscriber_terminal_oper_status_change_data *data =
         &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->data);
 
-
-    BCM_LOG(INFO, openolt_log_id, "onu oper state indication, intf_id %d, onu_id %d, old oper state %d, new oper state %d\n",
-        key->intf_id, key->sub_term_id, data->old_oper_status, data->new_oper_status);
-
     onu_ind->set_intf_id(key->intf_id);
     onu_ind->set_onu_id(key->sub_term_id);
     if (data->new_oper_status == BCMBAL_STATE_UP) {
@@ -296,6 +265,9 @@ bcmos_errno OnuOperIndication(bcmbal_obj *obj) {
     }
 
     ind.set_allocated_onu_ind(onu_ind);
+
+    BCM_LOG(INFO, openolt_log_id, "onu oper state indication, intf_id %d, onu_id %d, old oper state %d, new oper state %s, admin_state %s\n",
+        key->intf_id, key->sub_term_id, data->old_oper_status, onu_ind->oper_state().c_str(), onu_ind->admin_state().c_str());
 
     oltIndQ.push(ind);
     return BCM_ERR_OK;
@@ -326,22 +298,17 @@ bcmos_errno PacketIndication(bcmbal_obj *obj) {
     openolt::PacketIndication* pkt_ind = new openolt::PacketIndication;
     bcmbal_packet_bearer_channel_rx *in = (bcmbal_packet_bearer_channel_rx *)obj;
 
-    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_type %d, intf_id %d, svc_port %d, flow_id %d\n",
-        in->data.intf_type, in->data.intf_id, in->data.svc_port, in->data.flow_id);
-
-    if (in->data.intf_type == BCMBAL_INTF_TYPE_NNI) {
-        pkt_ind->set_intf_type("nni");
-    } else if (in->data.intf_type == BCMBAL_INTF_TYPE_PON) {
-        pkt_ind->set_intf_type("pon");
-    } else {
-        pkt_ind->set_intf_type("unknown");
-    }
+    pkt_ind->set_intf_type(bcmbal_to_grpc_intf_type(in->data.intf_type));
     pkt_ind->set_intf_id(in->data.intf_id);
     pkt_ind->set_gemport_id(in->data.svc_port);
     pkt_ind->set_flow_id(in->data.flow_id);
     pkt_ind->set_pkt(in->data.pkt.val, in->data.pkt.len);
 
     ind.set_allocated_pkt_ind(pkt_ind);
+
+    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_type %s, intf_id %d, svc_port %d, flow_id %d\n",
+        pkt_ind->intf_type().c_str(), in->data.intf_id, in->data.svc_port, in->data.flow_id);
+
     oltIndQ.push(ind);
 
     return BCM_ERR_OK;
@@ -587,14 +554,13 @@ Status SubscribeIndication() {
 
     cb_cfg.module = BCMOS_MODULE_ID_NONE;
 
-
-    /* OLT device indication */
+    /* OLT device operational state change indication */
     cb_cfg.obj_type = BCMBAL_OBJ_ID_ACCESS_TERMINAL;
     ind_subgroup = bcmbal_access_terminal_auto_id_oper_status_change;
     cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OltIndication;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OltOperIndication;
     if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Olt indication subscribe failed");
+        return Status(grpc::StatusCode::INTERNAL, "Olt operations state change indication subscribe failed");
     }
 
     /* Interface LOS indication */
@@ -604,15 +570,6 @@ Status SubscribeIndication() {
     cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)LosIndication;
     if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
         return Status(grpc::StatusCode::INTERNAL, "LOS indication subscribe failed");
-    }
-
-    /* Interface indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_INTERFACE;
-    ind_subgroup = bcmbal_interface_auto_id_oper_status_change;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)IfIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Interface indication subscribe failed");
     }
 
     /* Interface operational state change indication */
@@ -651,14 +608,6 @@ Status SubscribeIndication() {
         return Status(grpc::StatusCode::INTERNAL, "onu discovery indication subscribe failed");
     }
 
-    /* onu indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_oper_status_change;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "onu indication subscribe failed");
-    }
     /* onu operational state change indication */
     cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
     ind_subgroup = bcmbal_subscriber_terminal_auto_id_oper_status_change;
