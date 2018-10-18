@@ -87,6 +87,15 @@ bcmos_errno OltOperIndication(bcmbal_obj *obj) {
         }
     }
 
+    // Enable all NNI interfaces. 
+    // 
+    for (int i = 0; i < NumNniIf_(); i++) {
+        status = EnableUplinkIf_(i);
+        if (!status.ok()) {
+            // FIXME - raise alarm to report error in enabling PON
+        }
+    }
+
     /* register for omci indication */
     {
         bcmbal_cb_cfg cb_cfg = {};

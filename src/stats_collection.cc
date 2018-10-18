@@ -176,7 +176,7 @@ void stats_collection() {
     }
 
 
-    BCM_LOG(INFO, openolt_log_id, "Collecting statistics\n");
+    BCM_LOG(DEBUG, openolt_log_id, "Collecting statistics\n");
 
     //Ports statistics
 

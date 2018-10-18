@@ -207,9 +207,17 @@ Status EnablePonIf_(uint32_t intf_id) {
     interface_key.intf_type = BCMBAL_INTF_TYPE_PON;
 
     BCMBAL_CFG_INIT(&interface_obj, interface, interface_key);
+
+    BCMBAL_CFG_PROP_GET(&interface_obj, interface, admin_state);
+    bcmos_errno err = bcmbal_cfg_get(DEFAULT_ATERM_ID, &(interface_obj.hdr));
+    if (err == BCM_ERR_OK && interface_obj.data.admin_state == BCMBAL_STATE_UP) {
+        BCM_LOG(DEBUG, openolt_log_id, "PON interface: %d already enabled\n", intf_id);
+        return Status::OK;
+    }
+
     BCMBAL_CFG_PROP_SET(&interface_obj, interface, admin_state, BCMBAL_STATE_UP);
 
-    bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
+    err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
     if (err) {
         BCM_LOG(ERROR, openolt_log_id, "Failed to enable PON interface: %d\n", intf_id);
         return bcm_to_grpc_err(err, "Failed to enable PON interface");
@@ -342,9 +350,17 @@ Status EnableUplinkIf_(uint32_t intf_id) {
     interface_key.intf_type = BCMBAL_INTF_TYPE_NNI;
 
     BCMBAL_CFG_INIT(&interface_obj, interface, interface_key);
+
+    BCMBAL_CFG_PROP_GET(&interface_obj, interface, admin_state);
+    bcmos_errno err = bcmbal_cfg_get(DEFAULT_ATERM_ID, &(interface_obj.hdr));
+    if (err == BCM_ERR_OK && interface_obj.data.admin_state == BCMBAL_STATE_UP) {
+        BCM_LOG(DEBUG, openolt_log_id, "Uplink interface: %d already enabled\n", intf_id);
+        return Status::OK;
+    }
+
     BCMBAL_CFG_PROP_SET(&interface_obj, interface, admin_state, BCMBAL_STATE_UP);
 
-    bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
+    err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(interface_obj.hdr));
     if (err) {
         BCM_LOG(ERROR, openolt_log_id, "Failed to enable Uplink interface: %d\n", intf_id);
         return bcm_to_grpc_err(err, "Failed to enable Uplink interface");
@@ -430,7 +446,7 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     bcmbal_subscriber_terminal_key subs_terminal_key;
 
     BCM_LOG(INFO, openolt_log_id,  "Deactivating ONU %d on PON %d : vendor id %s, vendor specific %s\n",
-        onu_id, intf_id, vendor_id, vendor_specific);
+        onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str());
 
     subs_terminal_key.sub_term_id = onu_id;
     subs_terminal_key.intf_id = intf_id;
@@ -449,6 +465,9 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
 Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific,
     uint32_t alloc_id) {
+
+    BCM_LOG(INFO, openolt_log_id,  "DeleteOnu ONU %d on PON %d : vendor id %s, vendor specific %s\n",
+        onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str());
 
     // Need to deactivate before removing it (BAL rules)
 
