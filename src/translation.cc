@@ -38,3 +38,4 @@ std::string alarm_status_to_string(bcmbal_alarm_status status) {
     }
     return "unknown";
 }
+

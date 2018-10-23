@@ -51,9 +51,10 @@ dev_log_id omci_log_id = bcm_dev_log_id_register("OMCI", DEV_LOG_LEVEL_INFO, DEV
 
 static unsigned int num_of_nni_ports = 0;
 static unsigned int num_of_pon_ports = 0;
-static std::string intf_technology[MAX_SUPPORTED_INTF];
+static std::string intf_technologies[MAX_SUPPORTED_INTF];
 static const std::string UNKNOWN_TECH("unknown");
-static std::string technology(UNKNOWN_TECH);
+static const std::string MIXED_TECH("mixed");
+static std::string board_technology(UNKNOWN_TECH);
 
 static std::string firmware_version = "Openolt.2018.10.04";
 
@@ -67,7 +68,7 @@ static inline int mk_sched_id(int intf_id, int onu_id) {
 }
 
 static inline int mk_agg_port_id(int intf_id, int onu_id) {
-    if (technology == "gpon") return 511 + intf_id * 32 + onu_id;
+    if (board_technology == "gpon") return 511 + intf_id * 32 + onu_id;
     return 1023 + intf_id * 32 + onu_id;
 }
 
@@ -76,31 +77,98 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
     device_info->set_model(MODEL_ID);
     device_info->set_hardware_version("");
     device_info->set_firmware_version(firmware_version);
-    device_info->set_technology(technology);
+    device_info->set_technology(board_technology);
     device_info->set_pon_ports(num_of_pon_ports);
-    if (technology == "xgspon") {
+
+    // Legacy, device-wide ranges. To be deprecated when adapter
+    // is upgraded to support per-interface ranges
+    if (board_technology == "xgspon") {
         device_info->set_onu_id_start(1);
         device_info->set_onu_id_end(255);
         device_info->set_alloc_id_start(1024);
         device_info->set_alloc_id_end(16383);
         device_info->set_gemport_id_start(1024);
         device_info->set_gemport_id_end(65535);
+        device_info->set_flow_id_start(1);
+        device_info->set_flow_id_end(16383);
     }
-    else if (technology == "gpon") {
-        device_info->set_onu_id_start(0);
+    else if (board_technology == "gpon") {
+        device_info->set_onu_id_start(1);
         device_info->set_onu_id_end(127);
         device_info->set_alloc_id_start(256);
         device_info->set_alloc_id_end(767);
-        device_info->set_gemport_id_start(0);
+        device_info->set_gemport_id_start(256);
         device_info->set_gemport_id_end(4095);
+        device_info->set_flow_id_start(1);
+        device_info->set_flow_id_end(16383);
     }
-    else {
-        device_info->set_onu_id_start(0);
-        device_info->set_onu_id_end(0);
-        device_info->set_alloc_id_start(0);
-        device_info->set_alloc_id_end(0);
-        device_info->set_gemport_id_start(0);
-        device_info->set_gemport_id_end(0);
+
+    std::map<std::string, openolt::DeviceInfo::DeviceResourceRanges*> ranges;
+    for (uint32_t intf_id = 0; intf_id < num_of_pon_ports; ++intf_id) {
+        std::string intf_technology = intf_technologies[intf_id];
+        openolt::DeviceInfo::DeviceResourceRanges *range = ranges[intf_technology];
+        if(range == nullptr) {
+            range = device_info->add_ranges();
+            ranges[intf_technology] = range;
+            range->set_technology(intf_technology);
+
+            if (intf_technology == "xgspon") {
+                openolt::DeviceInfo::DeviceResourceRanges::Pool* pool;
+
+                pool = range->add_pools();
+                pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::ONU_ID);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::DEDICATED_PER_INTF);
+                pool->set_start(1);
+                pool->set_end(255);
+
+                pool = range->add_pools();
+                pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::ALLOC_ID);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::SHARED_BY_ALL_INTF_SAME_TECH);
+                pool->set_start(1024);
+                pool->set_end(16383);
+
+                pool = range->add_pools();
+                pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::GEMPORT_ID);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::SHARED_BY_ALL_INTF_ALL_TECH);
+                pool->set_start(1024);
+                pool->set_end(65535);
+
+                pool = range->add_pools();
+                pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::FLOW_ID);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::SHARED_BY_ALL_INTF_ALL_TECH);
+                pool->set_start(1);
+                pool->set_end(16383);
+            }
+            else if (intf_technology == "gpon") {
+                openolt::DeviceInfo::DeviceResourceRanges::Pool* pool;
+
+                pool = range->add_pools();
+                pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::ONU_ID);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::DEDICATED_PER_INTF);
+                pool->set_start(1);
+                pool->set_end(127);
+
+                pool = range->add_pools();
+                pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::ALLOC_ID);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::SHARED_BY_ALL_INTF_SAME_TECH);
+                pool->set_start(256);
+                pool->set_end(757);
+
+                pool = range->add_pools();
+                pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::GEMPORT_ID);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::SHARED_BY_ALL_INTF_ALL_TECH);
+                pool->set_start(256);
+                pool->set_end(4095);
+
+                pool = range->add_pools();
+                pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::FLOW_ID);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::SHARED_BY_ALL_INTF_ALL_TECH);
+                pool->set_start(1);
+                pool->set_end(16383);
+            }
+        }
+
+        range->add_intf_ids(intf_id);
     }
 
     // FIXME: Once dependency problem is fixed
@@ -286,14 +354,14 @@ Status ProbeDeviceCapabilities_() {
 
     switch(acc_term_obj.data.topology.pon_sub_family)
     {
-    case BCMBAL_PON_SUB_FAMILY_GPON:  technology = "gpon"; break;
-    case BCMBAL_PON_SUB_FAMILY_XGS:   technology = "xgspon"; break;
+    case BCMBAL_PON_SUB_FAMILY_GPON:  board_technology = "gpon"; break;
+    case BCMBAL_PON_SUB_FAMILY_XGS:   board_technology = "xgspon"; break;
     }
 
     num_of_nni_ports = acc_term_obj.data.topology.num_of_nni_ports;
     num_of_pon_ports = acc_term_obj.data.topology.num_of_pon_ports;
 
-    BCM_LOG(INFO, openolt_log_id, "PON num_intfs: %d global technology: %s\n", num_of_pon_ports, technology.c_str());
+    BCM_LOG(INFO, openolt_log_id, "PON num_intfs: %d global board_technology: %s\n", num_of_pon_ports, board_technology.c_str());
 
     return Status::OK;
 }
@@ -315,7 +383,7 @@ Status ProbePonIfTechnology_() {
 
         bcmos_errno err = bcmbal_cfg_get(DEFAULT_ATERM_ID, &(interface_obj.hdr));
         if (err != BCM_ERR_OK) {
-            intf_technology[intf_id] = UNKNOWN_TECH;
+            intf_technologies[intf_id] = UNKNOWN_TECH;
             if(err != BCM_ERR_RANGE) BCM_LOG(ERROR, openolt_log_id, "Failed to get PON config: %d\n", intf_id);
         }
         else {
@@ -325,14 +393,21 @@ Status ProbePonIfTechnology_() {
             case BCMBAL_TRX_TYPE_GPON_LTE_3680_M:
             case BCMBAL_TRX_TYPE_GPON_SOURCE_PHOTONICS:
             case BCMBAL_TRX_TYPE_GPON_LTE_3680_P:
-                intf_technology[intf_id] = "gpon";
+                intf_technologies[intf_id] = "gpon";
                 break;
             default:
-                intf_technology[intf_id] = "xgspon";
+                intf_technologies[intf_id] = "xgspon";
                 break;
             }
-            BCM_LOG(INFO, openolt_log_id, "PON intf_id: %d technology: %d:%s\n", intf_id, 
-                    interface_obj.data.transceiver_type, intf_technology[intf_id].c_str());
+            BCM_LOG(INFO, openolt_log_id, "PON intf_id: %d intf_technologies: %d:%s\n", intf_id,
+                    interface_obj.data.transceiver_type, intf_technologies[intf_id].c_str());
+
+            if (board_technology != UNKNOWN_TECH) {
+                board_technology = intf_technologies[intf_id];
+            } else if (board_technology != MIXED_TECH && board_technology != intf_technologies[intf_id]) {
+                intf_technologies[intf_id] = MIXED_TECH;
+            }
+
         }
     }
 
