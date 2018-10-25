@@ -67,8 +67,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->intf_id(),
             request->onu_id(),
             ((request->serial_number()).vendor_id()).c_str(),
-            ((request->serial_number()).vendor_specific()).c_str(),
-            request->pir(), request->alloc_id());
+            ((request->serial_number()).vendor_specific()).c_str(), request->pir());
     }
 
     Status DeactivateOnu(
@@ -90,8 +89,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->intf_id(),
             request->onu_id(),
             ((request->serial_number()).vendor_id()).c_str(),
-            ((request->serial_number()).vendor_specific()).c_str(),
-            request->alloc_id());
+            ((request->serial_number()).vendor_specific()).c_str());
     }
 
     Status OmciMsgOut(
@@ -128,16 +126,16 @@ class OpenoltService final : public openolt::Openolt::Service {
             const openolt::Flow* request,
             openolt::Empty* response) override {
         return FlowAdd_(
+            request->access_intf_id(),
             request->onu_id(),
             request->flow_id(),
             request->flow_type(),
-            request->access_intf_id(),
+            request->alloc_id(),
             request->network_intf_id(),
             request->gemport_id(),
-            request->alloc_id(),
-            request->priority(),
             request->classifier(),
-            request->action());
+            request->action(),
+            request->priority());
     }
 
     Status FlowRemove(
@@ -256,7 +254,23 @@ class OpenoltService final : public openolt::Openolt::Service {
 
     }
 
+    Status CreateTconts(
+            ServerContext* context,
+            const openolt::Tconts* request,
+            openolt::Empty* response) override {
+        std::cout << "create tconts";
+        CreateTconts_(request);
+        return Status::OK;
+    };
 
+    Status RemoveTconts(
+            ServerContext* context,
+            const openolt::Tconts* request,
+            openolt::Empty* response) override {
+        std::cout << "remove tconts";
+        RemoveTconts_(request);
+        return Status::OK;
+    };
 
 };
 

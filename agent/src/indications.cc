@@ -143,6 +143,26 @@ bcmos_errno LosIndication(bcmbal_obj *obj) {
     return BCM_ERR_OK;
 }
 
+bcmos_errno IfIndication(bcmbal_obj *obj) {
+    openolt::Indication ind;
+    openolt::IntfIndication* intf_ind = new openolt::IntfIndication;
+
+    BCM_LOG(INFO, openolt_log_id, "intf indication, intf_id: %d\n",
+        ((bcmbal_interface_oper_status_change *)obj)->key.intf_id );
+
+    intf_ind->set_intf_id(((bcmbal_interface_oper_status_change *)obj)->key.intf_id);
+    if (((bcmbal_interface_oper_status_change *)obj)->data.new_oper_status == BCMBAL_STATUS_UP) {
+        intf_ind->set_oper_state("up");
+    } else {
+        intf_ind->set_oper_state("down");
+    }
+    ind.set_allocated_intf_ind(intf_ind);
+
+    oltIndQ.push(ind);
+
+    return BCM_ERR_OK;
+}
+
 bcmos_errno IfOperIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
     openolt::IntfOperIndication* intf_oper_ind = new openolt::IntfOperIndication;
@@ -157,7 +177,7 @@ bcmos_errno IfOperIndication(bcmbal_obj *obj) {
         intf_oper_ind->set_oper_state("down");
     }
 
-    BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_type %s, intf_id %d, oper_state %d, admin_state %d\n",
+    BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_type %s, intf_id %d, oper_state %s, admin_state %d\n",
         intf_oper_ind->type().c_str(),
         bcm_if_oper_ind->key.intf_id,
         intf_oper_ind->oper_state().c_str(),
@@ -247,6 +267,38 @@ bcmos_errno OnuDiscoveryIndication(bcmbal_cfg *obj) {
 
     oltIndQ.push(ind);
 
+    return BCM_ERR_OK;
+}
+
+bcmos_errno OnuIndication(bcmbal_obj *obj) {
+    openolt::Indication ind;
+    openolt::OnuIndication* onu_ind = new openolt::OnuIndication;
+
+    bcmbal_subscriber_terminal_key *key =
+        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->key);
+
+    bcmbal_subscriber_terminal_oper_status_change_data *data =
+        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->data);
+
+    BCM_LOG(INFO, openolt_log_id, "onu indication, intf_id %d, onu_id %d, oper_state %d, admin_state %d\n",
+        key->intf_id, key->sub_term_id, data->new_oper_status, data->admin_state);
+
+    onu_ind->set_intf_id(key->intf_id);
+    onu_ind->set_onu_id(key->sub_term_id);
+    if (data->new_oper_status == BCMBAL_STATUS_UP) {
+        onu_ind->set_oper_state("up");
+    } else {
+        onu_ind->set_oper_state("down");
+    }
+    if (data->admin_state == BCMBAL_STATE_UP) {
+        onu_ind->set_admin_state("up");
+    } else {
+        onu_ind->set_admin_state("down");
+    }
+
+    ind.set_allocated_onu_ind(onu_ind);
+
+    oltIndQ.push(ind);
     return BCM_ERR_OK;
 }
 
@@ -581,6 +633,15 @@ Status SubscribeIndication() {
         return Status(grpc::StatusCode::INTERNAL, "LOS indication subscribe failed");
     }
 
+    /* Interface indication */
+    cb_cfg.obj_type = BCMBAL_OBJ_ID_INTERFACE;
+    ind_subgroup = bcmbal_interface_auto_id_oper_status_change;
+    cb_cfg.p_subgroup = &ind_subgroup;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)IfIndication;
+    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+        return Status(grpc::StatusCode::INTERNAL, "Interface indication subscribe failed");
+    }
+
     /* Interface operational state change indication */
     cb_cfg.obj_type = BCMBAL_OBJ_ID_INTERFACE;
     ind_subgroup = bcmbal_interface_auto_id_oper_status_change;
@@ -617,6 +678,14 @@ Status SubscribeIndication() {
         return Status(grpc::StatusCode::INTERNAL, "onu discovery indication subscribe failed");
     }
 
+    /* onu indication */
+    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
+    ind_subgroup = bcmbal_subscriber_terminal_auto_id_oper_status_change;
+    cb_cfg.p_subgroup = &ind_subgroup;
+    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuIndication;
+    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+        return Status(grpc::StatusCode::INTERNAL, "onu indication subscribe failed");
+    }
     /* onu operational state change indication */
     cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
     ind_subgroup = bcmbal_subscriber_terminal_auto_id_oper_status_change;

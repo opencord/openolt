@@ -65,13 +65,33 @@ static std::string board_technology(UNKNOWN_TECH);
 
 static std::string firmware_version = "Openolt.2018.10.04";
 
+const uint32_t tm_upstream_sched_id_start = 18432;
+const uint32_t tm_downstream_sched_id_start = 16384;
+const uint32_t tm_queue_id_start = 4; //0 to 3 are default queues. Lets not use them.
+const std::string upstream = "upstream";
+const std::string downstream = "downstream";
+
 State state;
 
-static Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, int pir);
-static Status SchedRemove_(int intf_id, int onu_id, int agg_port_id, int sched_id);
+Status SchedAdd_(std::string direction, uint32_t access_intf_id, uint32_t onu_id,
+                 uint32_t alloc_id, openolt::AdditionalBW additional_bw, uint32_t weight, uint32_t priority,
+                 openolt::SchedulingPolicy sched_policy);
+static Status SchedRemove_(std::string direction, int intf_id, int onu_id, int alloc_id);
 
-static inline int mk_sched_id(int intf_id, int onu_id) {
-    return 1023 + intf_id * 32 + onu_id;
+static inline int mk_sched_id(int intf_id, int onu_id, std::string direction) {
+    if (direction.compare(upstream) == 0) {
+        return tm_upstream_sched_id_start + intf_id;
+    } else if (direction.compare(downstream) == 0) {
+        return tm_downstream_sched_id_start + intf_id;
+    }
+    else {
+        BCM_LOG(ERROR, openolt_log_id, "invalid direction - %s\n", direction.c_str());
+        return 0;
+    }
+}
+
+static inline int mk_queue_id(int pon_intf_id, int onu_id) {
+    return tm_queue_id_start + pon_intf_id * 32 + onu_id;
 }
 
 static inline int mk_agg_port_id(int intf_id, int onu_id) {
@@ -471,16 +491,15 @@ Status DisablePonIf_(uint32_t intf_id) {
 }
 
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
-    const char *vendor_id, const char *vendor_specific, uint32_t pir,
-    uint32_t alloc_id) {
+    const char *vendor_id, const char *vendor_specific, uint32_t pir) {
 
     bcmbal_subscriber_terminal_cfg sub_term_obj = {};
     bcmbal_subscriber_terminal_key subs_terminal_key;
     bcmbal_serial_number serial_num = {};
     bcmbal_registration_id registration_id = {};
 
-    BCM_LOG(INFO, openolt_log_id,  "Enabling ONU %d on PON %d : vendor id %s, vendor specific %s, pir %d, alloc_id %d\n",
-        onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str(), pir, alloc_id);
+    BCM_LOG(INFO, openolt_log_id,  "Enabling ONU %d on PON %d : vendor id %s, vendor specific %s, pir %d\n",
+        onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str(), pir);
 
     subs_terminal_key.sub_term_id = onu_id;
     subs_terminal_key.intf_id = intf_id;
@@ -506,19 +525,7 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
         BCM_LOG(ERROR, openolt_log_id, "Failed to enable ONU %d on PON %d\n", onu_id, intf_id);
         return bcm_to_grpc_err(err, "Failed to enable ONU");
     }
-
-    if (alloc_id != 0) {
-        // Use alloc_id as both agg_port_id and sched_id.
-        // Additional Notes:
-        // The agg_port_id is a BAL nomenclature for alloc_id (TCONT identifier).
-        // The TCONT is associated with its own DBA scheduler with a unique scheduler ID.
-        // Use the alloc_id itself as the DBA Scheduler identifier (sched_id).
-        return SchedAdd_(intf_id, onu_id, alloc_id, alloc_id, pir);
-    } else {
-        return SchedAdd_(intf_id, onu_id, mk_agg_port_id(intf_id, onu_id), mk_sched_id(intf_id, onu_id), pir);
-    }
-
-    //return Status::OK;
+    return Status::OK;
 }
 
 Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
@@ -545,8 +552,7 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
 }
 
 Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
-    const char *vendor_id, const char *vendor_specific,
-    uint32_t alloc_id) {
+    const char *vendor_id, const char *vendor_specific) {
 
     BCM_LOG(INFO, openolt_log_id,  "DeleteOnu ONU %d on PON %d : vendor id %s, vendor specific %s\n",
         onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str());
@@ -559,16 +565,7 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     // Without sleep the race condition is lost by ~ 20 ms
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    if (alloc_id != 0) {
-        // Use alloc_id as both agg_port_id and sched_id
-        // Additional Notes:
-        // The agg_port_id is a BAL nomenclature for alloc_id (TCONT identifier).
-        // The TCONT is associated with its own DBA scheduler with a unique scheduler ID.
-        // Use the alloc_id itself as the DBA Scheduler identifier (sched_id).
-        SchedRemove_(intf_id, onu_id, alloc_id, alloc_id);
-    } else {
-        SchedRemove_(intf_id, onu_id, mk_agg_port_id(intf_id, onu_id), mk_sched_id(intf_id, onu_id));
-    }
+    // TODO: Delete the schedulers and queues.
 
     bcmos_errno err = BCM_ERR_OK;
     bcmbal_subscriber_terminal_cfg cfg;
@@ -697,18 +694,16 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt) {
     return Status::OK;
 }
 
-Status FlowAdd_(int32_t onu_id,
+Status FlowAdd_(int32_t access_intf_id, int32_t onu_id,
                 uint32_t flow_id, const std::string flow_type,
-                int32_t access_intf_id, int32_t network_intf_id,
-                uint32_t gemport_id, uint32_t sched_id,
-                int32_t priority_value,
-                const ::openolt::Classifier& classifier,
-                const ::openolt::Action& action) {
+                int32_t alloc_id, int32_t network_intf_id,
+                int32_t gemport_id, const ::openolt::Classifier& classifier,
+                const ::openolt::Action& action, int32_t priority_value) {
     bcmos_errno err;
     bcmbal_flow_cfg cfg;
     bcmbal_flow_key key = { };
 
-    BCM_LOG(INFO, openolt_log_id, "flow add - intf_id %d, onu_id %d, flow_id %d, `flow_type` %s, gemport_id %d, network_intf_id %d\n",
+    BCM_LOG(INFO, openolt_log_id, "flow add - intf_id %d, onu_id %d, flow_id %d, flow_type %s, gemport_id %d, network_intf_id %d\n",
         access_intf_id, onu_id, flow_id, flow_type.c_str(), gemport_id, network_intf_id);
 
     key.flow_id = flow_id;
@@ -861,19 +856,24 @@ Status FlowAdd_(int32_t onu_id,
     }
 
     if ((access_intf_id >= 0) && (onu_id >= 0)) {
-        bcmbal_tm_sched_id val;
-        if (sched_id != 0) {
-            val = sched_id;
-        } else {
-            val = (bcmbal_tm_sched_id) mk_sched_id(access_intf_id, onu_id);
-        }
-        BCMBAL_CFG_PROP_SET(&cfg, flow, dba_tm_sched_id, val);
 
         if (key.flow_type == BCMBAL_FLOW_TYPE_DOWNSTREAM) {
             bcmbal_tm_queue_ref val = { };
-            val.sched_id = access_intf_id << 7 | onu_id;
-            val.queue_id = 0;
+            val.sched_id = mk_sched_id(access_intf_id, onu_id, "downstream");
+            val.queue_id = mk_queue_id(access_intf_id, onu_id);
             BCMBAL_CFG_PROP_SET(&cfg, flow, queue, val);
+        } else if (key.flow_type == BCMBAL_FLOW_TYPE_UPSTREAM) {
+            bcmbal_tm_sched_id val1;
+            if (alloc_id != 0) {
+                val1 = alloc_id;
+            } else {
+                BCM_LOG(ERROR, openolt_log_id, "alloc_id not present");
+            }
+            BCMBAL_CFG_PROP_SET(&cfg, flow, dba_tm_sched_id, val1);
+
+            bcmbal_tm_queue_ref val2 = { };
+            val2.sched_id = mk_sched_id(network_intf_id, onu_id, "upstream");
+            BCMBAL_CFG_PROP_SET(&cfg, flow, queue, val2);
         }
     }
 
@@ -918,175 +918,176 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
     return Status::OK;
 }
 
-Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, int pir) {
+Status SchedAdd_(std::string direction, uint32_t intf_id, uint32_t onu_id,
+                 uint32_t alloc_id, openolt::AdditionalBW additional_bw, uint32_t weight, uint32_t priority,
+                 openolt::SchedulingPolicy sched_policy) {
 
     bcmos_errno err;
 
-    /* Downstream */
-
-    /* Create subscriber's tm_sched */
-    {
-        bcmbal_tm_sched_cfg cfg;
-        bcmbal_tm_sched_key key = { };
-        key.dir = BCMBAL_TM_SCHED_DIR_DS;
-        key.id = intf_id << 7 | onu_id;
-        BCMBAL_CFG_INIT(&cfg, tm_sched, key);
-
-        bcmbal_tm_sched_owner owner = { };
-        owner.type = BCMBAL_TM_SCHED_OWNER_TYPE_SUB_TERM;
-        owner.u.sub_term.intf_id = intf_id;
-        owner.u.sub_term.sub_term_id = onu_id;
-        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, owner);
-
-        bcmbal_tm_sched_parent parent = { };
-
-        BCMBAL_ATTRIBUTE_PROP_SET(&parent, tm_sched_parent, sched_id, intf_id + BAL_RSC_MANAGER_BASE_TM_SCHED_ID);
-
-        BCMBAL_ATTRIBUTE_PROP_SET(&parent, tm_sched_parent, weight, 1);
-
-        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, sched_parent, parent);
-
-        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, sched_type, BCMBAL_TM_SCHED_TYPE_WFQ);
-
-        bcmbal_tm_shaping shaping = { };
-        BCMBAL_ATTRIBUTE_PROP_SET(&shaping, tm_shaping, pir, pir);
-
-        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, rate, shaping);
-
-        err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
-        if (err) {
-            BCM_LOG(ERROR, openolt_log_id, "Failed to create subscriber downstream sched, id %d, intf_id %d, onu_id %d\n",
-                key.id, intf_id, onu_id);
-            return bcm_to_grpc_err(err, "Failed to create subscriber downstream sched");
-        }
-    }
-
-    /* Create tm_queue */
-    {
+    if (direction == "downstream") {
         bcmbal_tm_queue_cfg cfg;
         bcmbal_tm_queue_key key = { };
-        key.sched_id = intf_id << 7 | onu_id;
+        // Note: We use the default scheduler available in the DL.
+        key.sched_id = mk_sched_id(intf_id, onu_id, direction);
         key.sched_dir = BCMBAL_TM_SCHED_DIR_DS;
-        key.id = 0;
+        key.id = mk_queue_id(intf_id, onu_id);
 
         BCMBAL_CFG_INIT(&cfg, tm_queue, key);
-        BCMBAL_CFG_PROP_SET(&cfg, tm_queue, weight, 1);
+        //Queue must be set with either weight or priority, not both,
+        // as its scheduler' sched_type is sp_wfq
+        BCMBAL_CFG_PROP_SET(&cfg, tm_queue, priority, priority);
+        //BCMBAL_CFG_PROP_SET(&cfg, tm_queue, weight, weight);
+        //BCMBAL_CFG_PROP_SET(&cfg, tm_queue, creation_mode, BCMBAL_TM_CREATION_MODE_MANUAL);
         err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
 
+        // TODO: Shaping parameters will be available after meter bands are supported.
+        // TODO: The shaping parameters will be applied on the downstream queue on the PON default scheduler.
         if (err) {
             BCM_LOG(ERROR, openolt_log_id, "Failed to create subscriber downstream tm queue, id %d, sched_id %d, intf_id %d, onu_id %d\n",
-                key.id, key.sched_id, intf_id, onu_id);
+                    key.id, key.sched_id, intf_id, onu_id);
             return bcm_to_grpc_err(err, "Failed to create subscriber downstream tm queue");
         }
+    } else { //"upstream"
+        bcmbal_tm_sched_cfg cfg;
+        bcmbal_tm_sched_key key = { };
+        bcmbal_tm_sched_type sched_type;
 
+        key.id = alloc_id;
+        key.dir = BCMBAL_TM_SCHED_DIR_US;
+
+        BCMBAL_CFG_INIT(&cfg, tm_sched, key);
+
+        {
+            bcmbal_tm_sched_owner val = { };
+
+            val.type = BCMBAL_TM_SCHED_OWNER_TYPE_AGG_PORT;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val.u.agg_port, tm_sched_owner_agg_port, intf_id, (bcmbal_intf_id) intf_id);
+            BCMBAL_ATTRIBUTE_PROP_SET(&val.u.agg_port, tm_sched_owner_agg_port, sub_term_id, (bcmbal_sub_id) onu_id);
+            BCMBAL_ATTRIBUTE_PROP_SET(&val.u.agg_port, tm_sched_owner_agg_port, agg_port_id, (bcmbal_aggregation_port_id) alloc_id);
+
+            BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, val);
+
+        }
+        // TODO: Shaping parameters will be available after meter bands are supported.
+        // TODO: The shaping parameters will be applied on the upstream DBA scheduler.
+
+        err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr));
+        if (err) {
+            BCM_LOG(ERROR, openolt_log_id, "Failed to create upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
+                    key.id, intf_id,  onu_id);
+            return bcm_to_grpc_err(err, "Failed to create upstream DBA sched");
+        }
+        BCM_LOG(INFO, openolt_log_id, "Create upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
+                key.id,intf_id,onu_id);
     }
 
-    /* Upstream */
+    return Status::OK;
 
-    bcmbal_tm_sched_cfg cfg;
-    bcmbal_tm_sched_key key = { };
-    bcmbal_tm_sched_type sched_type;
+}
 
-    if (sched_id != 0) {
-        key.id = sched_id;
-    } else {
-    key.id = mk_sched_id(intf_id, onu_id);
+Status CreateTconts_(const openolt::Tconts *tconts) {
+    uint32_t intf_id = tconts->intf_id();
+    uint32_t onu_id = tconts->onu_id();
+    std::string direction;
+    unsigned int alloc_id;
+    openolt::Scheduler scheduler;
+    openolt::AdditionalBW additional_bw;
+    uint32_t priority;
+    uint32_t weight;
+    openolt::SchedulingPolicy sched_policy;
+
+    for (int i = 0; i < tconts->tconts_size(); i++) {
+        openolt::Tcont tcont = tconts->tconts(i);
+        if (tcont.direction() == openolt::Direction::UPSTREAM) {
+            direction = "upstream";
+        } else if (tcont.direction() == openolt::Direction::DOWNSTREAM) {
+            direction = "downstream";
+        }
+        else {
+            BCM_LOG(ERROR, openolt_log_id, "direction-not-supported %d", tcont.direction());
+            return Status::CANCELLED;
+        }
+        alloc_id = tcont.alloc_id();
+        scheduler = tcont.scheduler();
+        additional_bw = scheduler.additional_bw();
+        priority = scheduler.priority();
+        weight = scheduler.weight();
+        sched_policy = scheduler.sched_policy();
+        // TODO: TrafficShapingInfo is not supported for now as meter band support is not there
+        SchedAdd_(direction, intf_id, onu_id, alloc_id, additional_bw, weight, priority, sched_policy);
     }
-    key.dir = BCMBAL_TM_SCHED_DIR_US;
-
-    BCMBAL_CFG_INIT(&cfg, tm_sched, key);
-
-    {
-        bcmbal_tm_sched_owner val = { };
-
-        val.type = BCMBAL_TM_SCHED_OWNER_TYPE_AGG_PORT;
-        BCMBAL_ATTRIBUTE_PROP_SET(&val.u.agg_port, tm_sched_owner_agg_port, intf_id, (bcmbal_intf_id) intf_id);
-        BCMBAL_ATTRIBUTE_PROP_SET(&val.u.agg_port, tm_sched_owner_agg_port, sub_term_id, (bcmbal_sub_id) onu_id);
-        BCMBAL_ATTRIBUTE_PROP_SET(&val.u.agg_port, tm_sched_owner_agg_port, agg_port_id, (bcmbal_aggregation_port_id) agg_port_id);
-
-        BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, val);
-    }
-
-    err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr));
-    if (err) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to create upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
-            key.id, intf_id,  onu_id);
-        return bcm_to_grpc_err(err, "Failed to create upstream DBA sched");
-    }
-    BCM_LOG(INFO, openolt_log_id, "Create upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
-        key.id,intf_id,onu_id);
-
     return Status::OK;
 }
 
-Status SchedRemove_(int intf_id, int onu_id, int agg_port_id, int sched_id) {
+Status RemoveTconts_(const openolt::Tconts *tconts) {
+    uint32_t intf_id = tconts->intf_id();
+    uint32_t onu_id = tconts->onu_id();
+    std::string direction;
+    unsigned int alloc_id;
+
+    for (int i = 0; i < tconts->tconts_size(); i++) {
+        openolt::Tcont tcont = tconts->tconts(i);
+        if (tcont.direction() == openolt::Direction::UPSTREAM) {
+            direction = "upstream";
+        } else if (tcont.direction() == openolt::Direction::DOWNSTREAM) {
+            direction = "downstream";
+        }
+        else {
+            BCM_LOG(ERROR, openolt_log_id, "direction-not-supported %d", tcont.direction());
+            return Status::CANCELLED;
+        }
+        alloc_id = tcont.alloc_id();
+        SchedRemove_(direction, intf_id, onu_id, alloc_id);
+    }
+    return Status::OK;
+}
+
+Status SchedRemove_(std::string direction, int intf_id, int onu_id, int alloc_id) {
 
     bcmos_errno err;
 
-    /* Upstream */
 
-    bcmbal_tm_sched_cfg tm_cfg_us;
-    bcmbal_tm_sched_key tm_key_us = { };
+    if (direction == "upstream") {
+        // DBA sched
+        bcmbal_tm_sched_cfg tm_cfg_us;
+        bcmbal_tm_sched_key tm_key_us = { };
 
-    if (sched_id != 0) {
-        tm_key_us.id = sched_id;
-    } else {
-    tm_key_us.id = mk_sched_id(intf_id, onu_id);
-    }
-    tm_key_us.dir = BCMBAL_TM_SCHED_DIR_US;
+        tm_key_us.id = alloc_id;
+        tm_key_us.dir = BCMBAL_TM_SCHED_DIR_US;
 
-    BCMBAL_CFG_INIT(&tm_cfg_us, tm_sched, tm_key_us);
+        BCMBAL_CFG_INIT(&tm_cfg_us, tm_sched, tm_key_us);
 
-    err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(tm_cfg_us.hdr));
-    if (err) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to remove upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
+        err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(tm_cfg_us.hdr));
+        if (err) {
+            BCM_LOG(ERROR, openolt_log_id, "Failed to remove upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
+                tm_key_us.id, intf_id, onu_id);
+            return Status(grpc::StatusCode::INTERNAL, "Failed to remove upstream DBA sched");
+        }
+
+        BCM_LOG(INFO, openolt_log_id, "Remove upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
             tm_key_us.id, intf_id, onu_id);
-        return Status(grpc::StatusCode::INTERNAL, "Failed to remove upstream DBA sched");
+
+    } else if (direction == "downstream") {
+	    // Queue
+
+	    bcmbal_tm_queue_cfg queue_cfg;
+	    bcmbal_tm_queue_key queue_key = { };
+	    queue_key.sched_id = mk_sched_id(intf_id, onu_id, "downstream");
+	    queue_key.sched_dir = BCMBAL_TM_SCHED_DIR_DS;
+	    queue_key.id = mk_queue_id(intf_id, onu_id);;
+
+	    BCMBAL_CFG_INIT(&queue_cfg, tm_queue, queue_key);
+
+	    err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(queue_cfg.hdr));
+	    if (err) {
+		    BCM_LOG(ERROR, openolt_log_id, "Failed to remove downstream tm queue, id %d, sched_id %d, intf_id %d, onu_id %d\n",
+				    queue_key.id, queue_key.sched_id, intf_id, onu_id);
+		    return Status(grpc::StatusCode::INTERNAL, "Failed to remove downstream tm queue");
+	    }
+
+	    BCM_LOG(INFO, openolt_log_id, "Remove upstream DBA sched, id %d, sched_id %d, intf_id %d, onu_id %d\n",
+			    queue_key.id, queue_key.sched_id, intf_id, onu_id);
     }
-
-    BCM_LOG(INFO, openolt_log_id, "Remove upstream DBA sched, id %d, intf_id %d, onu_id %d\n",
-        tm_key_us.id, intf_id, onu_id);
-
-    /* Downstream */
-
-    // Queue
-
-    bcmbal_tm_queue_cfg queue_cfg;
-    bcmbal_tm_queue_key queue_key = { };
-    queue_key.sched_id = intf_id << 7 | onu_id;
-    queue_key.sched_dir = BCMBAL_TM_SCHED_DIR_DS;
-    queue_key.id = 0;
-
-    BCMBAL_CFG_INIT(&queue_cfg, tm_queue, queue_key);
-
-    err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(queue_cfg.hdr));
-    if (err) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to remove downstream tm queue, id %d, sched_id %d, intf_id %d, onu_id %d\n",
-            queue_key.id, queue_key.sched_id, intf_id, onu_id);
-        return Status(grpc::StatusCode::INTERNAL, "Failed to remove downstream tm queue");
-    }
-
-    BCM_LOG(INFO, openolt_log_id, "Remove upstream DBA sched, id %d, sched_id %d, intf_id %d, onu_id %d\n",
-        queue_key.id, queue_key.sched_id, intf_id, onu_id);
-
-    // Sheduler
-
-    bcmbal_tm_sched_cfg tm_cfg_ds;
-    bcmbal_tm_sched_key tm_key_ds = { };
-    tm_key_ds.dir = BCMBAL_TM_SCHED_DIR_DS;
-    tm_key_ds.id = intf_id << 7 | onu_id;
-    BCMBAL_CFG_INIT(&tm_cfg_ds, tm_sched, tm_key_ds);
-
-    err = bcmbal_cfg_clear(DEFAULT_ATERM_ID, &(tm_cfg_ds.hdr));
-    if (err) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to remove sub downstream sched, id %d, intf_id %d, onu_id %d\n",
-            tm_key_us.id, intf_id, onu_id);
-        return Status(grpc::StatusCode::INTERNAL, "Failed to remove sub downstream sched");
-    }
-
-    BCM_LOG(INFO, openolt_log_id, "Remove sub downstream sched, id %d, intf_id %d, onu_id %d\n",
-        tm_key_us.id, intf_id, onu_id);
 
     return Status::OK;
-    //return 0;
 }
