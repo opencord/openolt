@@ -189,7 +189,7 @@ Run *make prereq* to install the package dependencies.
 This is usually a one-time thing, unless there is a change in the dependencies.
 
 ```shell
-make DEVICE=asfvolt16 prereq
+make OPENOLTDEVICE=asfvolt16 prereq
 ```
 
 Run *make*. This can take a while to complete the first time, since it builds
@@ -197,7 +197,7 @@ ONL and the Broadcom SDKs. Following runs will be much faster, as they only
 build the OpenOLT agent source.
 
 ```shell
-make DEVICE=asfvolt16
+make OPENOLTDEVICE=asfvolt16
 ```
 
 If the build process succeeds, libraries and executables will be created in the
@@ -206,7 +206,7 @@ If the build process succeeds, libraries and executables will be created in the
 Optionally, build the debian package that will be installed on the OLT.
 
 ```shell
-make DEVICE=asfvolt16 deb
+make OPENOLTDEVICE=asfvolt16 deb
 ```
 
 If the build process succeeds, the *openolt.deb* package will be created as
@@ -217,7 +217,7 @@ well in the *openolt/build* directory.
 To cleanup the repository and start the build procedure again, run:
 
 ```shell
-make DEVICE=asfvolt16 clean-all
+make OPENOLTDEVICE=asfvolt16 clean-all
 ```
 
 ## FAQ
