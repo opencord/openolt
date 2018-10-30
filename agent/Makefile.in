@@ -183,7 +183,7 @@ bal-clean:
 ##        OpenOLT API
 ##
 ##
-OPENOLT_PROTOS_DIR = ./protos
+OPENOLT_PROTOS_DIR = ../protos
 OPENOLT_API_LIB = $(OPENOLT_PROTOS_DIR)/libopenoltapi.a
 CXXFLAGS += -I$(OPENOLT_PROTOS_DIR) -I$(OPENOLT_PROTOS_DIR)/googleapis/gens
 protos:
