@@ -262,7 +262,7 @@ bcmos_errno OnuOperIndication(bcmbal_obj *obj) {
 
     onu_ind->set_intf_id(key->intf_id);
     onu_ind->set_onu_id(key->sub_term_id);
-    if (data->new_oper_status == BCMBAL_STATE_UP) {
+    if (data->new_oper_status == BCMBAL_STATUS_UP) {
         onu_ind->set_oper_state("up");
     } else {
         onu_ind->set_oper_state("down");

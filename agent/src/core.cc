@@ -42,6 +42,13 @@ extern "C"
 // #include <bcm_common_gpon.h>
 // #include <bcm_dev_log_task.h>
 }
+// These need patched into bal_model_types.h directly. But, with above extern "C", it cannot be done
+inline bcmbal_action_cmd_id& operator|=(bcmbal_action_cmd_id& a, bcmbal_action_cmd_id b) {return a = static_cast<bcmbal_action_cmd_id>(static_cast<int>(a) | static_cast<int>(b));}
+inline bcmbal_action_id& operator|=(bcmbal_action_id& a, bcmbal_action_id b) {return a = static_cast<bcmbal_action_id>(static_cast<int>(a) | static_cast<int>(b));}
+inline bcmbal_classifier_id& operator|=(bcmbal_classifier_id& a, bcmbal_classifier_id b) {return a = static_cast<bcmbal_classifier_id>(static_cast<int>(a) | static_cast<int>(b));}
+inline bcmbal_tm_sched_owner_agg_port_id& operator|=(bcmbal_tm_sched_owner_agg_port_id& a, bcmbal_tm_sched_owner_agg_port_id b) {return a = static_cast<bcmbal_tm_sched_owner_agg_port_id>(static_cast<int>(a) | static_cast<int>(b));}
+inline bcmbal_tm_sched_parent_id& operator|=(bcmbal_tm_sched_parent_id& a, bcmbal_tm_sched_parent_id b) {return a = static_cast<bcmbal_tm_sched_parent_id>(static_cast<int>(a) | static_cast<int>(b));}
+inline bcmbal_tm_shaping_id& operator|=(bcmbal_tm_shaping_id& a, bcmbal_tm_shaping_id b) {return a = static_cast<bcmbal_tm_shaping_id>(static_cast<int>(a) | static_cast<int>(b));}
 
 dev_log_id openolt_log_id = bcm_dev_log_id_register("OPENOLT", DEV_LOG_LEVEL_INFO, DEV_LOG_ID_TYPE_BOTH);
 dev_log_id omci_log_id = bcm_dev_log_id_register("OMCI", DEV_LOG_LEVEL_INFO, DEV_LOG_ID_TYPE_BOTH);
@@ -737,89 +744,72 @@ Status FlowAdd_(int32_t onu_id,
         bcmbal_classifier val = { };
 
         if (classifier.o_tpid()) {
-            val.o_tpid = classifier.o_tpid();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_O_TPID;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, o_tpid, classifier.o_tpid());
         }
 
         if (classifier.o_vid()) {
-            val.o_vid = classifier.o_vid();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_O_VID;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, o_vid, classifier.o_vid());
         }
 
         if (classifier.i_tpid()) {
-            val.i_tpid = classifier.i_tpid();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_I_TPID;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, i_tpid, classifier.i_tpid());
         }
 
         if (classifier.i_vid()) {
-            val.i_vid = classifier.i_vid();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_I_VID;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, i_vid, classifier.i_vid());
         }
 
         if (classifier.o_pbits()) {
-            val.o_pbits = classifier.o_pbits();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_O_PBITS;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, o_pbits, classifier.o_pbits());
         }
 
         if (classifier.i_pbits()) {
-            val.i_pbits = classifier.i_pbits();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_I_PBITS;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, i_pbits, classifier.i_pbits());
         }
 
         if (classifier.eth_type()) {
-            val.ether_type = classifier.eth_type();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_ETHER_TYPE;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, ether_type, classifier.eth_type());
         }
 
         /*
         if (classifier.dst_mac()) {
-            val.dst_mac = classifier.dst_mac();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_DST_MAC;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, dst_mac, classifier.dst_mac());
         }
 
         if (classifier.src_mac()) {
-            val.src_mac = classifier.src_mac();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_SRC_MAC;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, src_mac, classifier.src_mac());
         }
         */
 
         if (classifier.ip_proto()) {
-            val.ip_proto = classifier.ip_proto();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_IP_PROTO;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, ip_proto, classifier.ip_proto());
         }
 
         /*
         if (classifier.dst_ip()) {
-            val.dst_ip = classifier.dst_ip();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_DST_IP;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, dst_ip, classifier.dst_ip());
         }
 
         if (classifier.src_ip()) {
-            val.src_ip = classifier.src_ip();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_SRC_IP;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, src_ip, classifier.src_ip());
         }
         */
 
         if (classifier.src_port()) {
-            val.src_port = classifier.src_port();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_SRC_PORT;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, src_port, classifier.src_port());
         }
 
         if (classifier.dst_port()) {
-            val.dst_port = classifier.dst_port();
-            val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_DST_PORT;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, dst_port, classifier.dst_port());
         }
 
         if (!classifier.pkt_tag_type().empty()) {
             if (classifier.pkt_tag_type().compare("untagged") == 0) {
-                val.pkt_tag_type = BCMBAL_PKT_TAG_TYPE_UNTAGGED;
-                val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_PKT_TAG_TYPE;
+                BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, pkt_tag_type, BCMBAL_PKT_TAG_TYPE_UNTAGGED);
             } else if (classifier.pkt_tag_type().compare("single_tag") == 0) {
-                val.pkt_tag_type = BCMBAL_PKT_TAG_TYPE_SINGLE_TAG;
-                val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_PKT_TAG_TYPE;
+                BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, pkt_tag_type, BCMBAL_PKT_TAG_TYPE_SINGLE_TAG);
             } else if (classifier.pkt_tag_type().compare("double_tag") == 0) {
-                val.pkt_tag_type = BCMBAL_PKT_TAG_TYPE_DOUBLE_TAG;
-                val.presence_mask = val.presence_mask | BCMBAL_CLASSIFIER_ID_PKT_TAG_TYPE;
+                BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, pkt_tag_type, BCMBAL_PKT_TAG_TYPE_DOUBLE_TAG);
             }
         }
 
@@ -832,48 +822,39 @@ Status FlowAdd_(int32_t onu_id,
         const ::openolt::ActionCmd& cmd = action.cmd();
 
         if (cmd.add_outer_tag()) {
-            val.cmds_bitmask |= BCMBAL_ACTION_CMD_ID_ADD_OUTER_TAG;
-            val.presence_mask |= BCMBAL_ACTION_ID_CMDS_BITMASK;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, action, cmds_bitmask, BCMBAL_ACTION_CMD_ID_ADD_OUTER_TAG);
         }
 
         if (cmd.remove_outer_tag()) {
-            val.cmds_bitmask |= BCMBAL_ACTION_CMD_ID_REMOVE_OUTER_TAG;
-            val.presence_mask |= BCMBAL_ACTION_ID_CMDS_BITMASK;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, action, cmds_bitmask, BCMBAL_ACTION_CMD_ID_REMOVE_OUTER_TAG);
         }
 
         if (cmd.trap_to_host()) {
-            val.cmds_bitmask |= BCMBAL_ACTION_CMD_ID_TRAP_TO_HOST;
-            val.presence_mask |= BCMBAL_ACTION_ID_CMDS_BITMASK;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, action, cmds_bitmask, BCMBAL_ACTION_CMD_ID_TRAP_TO_HOST);
         }
 
         if (action.o_vid()) {
-            val.o_vid = action.o_vid();
-            val.presence_mask = val.presence_mask | BCMBAL_ACTION_ID_O_VID;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, action, o_vid, action.o_vid());
         }
 
         if (action.o_pbits()) {
-            val.o_pbits = action.o_pbits();
-            val.presence_mask = val.presence_mask | BCMBAL_ACTION_ID_O_PBITS;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, action, o_pbits, action.o_pbits());
         }
 
         if (action.o_tpid()) {
-            val.o_tpid = action.o_tpid();
-            val.presence_mask = val.presence_mask | BCMBAL_ACTION_ID_O_TPID;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, action, o_tpid, action.o_tpid());
         }
 
         if (action.i_vid()) {
-            val.i_vid = action.i_vid();
-            val.presence_mask = val.presence_mask | BCMBAL_ACTION_ID_I_VID;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, action, i_vid, action.i_vid());
         }
 
         if (action.i_pbits()) {
-            val.i_pbits = action.i_pbits();
-            val.presence_mask = val.presence_mask | BCMBAL_ACTION_ID_I_PBITS;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, action, i_pbits, action.i_pbits());
         }
 
         if (action.i_tpid()) {
-            val.i_tpid = action.i_tpid();
-            val.presence_mask = val.presence_mask | BCMBAL_ACTION_ID_I_TPID;
+            BCMBAL_ATTRIBUTE_PROP_SET(&val, action, i_tpid, action.i_tpid());
         }
 
         BCMBAL_CFG_PROP_SET(&cfg, flow, action, val);
@@ -958,17 +939,18 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, int pir
         BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, owner);
 
         bcmbal_tm_sched_parent parent = { };
-        parent.sched_id = intf_id + BAL_RSC_MANAGER_BASE_TM_SCHED_ID;
-        parent.presence_mask = parent.presence_mask | BCMBAL_TM_SCHED_PARENT_ID_SCHED_ID;
-        parent.weight = 1;
-        parent.presence_mask = parent.presence_mask | BCMBAL_TM_SCHED_PARENT_ID_WEIGHT;
+
+        BCMBAL_ATTRIBUTE_PROP_SET(&parent, tm_sched_parent, sched_id, intf_id + BAL_RSC_MANAGER_BASE_TM_SCHED_ID);
+
+        BCMBAL_ATTRIBUTE_PROP_SET(&parent, tm_sched_parent, weight, 1);
+
         BCMBAL_CFG_PROP_SET(&cfg, tm_sched, sched_parent, parent);
 
         BCMBAL_CFG_PROP_SET(&cfg, tm_sched, sched_type, BCMBAL_TM_SCHED_TYPE_WFQ);
 
         bcmbal_tm_shaping shaping = { };
-        shaping.pir = pir;
-        shaping.presence_mask = shaping.presence_mask | BCMBAL_TM_SHAPING_ID_PIR;
+        BCMBAL_ATTRIBUTE_PROP_SET(&shaping, tm_shaping, pir, pir);
+
         BCMBAL_CFG_PROP_SET(&cfg, tm_sched, rate, shaping);
 
         err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
@@ -1018,12 +1000,9 @@ Status SchedAdd_(int intf_id, int onu_id, int agg_port_id, int sched_id, int pir
         bcmbal_tm_sched_owner val = { };
 
         val.type = BCMBAL_TM_SCHED_OWNER_TYPE_AGG_PORT;
-        val.u.agg_port.intf_id = (bcmbal_intf_id) intf_id;
-	    val.u.agg_port.presence_mask = val.u.agg_port.presence_mask | BCMBAL_TM_SCHED_OWNER_AGG_PORT_ID_INTF_ID;
-        val.u.agg_port.sub_term_id = (bcmbal_sub_id) onu_id;
-        val.u.agg_port.presence_mask = val.u.agg_port.presence_mask | BCMBAL_TM_SCHED_OWNER_AGG_PORT_ID_SUB_TERM_ID;
-	    val.u.agg_port.agg_port_id = (bcmbal_aggregation_port_id) agg_port_id;
-	    val.u.agg_port.presence_mask = val.u.agg_port.presence_mask | BCMBAL_TM_SCHED_OWNER_AGG_PORT_ID_AGG_PORT_ID;
+        BCMBAL_ATTRIBUTE_PROP_SET(&val.u.agg_port, tm_sched_owner_agg_port, intf_id, (bcmbal_intf_id) intf_id);
+        BCMBAL_ATTRIBUTE_PROP_SET(&val.u.agg_port, tm_sched_owner_agg_port, sub_term_id, (bcmbal_sub_id) onu_id);
+        BCMBAL_ATTRIBUTE_PROP_SET(&val.u.agg_port, tm_sched_owner_agg_port, agg_port_id, (bcmbal_aggregation_port_id) agg_port_id);
 
         BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, val);
     }

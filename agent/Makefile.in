@@ -61,7 +61,7 @@ CXX = @CXX@
 CXXFLAGS += @CXXFLAGS@
 CXXFLAGS += $(shell pkg-config --cflags-only-I grpc++)
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
-CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
+CXXFLAGS += -std=c++11
 LDFLAGS += @LDFLAGS@
 LDFLAGS += `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
 CXXFLAGSDEVICE = -I./device -I./device/$(OPENOLTDEVICE) -I./device/generic
@@ -278,7 +278,7 @@ deb-cleanup:
 
 clean: protos-clean deb-cleanup
 	rm -f $(OBJS) $(DEPS)
-	rm -rf protos/googleapis
+	rm -rf $(OPENOLT_PROTOS_DIR)/googleapis
 	rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1
 	rm -f $(BUILD_DIR)/libbal_api_dist.so
 	rm -f $(BUILD_DIR)/openolt
