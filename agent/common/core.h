@@ -42,21 +42,22 @@ Status DisableUplinkIf_(uint32_t intf_id);
 unsigned NumNniIf_();
 unsigned NumPonIf_();
 Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
-Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
+Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, uint32_t port_no, const std::string pkt);
 Status ProbeDeviceCapabilities_();
 Status ProbePonIfTechnology_();
 Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt);
-Status FlowAdd_(int32_t access_intf_id, int32_t onu_id,
+Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t port_no,
                 uint32_t flow_id, const std::string flow_type,
                 int32_t alloc_id, int32_t network_intf_id,
                 int32_t gemport_id, const ::openolt::Classifier& classifier,
-                const ::openolt::Action& action, int32_t priority_value);
+                const ::openolt::Action& action, int32_t priority_value, uint64_t cookie);
 Status FlowRemove_(uint32_t flow_id, const std::string flow_type);
 Status Disable_();
 Status Reenable_();
 Status GetDeviceInfo_(openolt::DeviceInfo* device_info);
 Status CreateTconts_(const openolt::Tconts *tconts);
 Status RemoveTconts_(const openolt::Tconts *tconts);
+uint32_t GetPortNum_(uint32_t flow_id);
 
 void stats_collection();
 #endif

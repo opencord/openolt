@@ -359,16 +359,19 @@ bcmos_errno PacketIndication(bcmbal_obj *obj) {
     openolt::PacketIndication* pkt_ind = new openolt::PacketIndication;
     bcmbal_packet_bearer_channel_rx *in = (bcmbal_packet_bearer_channel_rx *)obj;
 
+    uint32_t port_no = GetPortNum_(in->data.flow_id);
     pkt_ind->set_intf_type(bcmbal_to_grpc_intf_type(in->data.intf_type));
     pkt_ind->set_intf_id(in->data.intf_id);
     pkt_ind->set_gemport_id(in->data.svc_port);
     pkt_ind->set_flow_id(in->data.flow_id);
     pkt_ind->set_pkt(in->data.pkt.val, in->data.pkt.len);
+    pkt_ind->set_port_no(port_no);
+    pkt_ind->set_cookie(in->data.flow_cookie);
 
     ind.set_allocated_pkt_ind(pkt_ind);
 
-    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_type %s, intf_id %d, svc_port %d, flow_id %d\n",
-        pkt_ind->intf_type().c_str(), in->data.intf_id, in->data.svc_port, in->data.flow_id);
+    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_type %s, intf_id %d, svc_port %d, flow_id %d port_no %d cookie %u\n",
+        pkt_ind->intf_type().c_str(), in->data.intf_id, in->data.svc_port, in->data.flow_id, port_no, in->data.flow_cookie);
 
     oltIndQ.push(ind);
 

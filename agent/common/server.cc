@@ -109,6 +109,7 @@ class OpenoltService final : public openolt::Openolt::Service {
         return OnuPacketOut_(
             request->intf_id(),
             request->onu_id(),
+            request->port_no(),
             request->pkt());
     }
 
@@ -128,6 +129,8 @@ class OpenoltService final : public openolt::Openolt::Service {
         return FlowAdd_(
             request->access_intf_id(),
             request->onu_id(),
+            request->uni_id(),
+            request->port_no(),
             request->flow_id(),
             request->flow_type(),
             request->alloc_id(),
@@ -135,7 +138,8 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->gemport_id(),
             request->classifier(),
             request->action(),
-            request->priority());
+            request->priority(),
+            request->cookie());
     }
 
     Status FlowRemove(
@@ -258,7 +262,6 @@ class OpenoltService final : public openolt::Openolt::Service {
             ServerContext* context,
             const openolt::Tconts* request,
             openolt::Empty* response) override {
-        std::cout << "create tconts";
         CreateTconts_(request);
         return Status::OK;
     };
@@ -267,7 +270,6 @@ class OpenoltService final : public openolt::Openolt::Service {
             ServerContext* context,
             const openolt::Tconts* request,
             openolt::Empty* response) override {
-        std::cout << "remove tconts";
         RemoveTconts_(request);
         return Status::OK;
     };
