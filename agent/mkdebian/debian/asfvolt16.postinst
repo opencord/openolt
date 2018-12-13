@@ -32,5 +32,4 @@ mv /tmp/libgrpc++.so.1 /usr/local/lib
 mv /tmp/libgrpc.so.6 /usr/local/lib
 mv /broadcom/libbal_api_dist.so /usr/local/lib
 /opt/bcm68620/svk_init.sh
-#service bal_core_dist start
-#service openolt start
+ldconfig
