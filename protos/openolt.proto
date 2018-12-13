@@ -246,7 +246,7 @@ message OmciMsg {
 message OnuPacket {
     fixed32 intf_id = 1;
     fixed32 onu_id = 2;
-    fixed64 port_no = 4;
+    fixed32 port_no = 4;
     bytes pkt = 3;
 }
 

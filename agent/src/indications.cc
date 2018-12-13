@@ -370,7 +370,7 @@ bcmos_errno PacketIndication(bcmbal_obj *obj) {
 
     ind.set_allocated_pkt_ind(pkt_ind);
 
-    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_type %s, intf_id %d, svc_port %d, flow_id %d port_no %d cookie %u\n",
+    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_type %s, intf_id %d, svc_port %d, flow_id %d port_no %d cookie %llu\n",
         pkt_ind->intf_type().c_str(), in->data.intf_id, in->data.svc_port, in->data.flow_id, port_no, in->data.flow_cookie);
 
     oltIndQ.push(ind);

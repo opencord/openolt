@@ -233,7 +233,6 @@ Status Enable_(int argc, char *argv[]) {
         bcmbal_init(argc, argv, NULL);
         bcmos_fastlock_init(&flow_lock, 0);
 
-
         BCM_LOG(INFO, openolt_log_id, "Enable OLT - %s-%s\n", VENDOR_ID, MODEL_ID);
 
         Status status = SubscribeIndication();
@@ -761,7 +760,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
     bcmbal_flow_cfg cfg;
     bcmbal_flow_key key = { };
 
-    BCM_LOG(INFO, openolt_log_id, "flow add - intf_id %d, onu_id %d, uni_id %d, port_no %u, flow_id %d, flow_type %s, gemport_id %d, network_intf_id %d, cookie %u\n",
+    BCM_LOG(INFO, openolt_log_id, "flow add - intf_id %d, onu_id %d, uni_id %d, port_no %u, flow_id %d, flow_type %s, gemport_id %d, network_intf_id %d, cookie %llu\n",
         access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type.c_str(), gemport_id, network_intf_id, cookie);
 
     key.flow_id = flow_id;
@@ -811,30 +810,37 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
         bcmbal_classifier val = { };
 
         if (classifier.o_tpid()) {
+            BCM_LOG(DEBUG, openolt_log_id, "classify o_tpid 0x%04x\n", classifier.o_tpid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, o_tpid, classifier.o_tpid());
         }
 
         if (classifier.o_vid()) {
+            BCM_LOG(DEBUG, openolt_log_id, "classify o_vid %d\n", classifier.o_vid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, o_vid, classifier.o_vid());
         }
 
         if (classifier.i_tpid()) {
+            BCM_LOG(DEBUG, openolt_log_id, "classify i_tpid 0x%04x\n", classifier.i_tpid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, i_tpid, classifier.i_tpid());
         }
 
         if (classifier.i_vid()) {
+            BCM_LOG(DEBUG, openolt_log_id, "classify i_vid %d\n", classifier.i_vid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, i_vid, classifier.i_vid());
         }
 
         if (classifier.o_pbits()) {
+            BCM_LOG(DEBUG, openolt_log_id, "classify o_pbits 0x%x\n", classifier.o_pbits());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, o_pbits, classifier.o_pbits());
         }
 
         if (classifier.i_pbits()) {
+            BCM_LOG(DEBUG, openolt_log_id, "classify i_pbits 0x%x\n", classifier.i_pbits());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, i_pbits, classifier.i_pbits());
         }
 
         if (classifier.eth_type()) {
+            BCM_LOG(DEBUG, openolt_log_id, "classify ether_type 0x%04x\n", classifier.eth_type());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, ether_type, classifier.eth_type());
         }
 
@@ -849,6 +855,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
         */
 
         if (classifier.ip_proto()) {
+            BCM_LOG(DEBUG, openolt_log_id, "classify ip_proto %d\n", classifier.ip_proto());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, ip_proto, classifier.ip_proto());
         }
 
@@ -863,14 +870,17 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
         */
 
         if (classifier.src_port()) {
+            BCM_LOG(DEBUG, openolt_log_id, "classify src_port %d\n", classifier.src_port());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, src_port, classifier.src_port());
         }
 
         if (classifier.dst_port()) {
+            BCM_LOG(DEBUG, openolt_log_id, "classify dst_port %d\n", classifier.dst_port());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, dst_port, classifier.dst_port());
         }
 
         if (!classifier.pkt_tag_type().empty()) {
+            BCM_LOG(DEBUG, openolt_log_id, "classify tag_type %s\n", classifier.pkt_tag_type().c_str());
             if (classifier.pkt_tag_type().compare("untagged") == 0) {
                 BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, pkt_tag_type, BCMBAL_PKT_TAG_TYPE_UNTAGGED);
             } else if (classifier.pkt_tag_type().compare("single_tag") == 0) {
@@ -889,38 +899,47 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
         const ::openolt::ActionCmd& cmd = action.cmd();
 
         if (cmd.add_outer_tag()) {
+            BCM_LOG(INFO, openolt_log_id, "action add o_tag\n");
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, cmds_bitmask, BCMBAL_ACTION_CMD_ID_ADD_OUTER_TAG);
         }
 
         if (cmd.remove_outer_tag()) {
+            BCM_LOG(INFO, openolt_log_id, "action pop o_tag\n");
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, cmds_bitmask, BCMBAL_ACTION_CMD_ID_REMOVE_OUTER_TAG);
         }
 
         if (cmd.trap_to_host()) {
+            BCM_LOG(INFO, openolt_log_id, "action trap-to-host\n");
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, cmds_bitmask, BCMBAL_ACTION_CMD_ID_TRAP_TO_HOST);
         }
 
         if (action.o_vid()) {
+            BCM_LOG(INFO, openolt_log_id, "action o_vid=%d\n", action.o_vid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, o_vid, action.o_vid());
         }
 
         if (action.o_pbits()) {
+            BCM_LOG(INFO, openolt_log_id, "action o_pbits=0x%x\n", action.o_pbits());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, o_pbits, action.o_pbits());
         }
 
         if (action.o_tpid()) {
+            BCM_LOG(INFO, openolt_log_id, "action o_tpid=0x%04x\n", action.o_tpid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, o_tpid, action.o_tpid());
         }
 
         if (action.i_vid()) {
+            BCM_LOG(INFO, openolt_log_id, "action i_vid=%d\n", action.i_vid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, i_vid, action.i_vid());
         }
 
         if (action.i_pbits()) {
+            BCM_LOG(DEBUG, openolt_log_id, "action i_pbits=0x%x\n", action.i_pbits());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, i_pbits, action.i_pbits());
         }
 
         if (action.i_tpid()) {
+            BCM_LOG(DEBUG, openolt_log_id, "action i_tpid=0x%04x\n", action.i_tpid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, i_tpid, action.i_tpid());
         }
 
