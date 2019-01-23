@@ -84,7 +84,7 @@ static bcmos_fastlock flow_lock;
 
 Status SchedAdd_(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, uint32_t port_no, 
                  uint32_t alloc_id, openolt::AdditionalBW additional_bw, uint32_t weight, uint32_t priority,
-                 openolt::SchedulingPolicy sched_policy);
+                 openolt::SchedulingPolicy sched_policy, openolt::TrafficShapingInfo traffic_shaping_info);
 static Status SchedRemove_(std::string direction, int intf_id, int onu_id, int uni_id, uint32_t port_no, int alloc_id);
 
 static inline int mk_sched_id(int intf_id, int onu_id, std::string direction) {
@@ -1028,7 +1028,7 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
 
 Status SchedAdd_(std::string direction, uint32_t intf_id, uint32_t onu_id, uint32_t uni_id, uint32_t port_no,
                  uint32_t alloc_id, openolt::AdditionalBW additional_bw, uint32_t weight, uint32_t priority,
-                 openolt::SchedulingPolicy sched_policy) {
+                 openolt::SchedulingPolicy sched_policy, openolt::TrafficShapingInfo tf_sh_info) {
 
     bcmos_errno err;
 
@@ -1046,10 +1046,23 @@ Status SchedAdd_(std::string direction, uint32_t intf_id, uint32_t onu_id, uint3
         BCMBAL_CFG_PROP_SET(&cfg, tm_queue, priority, priority);
         //BCMBAL_CFG_PROP_SET(&cfg, tm_queue, weight, weight);
         //BCMBAL_CFG_PROP_SET(&cfg, tm_queue, creation_mode, BCMBAL_TM_CREATION_MODE_MANUAL);
-        err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
 
-        // TODO: Shaping parameters will be available after meter bands are supported.
-        // TODO: The shaping parameters will be applied on the downstream queue on the PON default scheduler.
+        bcmbal_tm_shaping rate = {};
+        if (tf_sh_info.cir() >= 0 && tf_sh_info.pir() > 0) {
+            uint32_t cir = tf_sh_info.cir();
+            uint32_t pir = tf_sh_info.pir();
+            uint32_t burst = tf_sh_info.pbs();
+            BCM_LOG(INFO, openolt_log_id, "applying traffic shaping in DL cir=%u, pir=%u, burst=%u\n",
+               cir, pir, burst);
+            rate.presence_mask = BCMBAL_TM_SHAPING_ID_ALL;
+            rate.cir = cir;
+            rate.pir = pir;
+            rate.burst = burst;
+
+            BCMBAL_CFG_PROP_SET(&cfg, tm_queue, rate, rate);
+        }
+
+        err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &cfg.hdr);
         if (err) {
             BCM_LOG(ERROR, openolt_log_id, "Failed to create subscriber downstream tm queue, id %d, sched_id %d, intf_id %d, onu_id %d, uni_id %d, port_no %u, alt_id %d\n",
                     key.id, key.sched_id, intf_id, onu_id, uni_id, port_no, alloc_id);
@@ -1084,8 +1097,20 @@ Status SchedAdd_(std::string direction, uint32_t intf_id, uint32_t onu_id, uint3
             BCMBAL_CFG_PROP_SET(&cfg, tm_sched, owner, val);
 
         }
-        // TODO: Shaping parameters will be available after meter bands are supported.
-        // TODO: The shaping parameters will be applied on the upstream DBA scheduler.
+        bcmbal_tm_shaping rate = {};
+        if (tf_sh_info.cir() >= 0 && tf_sh_info.pir() > 0) {
+            uint32_t cir = tf_sh_info.cir();
+            uint32_t pir = tf_sh_info.pir();
+            uint32_t burst = tf_sh_info.pbs();
+            BCM_LOG(INFO, openolt_log_id, "applying traffic shaping in UL cir=%u, pir=%u, burst=%u\n",
+               cir, pir, burst);
+            rate.presence_mask = BCMBAL_TM_SHAPING_ID_ALL;
+            rate.cir = cir;
+            rate.pir = pir;
+            rate.burst = burst;
+
+            BCMBAL_CFG_PROP_SET(&cfg, tm_sched, rate, rate);
+        }
 
         err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(cfg.hdr));
         if (err) {
@@ -1113,6 +1138,7 @@ Status CreateTconts_(const openolt::Tconts *tconts) {
     uint32_t priority;
     uint32_t weight;
     openolt::SchedulingPolicy sched_policy;
+    openolt::TrafficShapingInfo traffic_shaping_info;
 
     for (int i = 0; i < tconts->tconts_size(); i++) {
         openolt::Tcont tcont = tconts->tconts(i);
@@ -1131,8 +1157,8 @@ Status CreateTconts_(const openolt::Tconts *tconts) {
         priority = scheduler.priority();
         weight = scheduler.weight();
         sched_policy = scheduler.sched_policy();
-        // TODO: TrafficShapingInfo is not supported for now as meter band support is not there
-        SchedAdd_(direction, intf_id, onu_id, uni_id, port_no, alloc_id, additional_bw, weight, priority, sched_policy);
+        traffic_shaping_info = tcont.traffic_shaping_info();
+        SchedAdd_(direction, intf_id, onu_id, uni_id, port_no, alloc_id, additional_bw, weight, priority, sched_policy, traffic_shaping_info);
     }
     return Status::OK;
 }
