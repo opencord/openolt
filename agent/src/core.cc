@@ -62,7 +62,7 @@ static std::string intf_technologies[MAX_SUPPORTED_INTF];
 static const std::string UNKNOWN_TECH("unknown");
 static const std::string MIXED_TECH("mixed");
 static std::string board_technology(UNKNOWN_TECH);
-
+static unsigned int OPENOLT_FIELD_LEN = 200;
 static std::string firmware_version = "Openolt.2018.10.04";
 
 const uint32_t tm_upstream_sched_id_start = 18432;
@@ -112,6 +112,29 @@ static inline int mk_agg_port_id(int intf_id, int onu_id) {
     return 1023 + intf_id * 32 + onu_id;
 }
 
+char* openolt_read_sysinfo(char* field_name, char* field_val)
+{
+   FILE *fp;
+   /* Prepare the command*/
+   char command[150];
+
+   snprintf(command, sizeof command, "bash -l -c \"onlpdump -s\" | perl -ne 'print $1 if /%s: (\\S+)/'", field_name);
+   /* Open the command for reading. */
+   fp = popen(command, "r");
+   if (fp == NULL) {
+       /*The client has to check for a Null field value in this case*/
+       BCM_LOG(INFO, openolt_log_id,  "Failed to query the %s\n", field_name);
+       return field_val;
+   }
+
+   /*Read the field value*/
+   if (fp) {
+       fread(field_val, OPENOLT_FIELD_LEN, 1, fp);
+       pclose(fp);
+   }
+   return field_val;
+}
+
 Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
     device_info->set_vendor(VENDOR_ID);
     device_info->set_model(MODEL_ID);
@@ -119,6 +142,12 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
     device_info->set_firmware_version(firmware_version);
     device_info->set_technology(board_technology);
     device_info->set_pon_ports(num_of_pon_ports);
+
+    char serial_number[OPENOLT_FIELD_LEN];
+    memset(serial_number, '\0', OPENOLT_FIELD_LEN);
+    openolt_read_sysinfo("Serial Number", serial_number);
+    BCM_LOG(INFO, openolt_log_id, "Fetched device serial number %s\n", serial_number);
+    device_info->set_device_serial_number(serial_number);
 
     // Legacy, device-wide ranges. To be deprecated when adapter
     // is upgraded to support per-interface ranges
