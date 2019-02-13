@@ -31,6 +31,7 @@
 
 #include <grpc++/grpc++.h>
 #include <openolt.grpc.pb.h>
+#include <tech_profile.grpc.pb.h>
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -110,6 +111,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->intf_id(),
             request->onu_id(),
             request->port_no(),
+            request->gemport_id(),
             request->pkt());
     }
 
@@ -258,19 +260,35 @@ class OpenoltService final : public openolt::Openolt::Service {
 
     }
 
-    Status CreateTconts(
+    Status CreateTrafficSchedulers(
             ServerContext* context,
-            const openolt::Tconts* request,
+            const tech_profile::TrafficSchedulers* request,
             openolt::Empty* response) override {
-        CreateTconts_(request);
+        CreateTrafficSchedulers_(request);
         return Status::OK;
     };
 
-    Status RemoveTconts(
+    Status RemoveTrafficSchedulers(
             ServerContext* context,
-            const openolt::Tconts* request,
+            const tech_profile::TrafficSchedulers* request,
             openolt::Empty* response) override {
-        RemoveTconts_(request);
+        RemoveTrafficSchedulers_(request);
+        return Status::OK;
+    };
+
+    Status CreateTrafficQueues(
+            ServerContext* context,
+            const tech_profile::TrafficQueues* request,
+            openolt::Empty* response) override {
+        CreateTrafficQueues_(request);
+        return Status::OK;
+    };
+
+    Status RemoveTrafficQueues(
+            ServerContext* context,
+            const tech_profile::TrafficQueues* request,
+            openolt::Empty* response) override {
+        RemoveTrafficQueues_(request);
         return Status::OK;
     };
 

@@ -37,6 +37,7 @@ extern Queue<openolt::Indication> oltIndQ;
 
 
 bool subscribed = false;
+uint32_t nni_intf_id = 0;
 
 bcmos_errno OmciIndication(bcmbal_obj *obj);
 
@@ -173,6 +174,9 @@ bcmos_errno IfOperIndication(bcmbal_obj *obj) {
 
     if (bcm_if_oper_ind->data.new_oper_status == BCMBAL_STATUS_UP) {
         intf_oper_ind->set_oper_state("up");
+        if (bcm_if_oper_ind->key.intf_type == BCMBAL_INTF_TYPE_NNI) {
+            nni_intf_id = bcm_if_oper_ind->key.intf_id;
+        }
     } else {
         intf_oper_ind->set_oper_state("down");
     }

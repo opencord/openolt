@@ -23,7 +23,7 @@ PROTOC = protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
 
-OBJS = openolt.pb.o openolt.grpc.pb.o ./googleapis/gens/google/api/annotations.grpc.pb.o ./googleapis/gens/google/api/annotations.pb.o ./googleapis/gens/google/api/http.pb.o
+OBJS = tech_profile.pb.o tech_profile.grpc.pb.o openolt.pb.o openolt.grpc.pb.o ./googleapis/gens/google/api/annotations.grpc.pb.o ./googleapis/gens/google/api/annotations.pb.o ./googleapis/gens/google/api/http.pb.o
 
 all: googleapis libopenoltapi.a
 

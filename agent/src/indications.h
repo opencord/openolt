@@ -30,5 +30,6 @@ extern Queue<openolt::Indication> oltIndQ;
 extern grpc::Status SubscribeIndication();
 extern dev_log_id openolt_log_id;
 extern dev_log_id omci_log_id;
+extern uint32_t nni_intf_id;
 
 #endif
