@@ -1187,7 +1187,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
 
             bcmbal_tm_queue_ref val2 = { };
             val2.sched_id = get_default_tm_sched_id(network_intf_id, upstream); // NNI Scheduler ID
-            val2.queue_id = get_tm_queue_id(network_intf_id, onu_id, uni_id, gemport_id, upstream); // Queue on NNI
+            val2.queue_id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, upstream); // Queue on NNI
             BCMBAL_CFG_PROP_SET(&cfg, flow, queue, val2);
         }
     }
@@ -1302,7 +1302,7 @@ bcmos_errno CreateSched(std::string direction, uint32_t intf_id, uint32_t onu_id
                 rate.pir = pir;
                 rate.burst = burst;
 
-                BCMBAL_CFG_PROP_SET(&cfg, tm_queue, rate, rate);
+                BCMBAL_CFG_PROP_SET(&cfg, tm_sched, rate, rate);
             }
 
             // creation_mode
