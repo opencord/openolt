@@ -1179,6 +1179,8 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
                 val.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, downstream); // Subscriber Scheduler
                 val.queue_id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, downstream);
             }
+            BCM_LOG(INFO, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d\n", \
+                    downstream.c_str(), val.queue_id, val.sched_id);
             BCMBAL_CFG_PROP_SET(&cfg, flow, queue, val);
         } else if (key.flow_type == BCMBAL_FLOW_TYPE_UPSTREAM) {
             bcmbal_tm_sched_id val1;
@@ -1188,6 +1190,8 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
             bcmbal_tm_queue_ref val2 = { };
             val2.sched_id = get_default_tm_sched_id(network_intf_id, upstream); // NNI Scheduler ID
             val2.queue_id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, upstream); // Queue on NNI
+            BCM_LOG(INFO, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d\n", \
+                    upstream.c_str(), val2.queue_id, val2.sched_id);
             BCMBAL_CFG_PROP_SET(&cfg, flow, queue, val2);
         }
     }
@@ -1476,6 +1480,8 @@ bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t
     bcmos_errno err;
     bcmbal_tm_queue_cfg cfg;
     bcmbal_tm_queue_key key = { };
+    BCM_LOG(INFO, openolt_log_id, "creating queue. access_intf_id = %d, onu_id = %d, uni_id = %d \
+            gemport_id = %d, direction = %s\n", access_intf_id, onu_id, uni_id, gemport_id, direction.c_str());
     if (direction == downstream) {
         // In the downstream, the queues are on the 'sub term' scheduler
         // There is one queue per gem port
@@ -1504,6 +1510,8 @@ bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t
         // Also, these queues should be present until the last subscriber exits the system.
         // One solution is to have these queues always, i.e., create it as soon as OLT is enabled.
     }
+    BCM_LOG(INFO, openolt_log_id, "queue assigned queue_id = %d\n", key.id);
+
     BCMBAL_CFG_INIT(&cfg, tm_queue, key);
 
     BCMBAL_CFG_PROP_SET(&cfg, tm_queue, priority, priority);
@@ -1546,7 +1554,8 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
             return Status::CANCELLED;
         }
         err = CreateQueue(direction, intf_id, onu_id, uni_id, traffic_queue.priority(), traffic_queue.gemport_id());
-        if (err) {
+        // If the queue exists already, lets not return failure and break the loop.
+        if (err && err != BCM_ERR_ALREADY) {
             return bcm_to_grpc_err(err, "Failed to create queue");
         }
     }
