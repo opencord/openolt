@@ -25,6 +25,8 @@ using grpc::Status;
 #include "state.h"
 
 #define COLLECTION_PERIOD 15
+#define BAL_DYNAMIC_LIST_BUFFER_SIZE (32 * 1024)
+#define MAX_REGID_LENGTH  36
 
 extern State state;
 

@@ -51,6 +51,57 @@ std::string bcmbal_to_grpc_intf_type(bcmbal_intf_type intf_type)
     return "unknown";
 }
 
+std::string getOnuRegistrationId(uint32_t intf_id, uint32_t onu_id){
+    bcmbal_subscriber_terminal_key key;
+    bcmbal_subscriber_terminal_cfg sub_term_obj = {};
+    uint8_t  *list_mem;// to fetch config details for ONU
+    bcmos_errno err = BCM_ERR_OK;
+
+    key.sub_term_id =onu_id;
+    key.intf_id = intf_id;
+    BCM_LOG(INFO, openolt_log_id,"Processing subscriber terminal cfg get for: %d",key.intf_id);
+
+    BCMBAL_CFG_INIT(&sub_term_obj, subscriber_terminal, key);
+
+    BCMBAL_CFG_PROP_GET(&sub_term_obj, subscriber_terminal, all_properties);
+    char *reg_id = (char*)malloc(sizeof(char)*MAX_REGID_LENGTH);
+    memset(reg_id, '\0', MAX_REGID_LENGTH);
+
+    //set memory to use for variable-sized lists
+    list_mem = (uint8_t*)malloc(BAL_DYNAMIC_LIST_BUFFER_SIZE);
+
+    if (list_mem == NULL)
+    {
+       BCM_LOG(ERROR,openolt_log_id,"Memory allocation failed while handling subscriber terminal \
+               cfg get subscriber_terminal_id(%d), Interface ID(%d)",key.sub_term_id, key.intf_id);
+       return reg_id;
+    }
+
+    memset(list_mem, 0, BAL_DYNAMIC_LIST_BUFFER_SIZE);
+    BCMBAL_CFG_LIST_BUF_SET(&sub_term_obj, subscriber_terminal, list_mem, BAL_DYNAMIC_LIST_BUFFER_SIZE);
+
+    //call API
+    err = bcmbal_cfg_get(DEFAULT_ATERM_ID, &sub_term_obj.hdr);
+
+    if (err != BCM_ERR_OK)
+    {
+        BCM_LOG(ERROR,openolt_log_id, "Failed to get information from BAL subscriber_terminal_id(%d), Interface ID(%d)",
+                key.sub_term_id, key.intf_id);
+        free(list_mem);
+        return reg_id;
+    }
+
+    BCM_LOG(INFO,openolt_log_id, "Get Subscriber cfg sent to OLT for Subscriber Id(%d) on Interface(%d)",
+            key.sub_term_id, key.intf_id);
+
+    for (int i=0; i<MAX_REGID_LENGTH ; i++){
+        reg_id[i]=sub_term_obj.data.registration_id.arr[i];
+    }
+
+    free(list_mem);
+    return reg_id;
+}
+
 bcmos_errno OltOperIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
     openolt::OltIndication* olt_ind = new openolt::OltIndication;
@@ -299,6 +350,11 @@ bcmos_errno OnuIndication(bcmbal_obj *obj) {
     } else {
         onu_ind->set_admin_state("down");
     }
+    const std::string  reg_id = getOnuRegistrationId(key->intf_id,key->sub_term_id);
+    onu_ind->set_registration_id(reg_id);
+
+    BCM_LOG(INFO, openolt_log_id, "onu indication, intf_id %d, onu_id %d, oper state %s, admin_state %s,registration id %s\n",
+        onu_ind->intf_id(), onu_ind->onu_id(),onu_ind->oper_state().c_str(), onu_ind->admin_state().c_str(),onu_ind->registration_id().c_str());
 
     ind.set_allocated_onu_ind(onu_ind);
 
@@ -328,11 +384,12 @@ bcmos_errno OnuOperIndication(bcmbal_obj *obj) {
     } else {
         onu_ind->set_admin_state("down");
     }
-
+    const std::string  reg_id = getOnuRegistrationId(key->intf_id,key->sub_term_id);
+    onu_ind->set_registration_id(reg_id);
     ind.set_allocated_onu_ind(onu_ind);
 
-    BCM_LOG(INFO, openolt_log_id, "onu oper state indication, intf_id %d, onu_id %d, old oper state %d, new oper state %s, admin_state %s\n",
-        key->intf_id, key->sub_term_id, data->old_oper_status, onu_ind->oper_state().c_str(), onu_ind->admin_state().c_str());
+    BCM_LOG(INFO, openolt_log_id, "onu oper state indication, intf_id %d, onu_id %d, old oper state %d, new oper state %s, admin_state %s registraion_id %s\n",
+        key->intf_id, key->sub_term_id, data->old_oper_status, onu_ind->oper_state().c_str(), onu_ind->admin_state().c_str(),onu_ind->registration_id().c_str());
 
     oltIndQ.push(ind);
     return BCM_ERR_OK;
