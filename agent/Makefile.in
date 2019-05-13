@@ -19,6 +19,7 @@
 ##        Config
 ##
 ##
+TOP_DIR=`pwd`
 OPENOLTDEVICE ?= generic
 
 #
@@ -26,14 +27,24 @@ OPENOLTDEVICE ?= generic
 # SW-BCM68620_<VER>.zip - Broadcom BAL source and Maple SDK.
 # sdk-all-<SDK_VER>.tar.gz - Broadcom Qumran SDK.
 # ACCTON_BAL_<BAL_VER>-<DEV_VER>.patch - Accton/Edgecore's patch.
-BAL_MAJOR_VER = 02.06
-BAL_VER = 2.6.0.1
-SDK_VER = 6.5.7
-DEV_VER ?= 201804301043
+BAL_MAJOR_VER = 3
+BAL_MINOR_VER = 1
+BAL_REV_A_VER = 1
+BAL_REV_B_VER = 1
+BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER)
+BAL_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
+SDK_VER = 6.5.13
+DEV_VER ?= 201908010203
 #
 # Version of Open Network Linux (ONL).
-ONL_KERN_VER_MAJOR = 3.7
-ONL_KERN_VER_MINOR = 10
+ONL_KERN_VER_MAJOR = 4.14
+
+# OpenOLT Proto version.
+# This specifies the GIT tag in https://github.com/opencord/voltha-protos
+# repo that we need to refer to, to pick the right version of
+# openolt.proto and tech_profile.proto
+OPENOLT_PROTO_VER ?= v1.0.3
+
 #
 # Build directory
 BUILD_DIR = build
@@ -65,7 +76,7 @@ LABEL_COMMIT_DATE   = $(shell git show -s --format=%cd --date=iso-strict HEAD)
 LIBGRPC_PATH=$(shell pkg-config --libs-only-L grpc | sed s/-L// | sed s/\ //g)
 LIBPROTOBUF_PATH=$(shell PKG_CONFIG_ALLOW_SYSTEM_LIBS=true pkg-config --libs-only-L protobuf | sed s/-L// | sed s/\ //g)
 
-CXX = @CXX@
+CXX = @CXX@-4.9
 CXXFLAGS += @CXXFLAGS@
 CXXFLAGS += $(shell pkg-config --cflags-only-I grpc++)
 CPPFLAGS += @CPPFLAGS@
@@ -78,12 +89,11 @@ LDFLAGS += @LDFLAGS@
 LDFLAGS += `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
 CXXFLAGSDEVICE = -I./device -I./device/$(OPENOLTDEVICE) -I./device/generic
 
-export CXX CXXFLAGS
+export CXX CXXFLAGS OPENOLT_PROTO_VER
 
 prereq:
-	sudo apt-get -q -y install pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
-	sudo apt-get install -y build-essential autoconf libssl-dev gawk debhelper dh-systemd init-system-helpers
-	sudo add-apt-repository -y ppa:git-core/ppa && apt-get -y update && apt-get -y install git
+	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
+	sudo apt-get install -y build-essential autoconf libssl-dev gawk debhelper dh-systemd init-system-helpers curl cmake ccache g++-4.9
 
 	# Install GRPC, libprotobuf and protoc
 	rm -rf $(GRPC_DST)
@@ -110,14 +120,15 @@ endif
 ##        ONL
 ##
 ##
-ONL_KERN_VER = $(ONL_KERN_VER_MAJOR).$(ONL_KERN_VER_MINOR)
-ONL_REPO = $(OPENOLTDEVICE)-onl
+ONL_REPO = onl
 ONL_DIR = $(BUILD_DIR)/$(ONL_REPO)
 onl:
 	if [ ! -d "$(ONL_DIR)/OpenNetworkLinux" ]; then \
 		mkdir -p $(ONL_DIR); \
-		git clone https://gerrit.opencord.org/$(ONL_REPO) $(ONL_DIR); \
-		make -C $(ONL_DIR) $(OPENOLTDEVICE)-$(ONL_KERN_VER_MAJOR); \
+		git clone https://github.com/opencomputeproject/OpenNetworkLinux.git $(ONL_DIR)/OpenNetworkLinux; \
+		cp download/Makefile.onl $(ONL_DIR)/Makefile; \
+		install -m 755 download/build-onl.sh $(ONL_DIR)/OpenNetworkLinux; \
+		make -C $(ONL_DIR) onl-$(ONL_KERN_VER_MAJOR); \
 	fi;
 onl-force:
 	make -C $(ONL_DIR) $(OPENOLTDEVICE)-$(ONL_KERN_VER_MAJOR)
@@ -127,68 +138,65 @@ distclean-onl:
 ########################################################################
 ##
 ##
+##        Broadcom LIBRARY APIs
+##
+##
+BAL_API_DIR = $(BUILD_DIR)/bal-api-$(BAL_API_VER)
+
+bal-api-$(BAL_API_VER):
+	if [ ! -d "$(BAL_API_DIR)" ]; then \
+		mkdir -p $(BAL_API_DIR); \
+		git clone https://github.com/balapi/bal-api-$(BAL_API_VER).git $(BAL_API_DIR); \
+	fi;
+bal-api-clean:
+	rm $(BAL_API_DIR)
+
+########################################################################
+##
+##
 ##        BAL
 ##
 ##
-BAL_ZIP = SW-BCM68620_$(subst .,_,$(BAL_VER)).zip
+BAL_ZIP = SW-BCM68620_$(subst .,_,$(BAL_VER)).tgz
 SDK_ZIP = sdk-all-$(SDK_VER).tar.gz
 ACCTON_PATCH = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER).patch
-OPENOLT_BAL_PATCH = OPENOLT_BAL_$(BAL_VER).patch
 BAL_DIR = $(BUILD_DIR)/$(OPENOLTDEVICE)-bal
-ONL_KERNDIR = $(PWD)/$(ONL_DIR)/OpenNetworkLinux/packages/base/amd64/kernels/kernel-$(ONL_KERN_VER_MAJOR)-x86-64-all/builds
-MAPLE_KERNDIR = $(BAL_DIR)/bcm68620_release/$(OPENOLTDEVICE)/kernels
-BCM_SDK = $(BAL_DIR)/bal_release/3rdparty/bcm-sdk
-BALLIBDIR = $(BAL_DIR)/bal_release/build/core/src/apps/bal_api_dist_shared_lib
-BALLIBNAME = bal_api_dist
-BAL_INC = -I$(BAL_DIR)/bal_release/src/common/os_abstraction \
-	-I$(BAL_DIR)/bal_release/src/common/os_abstraction/posix \
-	-I$(BAL_DIR)/bal_release/src/common/config \
-	-I$(BAL_DIR)/bal_release/src/core/platform \
-	-I$(BAL_DIR)/bal_release/src/core/main \
-	-I$(BAL_DIR)/bal_release/src/common/include \
-	-I$(BAL_DIR)/bal_release/src/lib/libbalapi \
-	-I$(BAL_DIR)/bal_release/src/balapiend \
-	-I$(BAL_DIR)/bal_release/src/common/dev_log \
-	-I$(BAL_DIR)/bal_release/src/common/bal_dist_utils  \
-	-I$(BAL_DIR)/bal_release/src/lib/libtopology \
-	-I$(BAL_DIR)/bal_release/src/lib/libcmdline \
-	-I$(BAL_DIR)/bal_release/src/lib/libutils \
-	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/utils \
-	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/model \
-	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/api \
-	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_reference/cli
+BCM_SDK = $(BAL_DIR)/switch_sdk/$(SDK_VER)
+BALLIBDIR = $(BAL_DIR)/build/host_reference/host_api
+BALLIBNAME = bal_host_api
+BAL_INC = -I$(BAL_DIR)/host_driver/bal/bal_include \
+          -I$(BAL_DIR)/host_driver/topology \
+          -I$(BAL_DIR)/host_driver/utils \
+          -I$(BAL_DIR)/host_driver/api \
+          -I$(BAL_DIR)/host_customized/os_abstraction \
+          -I$(BAL_DIR)/host_customized/os_abstraction/posix \
+          -I$(BAL_DIR)/host_customized/config \
+          -I$(BAL_DIR)/host_driver/api_conn_mgr \
+          -I$(BAL_DIR)/host_driver/conn_mgr \
+          -I$(BAL_DIR)/host_driver/api/host/topology \
+          -I$(BAL_DIR)/host_reference/cli \
+          -I$(BAL_DIR)/host_reference/api_cli \
+          -I$(BAL_API_DIR)/include \
+          -I$(BAL_API_DIR)/include/object_model
 CXXFLAGS += $(BAL_INC) -I $(BAL_DIR)/lib/cmdline
-CXXFLAGS += -DBCMOS_MSG_QUEUE_DOMAIN_SOCKET -DBCMOS_MSG_QUEUE_UDP_SOCKET -DBCMOS_MEM_CHECK -DBCMOS_SYS_UNITTEST -DENABLE_LOG
+CXXFLAGS += -DBCMOS_MSG_QUEUE_DOMAIN_SOCKET -DBCMOS_MSG_QUEUE_UDP_SOCKET -DBCMOS_MEM_CHECK -DBCMOS_SYS_UNITTEST -DENABLE_LOG -DENABLE_CLI
 
-sdk: onl
+sdk: onl bal-api-$(BAL_API_VER)
 ifeq ("$(wildcard $(BAL_DIR))","")
 	mkdir $(BAL_DIR)
-	unzip download/$(BAL_ZIP) -d $(BAL_DIR)
+	tar zxvf download/$(BAL_ZIP) --strip 1 -C $(BAL_DIR)
 	cp download/$(SDK_ZIP) $(BCM_SDK)
 	chmod -R 744 $(BAL_DIR)
 	cat download/$(ACCTON_PATCH) | patch -p1 -d $(BAL_DIR)
-	mkdir -p $(MAPLE_KERNDIR)
-	ln -s $(ONL_KERNDIR)/linux-$(ONL_KERN_VER) $(MAPLE_KERNDIR)/linux-$(ONL_KERN_VER)
-	ln -s $(ONL_DIR)/OpenNetworkLinux/packages/base/any/kernels/archives/linux-$(ONL_KERN_VER).tar.xz $(MAPLE_KERNDIR)/linux-$(ONL_KERN_VER).tar.xz
-	ln -s $(ONL_DIR)/OpenNetworkLinux/packages/base/any/kernels/$(ONL_KERN_VER_MAJOR)/configs/x86_64-all/x86_64-all.config $(MAPLE_KERNDIR)/x86_64-all.config
-	make -C $(BAL_DIR)/bal_release BOARD=$(OPENOLTDEVICE) maple_sdk_dir
-	cat download/$(OPENOLT_BAL_PATCH) | patch -p1 -d $(BAL_DIR)
-	make -C $(BAL_DIR)/bal_release BOARD=$(OPENOLTDEVICE) maple_sdk
-	make -C $(BAL_DIR)/bal_release BOARD=$(OPENOLTDEVICE) switch_sdk_dir
-	make -C $(BAL_DIR)/bal_release BOARD=$(OPENOLTDEVICE) switch_sdk
-	KERNDIR=$(ONL_KERNDIR)/linux-$(ONL_KERN_VER) BOARD=$(OPENOLTDEVICE) ARCH=x86_64 SDKBUILD=build_bcm_user make -C $(BCM_SDK)/build-$(OPENOLTDEVICE)/sdk-all-$(SDK_VER)/systems/linux/user/x86-generic_64-2_6
-	make -C $(BAL_DIR)/bal_release BOARD=$(OPENOLTDEVICE) bal
-	echo 'auto_create_interface_tm=y' >> $(BAL_DIR)/bal_release/3rdparty/maple/cur/$(OPENOLTDEVICE)/board_files/broadcom/bal_config.ini
-	make -C $(BAL_DIR)/bal_release BOARD=$(OPENOLTDEVICE) release_board
+	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) ONL_DIR=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux OPEN_SOURCE=y
+	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
 endif
 
-bal: sdk
-	make -C $(BAL_DIR)/bal_release BOARD=$(OPENOLTDEVICE) bal
-	echo 'auto_create_interface_tm=y' >> $(BAL_DIR)/bal_release/3rdparty/maple/cur/asfvolt16/board_files/broadcom/bal_config.ini
-	make -C $(BAL_DIR)/bal_release BOARD=$(OPENOLTDEVICE) release_board
+bal-release: sdk
+	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
 
 bal-clean:
-	make -C $(BAL_DIR)/bal_release BOARD=$(OPENOLTDEVICE) clean_bal
+	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) clean_all
 
 ########################################################################
 ##
@@ -255,51 +263,62 @@ DEPS = $(SRCS:.cc=.d)
 all: $(BUILD_DIR)/openolt
 $(BUILD_DIR)/openolt: sdk protos $(OBJS)
 	$(CXX) $(LDFLAGS) -L$(BALLIBDIR) $(OBJS) $(OPENOLT_API_LIB) $(LIBPROTOBUF_PATH)/libprotobuf.a -o $@ -l$(BALLIBNAME) $(shell pkg-config --libs protobuf grpc++ grpc)
-	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
-	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(OPENOLTDEVICE)/release/broadcom/libbal_api_dist.so $(BUILD_DIR)/.
-	ln -sf $(PWD)/$(BAL_DIR)/bal_release/build/core/src/apps/bal_core_dist/bal_core_dist $(BUILD_DIR)/.
+	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
+	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_reference/host_api/strip/libbal_host_api.so $(BUILD_DIR)/.
+	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_driver/dev_mgmt_daemon/dev_mgmt_daemon $(BUILD_DIR)/.
 	ln -sf $(LIBGRPC_PATH)/libgrpc.so.6 $(BUILD_DIR)/libgrpc.so.6
 	ln -sf $(LIBGRPC_PATH)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++.so.1
+	ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 $(BUILD_DIR)/libstdc++.so.6
+	strip $(BUILD_DIR)/openolt
 src/%.o: src/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) $(CPPFLAGS) -I./common -c $< -o $@
 
 deb:
-	cp $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz mkdebian/debian
-	cp $(BUILD_DIR)/openolt mkdebian/debian
-	cp $(BUILD_DIR)/libgrpc.so.6 mkdebian/debian
-	cp $(BUILD_DIR)/libgrpc++.so.1 mkdebian/debian
-	cp -a scripts/init.d mkdebian/debian
-	cd mkdebian && ./build_$(OPENOLTDEVICE)_deb.sh
-	mv *.deb $(BUILD_DIR)/openolt.deb
+	cp $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/openolt device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/libgrpc.so.6 device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/libgrpc++.so.1 device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/libstdc++.so.6 device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/libbal_host_api.so device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp -a scripts/init.d device/$(OPENOLTDEVICE)/mkdebian/debian
+	cd device/$(OPENOLTDEVICE)/mkdebian && ./build_$(OPENOLTDEVICE)_deb.sh
+	mv device/$(OPENOLTDEVICE)/*.deb $(BUILD_DIR)/openolt_$(OPENOLTDEVICE).deb
 	make deb-cleanup
 
 src/%.o: %.cpp
 	$(CXX) -MMD -c $< -o $@
 
 deb-cleanup:
-	rm -f mkdebian/debian/$(OPENOLTDEVICE).debhelper.log
-	rm -f mkdebian/debian/$(OPENOLTDEVICE).postinst.debhelper
-	rm -f mkdebian/debian/$(OPENOLTDEVICE).postrm.debhelper
-	rm -f mkdebian/debian/$(OPENOLTDEVICE).substvars
-	rm -rf mkdebian/debian/$(OPENOLTDEVICE)/
-	rm -f mkdebian/debian/libgrpc++.so.1
-	rm -f mkdebian/debian/libgrpc.so.6
-	rm -f mkdebian/debian/openolt
-	rm -f mkdebian/debian/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz
-	rm -rf mkdebian/debian/tmp/
-	rm -f $(OPENOLTDEVICE)_$(BAL_VER)+edgecore-V$(DEV_VER)_amd64.changes
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).debhelper.log
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).postinst.debhelper
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).postrm.debhelper
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).substvars
+	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE)/
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/debhelper-build-stamp
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libgrpc++.so.1
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libgrpc.so.6
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libstdc++.so.6
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libbal_host_api.so
+	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/init.d/
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/openolt
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz
+	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/tmp/
+	@rm -f device/$(OPENOLTDEVICE)/$(OPENOLTDEVICE)_$(BAL_VER)+edgecore-V$(DEV_VER)_amd64.changes
 
 clean: protos-clean deb-cleanup
-	rm -f $(OBJS) $(DEPS)
-	rm -rf $(OPENOLT_PROTOS_DIR)/googleapis
-	rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1
-	rm -f $(BUILD_DIR)/libbal_api_dist.so
-	rm -f $(BUILD_DIR)/openolt
-	rm -f $(BUILD_DIR)/bal_core_dist
-	rm -f $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz
-	rm -f $(BUILD_DIR)/openolt.deb
+	@rm -f $(OBJS) $(DEPS)
+	@rm -rf $(OPENOLT_PROTOS_DIR)/googleapis
+	@rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1
+	@rm -f $(BUILD_DIR)/libbal_api_dist.so
+	@rm -f $(BUILD_DIR)/openolt
+	@rm -f $(BUILD_DIR)/bal_core_dist
+	@rm -f $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz
+	@rm -f $(BUILD_DIR)/openolt.deb
 
-distclean:
-	rm -rf $(BUILD_DIR)
+clean-src: protos-clean
+	@rm -f $(OBJS) $(DEPS)
+
+distclean: clean-src clean
+	@rm -rf $(BUILD_DIR)
 
 .PHONY: onl sdk bal protos prereq sim

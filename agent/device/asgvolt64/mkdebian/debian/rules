@@ -1,0 +1,74 @@
+#!/usr/bin/make -f
+# See debhelper(7) (uncomment to enable)
+# output every command that modifies files on the build system.
+#DH_VERBOSE = 1
+
+# see EXAMPLES in dpkg-buildflags(1) and read /usr/share/dpkg/*
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/default.mk
+
+# see FEATURE AREAS in dpkg-buildflags(1)
+#export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# see ENVIRONMENT in dpkg-buildflags(1)
+# package maintainers to append CFLAGS
+#export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
+# package maintainers to append LDFLAGS
+#export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
+
+# main packaging script based on dh7 syntax
+%:
+	dh $@
+
+DOCS=LEGAL_TERMS README LICENSE_APACHE20
+
+DEB_DH_INSTALL_SOURCEDIR = $(CURDIR)/debian/tmp
+
+override_dh_auto_install: 
+	mkdir -p $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/release_asgvolt64_V3.1.1.201908010203.tar.gz $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/libgrpc++.so.1 $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/libgrpc.so.6 $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/libstdc++.so.6 $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/libbal_host_api.so $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/openolt $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/init.d $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/logrotate.d $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+
+#override_dh_shlibdeps:
+#	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info -l$(ONLP_LIB_PATH):$(OFDPA_LIB_PATH)
+
+# avoid auto strip for debug ofagentapp.dbg
+#
+#override_dh_strip:
+#	echo "No auto strip!"
+
+#override_dh_installdeb:
+#	dh_installdeb
+#	for pkg in $$(dh_listpackages); do \
+#		sed -i -e 's!#DEB_SOURCE#!$(DEB_SOURCE)!' debian/$$pkg/DEBIAN/*; \
+#		sed -i -e 's!#OPDPA_VER_SUFFIX#!-$(OPDPA_VER)!g' debian/$$pkg/DEBIAN/*; \
+#	done
+
+test:
+	@echo DEB_SOURCE=$(DEB_SOURCE)
+	@echo DEB_VERSION=$(DEB_VERSION)
+	@echo DEB_VERSION_EPOCH_UPSTREAM=$(DEB_VERSION_EPOCH_UPSTREAM)
+	@echo DEB_VERSION_UPSTREAM_REVISION=$(DEB_VERSION_UPSTREAM_REVISION)
+	@echo DEB_VERSION_UPSTREAM=$(DEB_VERSION_UPSTREAM)
+	@echo DEB_DISTRIBUTION=$(DEB_DISTRIBUTION)
+	@echo DEB_HOST_ARCH=$(DEB_HOST_ARCH)
+	@echo DEB_HOST_ARCH_CPU=$(DEB_HOST_ARCH_CPU)
+	@echo DEB_HOST_ARCH_OS=$(DEB_HOST_ARCH_OS)
+	@echo DEB_HOST_GNU_TYPE=$(DEB_HOST_GNU_TYPE)
+	@echo DEB_HOST_GNU_CPU=$(DEB_HOST_GNU_CPU)
+	@echo DEB_HOST_GNU_SYSTEM=$(DEB_HOST_GNU_SYSTEM)
+	@echo DEB_BUILD_ARCH=$(DEB_BUILD_ARCH)
+	@echo DEB_BUILD_ARCH_CPU=$(DEB_BUILD_ARCH_CPU)
+	@echo DEB_BUILD_ARCH_OS=$(DEB_BUILD_ARCH_OS)
+	@echo DEB_BUILD_GNU_TYPE=$(DEB_BUILD_GNU_TYPE)
+	@echo DEB_BUILD_GNU_CPU=$(DEB_BUILD_GNU_CPU)
+	@echo DEB_BUILD_GNU_SYSTEM=$(DEB_BUILD_GNU_SYSTEM)
+	@echo ONLP_LIB_PATH=$(ONLP_LIB_PATH)
+#	@echo OFDPA_LIB_PATH=$(OFDPA_LIB_PATH)
+#	@echo OFDPA_BIN_PATH=$(OFDPA_BIN_PATH)

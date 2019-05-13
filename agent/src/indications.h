@@ -19,7 +19,7 @@
 #define OPENOLT_INDICATIONS_H_
 
 #include <grpc++/grpc++.h>
-#include <openolt.grpc.pb.h>
+#include <voltha_protos/openolt.grpc.pb.h>
 #include "Queue.h"
 
 extern "C" {

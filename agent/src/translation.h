@@ -21,12 +21,11 @@
 #include <string>
 extern "C"
 {
-#include <bal_model_types.h>
+#include <bcmolt_api_model_api_structs.h>
 }
 
-int interface_key_to_port_no(bcmbal_interface_key key);
-std::string alarm_status_to_string(bcmbal_alarm_status status);
-
-
+int interface_key_to_port_no(bcmolt_interface_id intf_id, 
+        bcmolt_interface_type intf_type);
+std::string alarm_status_to_string(bcmolt_status status);
 
 #endif

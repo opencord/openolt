@@ -15,7 +15,7 @@ PATH="/broadcom:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 APPDIR="/broadcom"
 #APPBIN="/broadcom/openolt"
 APPBIN="openolt"
-APPARGS="-C 127.0.0.1:55001"
+APPARGS=""
 USER="root"
 GROUP="root"
 
@@ -24,9 +24,12 @@ set -e
 . /lib/lsb/init-functions
 
 start() {
-  touch /var/log/$NAME.log
   printf "Starting '$NAME'... "
-  sleep 20
+  # TODO: If openolt agent has a way to figure out progamatically
+  # if the BAL is ready, the below timer may not be needed.
+  sleep 120
+  rm -f /var/log/$NAME.log
+  touch /var/log/$NAME.log
   start-stop-daemon --verbose --start --chuid "$USER:$GROUP" --background --no-close --make-pidfile --pidfile /var/run/$NAME.pid --chdir "$APPDIR" --exec "$APPBIN" -- $APPARGS < /dev/tty1 >> /var/log/$NAME.log 2>&1 || true
   printf "done\n"
 }
@@ -49,6 +52,7 @@ stop() {
     sleep 0.5
   done 
   [ -z `cat /var/run/$NAME.pid 2>/dev/null` ] || rm /var/run/$NAME.pid
+  rm -f /var/log/$NAME.log
   printf "done\n"
 }
 

@@ -21,4 +21,5 @@ sed -i '\/opt\/bcm68620\/svk_init.sh/d' /etc/rc.local
 rm -rf /run/bcm68620
 rm -rf /usr/local/lib/libgrpc++.so.1
 rm -rf /usr/local/lib/libgrpc.so.6
-rm -rf /usr/local/lib/libbal_api_dist.so
+rm -rf /usr/local/lib/libbal_host_api.so
+rm -rf /usr/local/lib/libstdc++.so.6

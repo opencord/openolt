@@ -18,17 +18,17 @@
 #ifndef OPENOLT_STATS_COLLECTION_H_
 #define OPENOLT_STATS_COLLECTION_H_
 
-#include <openolt.grpc.pb.h>
+#include <voltha_protos/openolt.grpc.pb.h>
 
 extern "C"
 {
-#include <bal_model_types.h>
+#include <bcmolt_api_model_supporting_structs.h>
 }
 
 void init_stats();
 void stop_collecting_statistics();
 openolt::PortStatistics* get_default_port_statistics();
-openolt::PortStatistics* collectPortStatistics(bcmbal_interface_key key);
+openolt::PortStatistics* collectPortStatistics(bcmolt_interface_id intf_id, bcmolt_interface_type intf_type);
 #if 0
 openolt::FlowStatistics* get_default_flow_statistics();
 openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_flow_type flow_type);

@@ -30,8 +30,8 @@
 #include "state.h"
 
 #include <grpc++/grpc++.h>
-#include <openolt.grpc.pb.h>
-#include <tech_profile.grpc.pb.h>
+#include <voltha_protos/openolt.grpc.pb.h>
+#include <voltha_protos/tech_profile.grpc.pb.h>
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -220,14 +220,14 @@ class OpenoltService final : public openolt::Openolt::Service {
         return EnablePonIf_(request->intf_id());
     }
 
-    Status GetPonIf(
+    /*Status GetPonIf(
             ServerContext* context,
             const openolt::Interface* request,
             openolt::IntfIndication* response) override {
 
         // TODO - Return the oper status of the pon interface
         return Status::OK;
-    }
+    }*/
 
     Status DisablePonIf(
             ServerContext* context,
@@ -252,7 +252,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             const openolt::Empty* request,
             openolt::Empty* response) override {
 
-        system("shutdown -r now");
+        uint8_t ret = system("shutdown -r now");
 
         return Status::OK;
 

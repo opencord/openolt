@@ -18,5 +18,7 @@
 #ifndef __VENDOR_H__
 #define __VENDOR_H__
 #define VENDOR_ID "EdgeCore"
+#define ASFVOLT16
 #define MODEL_ID  "asfvolt16"
+#define MAX_SUPPORTED_PON 16
 #endif

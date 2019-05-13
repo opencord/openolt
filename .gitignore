@@ -19,5 +19,17 @@ protos/googleapis
 # Build output
 build
 
+# BAL API 3.1.0
+**/bal-api-3.1.0
+
+# Test binary
+test_openolt
+
+# Test report
+**/test_openolt_report.xml
+
+# Downloaded voltha-protos file
+voltha_protos
+
 # IntelliJ Files
 .idea

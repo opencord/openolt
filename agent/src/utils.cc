@@ -15,25 +15,26 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <string.h>
 #include "utils.h"
 
-std::string serial_number_to_str(bcmbal_serial_number* serial_number) {
+std::string serial_number_to_str(bcmolt_serial_number* serial_number) {
 #define SERIAL_NUMBER_SIZE 12
     char buff[SERIAL_NUMBER_SIZE+1];
 
     sprintf(buff, "%c%c%c%c%1X%1X%1X%1X%1X%1X%1X%1X",
-            serial_number->vendor_id[0],
-            serial_number->vendor_id[1],
-            serial_number->vendor_id[2],
-            serial_number->vendor_id[3],
-            serial_number->vendor_specific[0]>>4 & 0x0f,
-            serial_number->vendor_specific[0] & 0x0f,
-            serial_number->vendor_specific[1]>>4 & 0x0f,
-            serial_number->vendor_specific[1] & 0x0f,
-            serial_number->vendor_specific[2]>>4 & 0x0f,
-            serial_number->vendor_specific[2] & 0x0f,
-            serial_number->vendor_specific[3]>>4 & 0x0f,
-            serial_number->vendor_specific[3] & 0x0f);
+            serial_number->vendor_id.arr[0],
+            serial_number->vendor_id.arr[1],
+            serial_number->vendor_id.arr[2],
+            serial_number->vendor_id.arr[3],
+            serial_number->vendor_specific.arr[0]>>4 & 0x0f,
+            serial_number->vendor_specific.arr[0] & 0x0f,
+            serial_number->vendor_specific.arr[1]>>4 & 0x0f,
+            serial_number->vendor_specific.arr[1] & 0x0f,
+            serial_number->vendor_specific.arr[2]>>4 & 0x0f,
+            serial_number->vendor_specific.arr[2] & 0x0f,
+            serial_number->vendor_specific.arr[3]>>4 & 0x0f,
+            serial_number->vendor_specific.arr[3] & 0x0f);
 
     return buff;
 }

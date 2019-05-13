@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# Copyright 2018-present Open Networking Foundation
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# kill CLI applications
+echo "kill running time application"
+[ -n "`pidof dev_mgmt_daemon`" ] && killall dev_mgmt_daemon
+[ -n "`pidof bcm.user`" ] && killall bcm.user
+[ -n "`pidof dev_mgmt_attach`" ] && killall dev_mgmt_attach
+[ -n "`pidof embedded_console`" ] && killall embedded_console 
+[ -n "`pidof example_user_appl`" ] && killall example_user_appl 
+[ -n "`pidof openolt`" ] && killall openolt
+rm -f /tmp/root_dev_mgmt_pid /tmp/root_dev_mgmt_init_done
+sleep 3
+# unload drivers
+echo "unload kernel drivers"
+[ -n "`lsmod | grep i2c_devs`" ] && rmmod i2c_devs && sleep 1
+[ -n "`lsmod | grep nltr`" ] &&  rmmod nltr && sleep 1
+[ -n "`lsmod | grep pcie_proxy`" ] && rmmod pcie_proxy && sleep 1
+[ -n "`lsmod | grep devmem`" ] && rmmod devmem && sleep 1
+[ -n "`lsmod | grep fld_linux`" ] && rmmod fld_linux && sleep 1
+[ -n "`lsmod | grep os_linux`" ] && rmmod os_linux && sleep 1
+[ -n "`lsmod | grep ll_pcie`" ] && rmmod ll_pcie && sleep 1
+[ -n "`lsmod | grep linux_user_bde`" ] && rmmod linux-user-bde && sleep 1
+[ -n "`lsmod | grep linux_kernel_bde`" ] && rmmod linux-kernel-bde && sleep 1
+rm -rf /dev/maple_i2c
+rm -rf /dev/bcmolt_pcie_proxy
+rm -rf /dev/linux-uk-proxy
+rm -rf /dev/linux-user-bde
+rm -rf /dev/linux-kernel-bde
+rm -rf /dev/coop_dba_example
+rm -rf /dev/coop_dba
+for i in {0..7}; do
+    [ ! -f /dev/bcmolt_devmem_sram$i ] && rm -f /dev/bcmolt_devmem_sram$i
+    [ ! -f /dev/bcmolt_devmem_ddr$i ] && rm -f /dev/bcmolt_devmem_ddr$i
+    [ ! -f /dev/bcmolt_devmem_regs$i ] && rm -f /dev/bcmolt_devmem_regs$i
+done
+
+rm -rf /opt/bcm68620
+rm -rf /run/bcm68620
+
+rm -rf  /broadcom
+
+rm -rf /usr/local/lib/libgrpc++.so.1
+rm -rf /usr/local/lib/libgrpc.so.6
+rm -rf /usr/local/lib/libbal_host_api.so
+rm -rf /usr/local/lib/libstdc++.so.6
+

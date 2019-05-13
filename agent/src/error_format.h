@@ -24,8 +24,7 @@
 extern "C"
 {
 #include <bcmos_system.h>
-#include <bal_api.h>
-#include <bal_api_end.h>
+#include <bcmolt_api.h>
 }
 
 grpc::Status bcm_to_grpc_err(bcmos_errno bcm_err, std::string message);

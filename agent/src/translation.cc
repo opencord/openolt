@@ -15,25 +15,27 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <string.h>
 #include "translation.h"
 
-int interface_key_to_port_no(bcmbal_interface_key key) {
-    if (key.intf_type == BCMBAL_INTF_TYPE_NNI) {
-        return (0x1 << 16) + key.intf_id;
+int interface_key_to_port_no(bcmolt_interface_id intf_id, 
+        bcmolt_interface_type intf_type) {
+    if (intf_type == BCMOLT_INTERFACE_TYPE_NNI) {
+        return (0x1 << 16) + intf_id;
     }
-    if (key.intf_type == BCMBAL_INTF_TYPE_PON) {
-        return (0x2 << 28) + key.intf_id;
+    if (intf_type == BCMOLT_INTERFACE_TYPE_PON) {
+        return (0x2 << 28) + intf_id;
     }
-    return key.intf_id;
+    return intf_id;
 }
 
-std::string alarm_status_to_string(bcmbal_alarm_status status) {
+std::string alarm_status_to_string(bcmolt_status status) {
     switch (status) {
-        case BCMBAL_ALARM_STATUS_OFF:
+        case BCMOLT_STATUS_OFF:
             return "off";
-        case BCMBAL_ALARM_STATUS_ON:
+        case BCMOLT_STATUS_ON:
             return "on";
-        case BCMBAL_ALARM_STATUS_NO__CHANGE:
+        case BCMOLT_STATUS_NO_CHANGE:
             return "no_change";
     }
     return "unknown";

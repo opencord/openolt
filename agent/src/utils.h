@@ -23,11 +23,11 @@
 extern "C"
 {
 #include <bcmos_system.h>
-#include <bal_api.h>
-#include <bal_api_end.h>
+#include <bcmolt_api.h>
+#include <bcmolt_api_model_supporting_structs.h>
 }
 
-std::string serial_number_to_str(bcmbal_serial_number* serial_number);
+std::string serial_number_to_str(bcmolt_serial_number* serial_number);
 std::string vendor_specific_to_str(const char* const serial_number);
 
 #endif
