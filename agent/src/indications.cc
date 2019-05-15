@@ -26,8 +26,9 @@
 extern "C"
 {
 #include <bcmos_system.h>
-#include <bal_api.h>
-#include <bal_api_end.h>
+#include <bcmolt_api.h>
+#include <bcmolt_host_api.h>
+#include <bcmolt_api_model_api_structs.h>
 }
 
 using grpc::Status;
@@ -38,80 +39,83 @@ extern Queue<openolt::Indication> oltIndQ;
 
 bool subscribed = false;
 uint32_t nni_intf_id = 0;
+#define current_device 0
 
-bcmos_errno OmciIndication(bcmbal_obj *obj);
+static void OmciIndication(bcmolt_devid olt, bcmolt_msg *msg);
 
-std::string bcmbal_to_grpc_intf_type(bcmbal_intf_type intf_type)
+#define INTERFACE_STATE_IF_DOWN(state) \
+       ((state == BCMOLT_INTERFACE_STATE_INACTIVE || \
+         state == BCMOLT_INTERFACE_STATE_PROCESSING || \
+         state == BCMOLT_INTERFACE_STATE_ACTIVE_STANDBY) ? BCMOS_TRUE : BCMOS_FALSE)
+#define INTERFACE_STATE_IF_UP(state) \
+       ((state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) ? BCMOS_TRUE : BCMOS_FALSE)
+#define ONU_STATE_IF_DOWN(state) \
+       ((state == BCMOLT_ONU_OPERATION_INACTIVE || \
+         state == BCMOLT_ONU_OPERATION_DISABLE || \
+         state == BCMOLT_ONU_OPERATION_ACTIVE_STANDBY) ? BCMOS_TRUE : BCMOS_FALSE)
+#define ONU_STATE_IF_UP(state) \
+       ((state == BCMOLT_ONU_OPERATION_ACTIVE) ? BCMOS_TRUE : BCMOS_FALSE)
+
+std::string bcmbal_to_grpc_intf_type(bcmolt_interface_type intf_type)
 {
-    if (intf_type == BCMBAL_INTF_TYPE_NNI) {
+    if (intf_type == BCMOLT_INTERFACE_TYPE_NNI) {
         return "nni";
-    } else if (intf_type == BCMBAL_INTF_TYPE_PON) {
+    } else if (intf_type == BCMOLT_INTERFACE_TYPE_PON) {
         return "pon";
     }
     return "unknown";
 }
 
-bcmos_errno OltOperIndication(bcmbal_obj *obj) {
+static void OltOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::OltIndication* olt_ind = new openolt::OltIndication;
     Status status;
-
-    bcmbal_access_terminal_oper_status_change *acc_term_ind = (bcmbal_access_terminal_oper_status_change *)obj;
     std::string admin_state;
-    if (acc_term_ind->data.admin_state == BCMBAL_STATE_UP) {
-        admin_state = "up";
-    } else {
-        admin_state = "down";
-    }
 
-    if (acc_term_ind->data.new_oper_status == BCMBAL_STATUS_UP) {
-        // Determine device capabilities before transitionto acive state
-        ProbeDeviceCapabilities_();
-        olt_ind->set_oper_state("up");
-    } else {
-        olt_ind->set_oper_state("down");
+    switch (msg->subgroup) {
+        case BCMOLT_DEVICE_AUTO_SUBGROUP_CONNECTION_COMPLETE:
+            ProbeDeviceCapabilities_();
+            admin_state = "up";
+            olt_ind->set_oper_state("up");
+            break;
+        case BCMOLT_DEVICE_AUTO_SUBGROUP_DISCONNECTION_COMPLETE:
+             admin_state = "down";
+             olt_ind->set_oper_state("down");
+            break;
+        case BCMOLT_DEVICE_AUTO_SUBGROUP_CONNECTION_FAILURE:
+             admin_state = "failure";
+             olt_ind->set_oper_state("failure");
+            break;
     }
     ind.set_allocated_olt_ind(olt_ind);
 
-    BCM_LOG(INFO, openolt_log_id, "Olt oper status indication, admin_state: %s oper_state: %s\n",
-            admin_state.c_str(),
-            olt_ind->oper_state().c_str());
-
-    oltIndQ.push(ind);
-
-    // Enable all PON interfaces. 
-    // 
-    for (int i = 0; i < NumPonIf_(); i++) {
-        status = EnablePonIf_(i);
-        if (!status.ok()) {
-            // FIXME - raise alarm to report error in enabling PON
+    if (msg->subgroup == BCMOLT_DEVICE_AUTO_SUBGROUP_CONNECTION_COMPLETE) {
+        // Enable all PON interfaces. 
+        for (int i = 0; i < NumPonIf_(); i++) {
+            status = EnablePonIf_(i);
+            if (!status.ok()) {
+                // FIXME - raise alarm to report error in enabling PON
+            }
         }
-    }
 
-    // Enable all NNI interfaces. 
-    // 
-    for (int i = 0; i < NumNniIf_(); i++) {
-        status = EnableUplinkIf_(i);
-        if (!status.ok()) {
-            // FIXME - raise alarm to report error in enabling PON
+        // Enable all NNI interfaces. 
+        for (int i = 0; i < NumNniIf_(); i++) {
+            status = EnableUplinkIf_(i);
+            if (!status.ok()) {
+                // FIXME - raise alarm to report error in enabling PON
+            }
         }
-    }
 
-    /* register for omci indication */
-    {
-        bcmbal_cb_cfg cb_cfg = {};
-        uint16_t ind_subgroup;
+        /* register for omci indication */
+        {
+            bcmolt_rx_cfg rx_cfg = {};
+            rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+            rx_cfg.rx_cb = OmciIndication;
+            rx_cfg.subgroup = bcmolt_onu_auto_subgroup_omci_packet;
+            rx_cfg.module = BCMOS_MODULE_ID_OMCI_TRANSPORT;
+            bcmolt_ind_subscribe(current_device, &rx_cfg);
+        }
 
-        cb_cfg.module = BCMOS_MODULE_ID_NONE;
-        cb_cfg.obj_type = BCMBAL_OBJ_ID_PACKET;
-        ind_subgroup = BCMBAL_IND_SUBGROUP(packet, itu_omci_channel_rx);
-        cb_cfg.p_object_key_info = NULL;
-        cb_cfg.p_subgroup = &ind_subgroup;
-        cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OmciIndication;
-        bcmbal_subscribe_ind(0, &cb_cfg);
-    }
-
-    if (acc_term_ind->data.new_oper_status == BCMBAL_STATUS_UP) {
         ProbePonIfTechnology_();
         state.activate();
     }
@@ -119,477 +123,619 @@ bcmos_errno OltOperIndication(bcmbal_obj *obj) {
         state.deactivate();
     }
 
-    return BCM_ERR_OK;
+    oltIndQ.push(ind);
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno LosIndication(bcmbal_obj *obj) {
+static void LosIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
     openolt::LosIndication* los_ind = new openolt::LosIndication;
 
-    bcmbal_interface_los* bcm_los_ind = (bcmbal_interface_los *) obj;
-    int intf_id = interface_key_to_port_no(bcm_los_ind->key);
-    std::string status = alarm_status_to_string(bcm_los_ind->data.status);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_PON_INTERFACE:
+            switch (msg->subgroup) {
+                 case BCMOLT_PON_INTERFACE_AUTO_SUBGROUP_LOS:
+                 {
+                     bcmolt_pon_interface_los* bcm_los_ind = (bcmolt_pon_interface_los *) msg;
+                     int intf_id = interface_key_to_port_no(bcm_los_ind->key.pon_ni,
+                         BCMOLT_INTERFACE_TYPE_PON);
+                     std::string status = alarm_status_to_string(bcm_los_ind->data.status);
 
-    BCM_LOG(INFO, openolt_log_id, "LOS indication : intf_type: %d intf_id: %d port: %d status %s\n", 
-            bcm_los_ind->key.intf_type, bcm_los_ind->key.intf_id, intf_id, status.c_str());
+                     BCM_LOG(INFO, openolt_log_id, "LOS indication : intf_id: %d port: %d status %s\n", 
+                             bcm_los_ind->key.pon_ni, intf_id, status.c_str());
 
-    los_ind->set_intf_id(intf_id);
-    los_ind->set_status(status);
+                     los_ind->set_intf_id(intf_id);
+                     los_ind->set_status(status);
 
-    alarm_ind->set_allocated_los_ind(los_ind);
-    ind.set_allocated_alarm_ind(alarm_ind);
+                     alarm_ind->set_allocated_los_ind(los_ind);
+                     ind.set_allocated_alarm_ind(alarm_ind);
+                     break;
+                 }
+            }
+    }
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno IfIndication(bcmbal_obj *obj) {
+static void IfIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::IntfIndication* intf_ind = new openolt::IntfIndication;
 
-    BCM_LOG(INFO, openolt_log_id, "intf indication, intf_id: %d\n",
-        ((bcmbal_interface_oper_status_change *)obj)->key.intf_id );
+    switch (msg->obj_type) { 
+        case BCMOLT_OBJ_ID_PON_INTERFACE:
+            switch (msg->subgroup) {
+                case BCMOLT_PON_INTERFACE_AUTO_SUBGROUP_STATE_CHANGE_COMPLETED:
+                { 
+                    BCM_LOG(INFO, openolt_log_id, "intf indication, intf_id: %d\n",
+                        ((bcmolt_pon_interface_state_change_completed *)msg)->key.pon_ni);
+                    bcmolt_pon_interface_key *key = 
+                        &((bcmolt_pon_interface_state_change_completed*)msg)->key;
+                    bcmolt_pon_interface_state_change_completed_data *data = 
+                        &((bcmolt_pon_interface_state_change_completed*)msg)->data;
 
-    intf_ind->set_intf_id(((bcmbal_interface_oper_status_change *)obj)->key.intf_id);
-    if (((bcmbal_interface_oper_status_change *)obj)->data.new_oper_status == BCMBAL_STATUS_UP) {
-        intf_ind->set_oper_state("up");
-    } else {
-        intf_ind->set_oper_state("down");
+                    intf_ind->set_intf_id(key->pon_ni);
+				        if (INTERFACE_STATE_IF_UP(data->new_state))
+                        intf_ind->set_oper_state("up");
+                    if (INTERFACE_STATE_IF_DOWN(data->new_state))
+                        intf_ind->set_oper_state("down");
+                    ind.set_allocated_intf_ind(intf_ind);
+                    break;
+                }
+            }
+            break;
+        case BCMOLT_OBJ_ID_NNI_INTERFACE:
+            switch (msg->subgroup) {
+                case BCMOLT_NNI_INTERFACE_AUTO_SUBGROUP_STATE_CHANGE:
+                {
+                    BCM_LOG(INFO, openolt_log_id, "intf indication, intf_id: %d\n",
+                        ((bcmolt_nni_interface_state_change *)msg)->key.id);
+                    bcmolt_nni_interface_key *key = 
+                        &((bcmolt_nni_interface_state_change *)msg)->key;
+                    bcmolt_nni_interface_state_change_data *data = 
+                        &((bcmolt_nni_interface_state_change *)msg)->data;
+
+                    intf_ind->set_intf_id(key->id);
+				        if (INTERFACE_STATE_IF_UP(data->new_state))
+                        intf_ind->set_oper_state("up");
+                    if (INTERFACE_STATE_IF_DOWN(data->new_state))
+                        intf_ind->set_oper_state("down");
+                    ind.set_allocated_intf_ind(intf_ind);
+                    break;
+                }
+            }
     }
-    ind.set_allocated_intf_ind(intf_ind);
 
     oltIndQ.push(ind);
-
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno IfOperIndication(bcmbal_obj *obj) {
+static void IfOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::IntfOperIndication* intf_oper_ind = new openolt::IntfOperIndication;
-    bcmbal_interface_oper_status_change* bcm_if_oper_ind = (bcmbal_interface_oper_status_change *) obj;
 
-    intf_oper_ind->set_type(bcmbal_to_grpc_intf_type(bcm_if_oper_ind->key.intf_type));
-    intf_oper_ind->set_intf_id(bcm_if_oper_ind->key.intf_id);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_PON_INTERFACE:
+            switch (msg->subgroup) {
+                case BCMOLT_PON_INTERFACE_AUTO_SUBGROUP_STATE_CHANGE_COMPLETED:
+                {
+                    bcmolt_pon_interface_key *key = &((bcmolt_pon_interface_state_change_completed*)msg)->key;
+                    bcmolt_pon_interface_state_change_completed_data *data = &((bcmolt_pon_interface_state_change_completed*)msg)->data;
+                    intf_oper_ind->set_intf_id(key->pon_ni);
+                    intf_oper_ind->set_type(bcmbal_to_grpc_intf_type(BCMOLT_INTERFACE_TYPE_PON));
+			           if (INTERFACE_STATE_IF_UP(data->new_state))
+                        intf_oper_ind->set_oper_state("up");
+                    if (INTERFACE_STATE_IF_DOWN(data->new_state))
+                        intf_oper_ind->set_oper_state("down");
 
-    if (bcm_if_oper_ind->data.new_oper_status == BCMBAL_STATUS_UP) {
-        intf_oper_ind->set_oper_state("up");
-        if (bcm_if_oper_ind->key.intf_type == BCMBAL_INTF_TYPE_NNI) {
-            nni_intf_id = bcm_if_oper_ind->key.intf_id;
-        }
-    } else {
-        intf_oper_ind->set_oper_state("down");
+                    BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_type %s, intf_id %d, oper_state %s\n",
+                        intf_oper_ind->type().c_str(), key->pon_ni, intf_oper_ind->oper_state().c_str());
+                    ind.set_allocated_intf_oper_ind(intf_oper_ind);
+                    break;
+                }
+            }
+        case BCMOLT_OBJ_ID_NNI_INTERFACE:
+            switch (msg->subgroup) {
+                case BCMOLT_NNI_INTERFACE_AUTO_SUBGROUP_STATE_CHANGE:
+                {
+                    bcmolt_nni_interface_key *key = &((bcmolt_nni_interface_state_change *)msg)->key;
+                    bcmolt_nni_interface_state_change_data *data = &((bcmolt_nni_interface_state_change *)msg)->data;
+                    bcmolt_interface intf_id = key->id;
+                    bcmolt_interface_type intf_type = BCMOLT_INTERFACE_TYPE_NNI;
+                    intf_oper_ind->set_intf_id(key->id);
+                    intf_oper_ind->set_type(bcmbal_to_grpc_intf_type(BCMOLT_INTERFACE_TYPE_NNI));
+
+                    if (INTERFACE_STATE_IF_UP(data->new_state))
+                        intf_oper_ind->set_oper_state("up");
+                    if (INTERFACE_STATE_IF_DOWN(data->new_state))
+                        intf_oper_ind->set_oper_state("down");
+                    
+                    BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_type %s, intf_id %d, oper_state %s\n",
+                        intf_oper_ind->type().c_str(), key->id, intf_oper_ind->oper_state().c_str());
+                    ind.set_allocated_intf_oper_ind(intf_oper_ind);
+                    break;
+                }
+            }
     }
 
-    BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_type %s, intf_id %d, oper_state %s, admin_state %d\n",
-        intf_oper_ind->type().c_str(),
-        bcm_if_oper_ind->key.intf_id,
-        intf_oper_ind->oper_state().c_str(),
-        bcm_if_oper_ind->data.admin_state);
-
-    ind.set_allocated_intf_oper_ind(intf_oper_ind);
-
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuAlarmIndication(bcmbal_obj *obj) {
+static void OnuAlarmIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
     openolt::OnuAlarmIndication* onu_alarm_ind = new openolt::OnuAlarmIndication;
 
-    bcmbal_subscriber_terminal_key *key =
-        &((bcmbal_subscriber_terminal_sub_term_alarm*)obj)->key;
-
-    bcmbal_subscriber_terminal_alarms *alarms =
-        &(((bcmbal_subscriber_terminal_sub_term_alarm*)obj)->data.alarm);
-
-    BCM_LOG(WARNING, openolt_log_id, "onu alarm indication intf_id %d, onu_id %d, alarm: los %d, lob %d, lopc_miss %d, lopc_mic_error %d\n",
-        key->intf_id, key->sub_term_id, alarms->los, alarms->lob, alarms->lopc_miss, alarms->lopc_mic_error);
-
-    onu_alarm_ind->set_intf_id(key->intf_id);
-    onu_alarm_ind->set_onu_id(key->sub_term_id);
-    onu_alarm_ind->set_los_status(alarm_status_to_string(alarms->los));
-    onu_alarm_ind->set_lob_status(alarm_status_to_string(alarms->lob));
-    onu_alarm_ind->set_lopc_miss_status(alarm_status_to_string(alarms->lopc_miss));
-    onu_alarm_ind->set_lopc_mic_error_status(alarm_status_to_string(alarms->lopc_mic_error));
-
-    alarm_ind->set_allocated_onu_alarm_ind(onu_alarm_ind);
-    ind.set_allocated_alarm_ind(alarm_ind);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_XGPON_ALARM:
+                {
+                    bcmolt_xgpon_onu_alarms *onu_alarms = 
+                        &((bcmolt_onu_xgpon_alarm_data *)msg)->xgpon_onu_alarm;
+                    onu_alarm_ind->set_los_status(alarm_status_to_string(onu_alarms->losi));
+                    onu_alarm_ind->set_lob_status(alarm_status_to_string(onu_alarms->lobi));
+                    onu_alarm_ind->set_lopc_miss_status(alarm_status_to_string(
+                        onu_alarms->lopci_miss));
+                    onu_alarm_ind->set_lopc_mic_error_status(alarm_status_to_string(
+                        onu_alarms->lopci_mic_error));
+                    
+                    alarm_ind->set_allocated_onu_alarm_ind(onu_alarm_ind);
+                    ind.set_allocated_alarm_ind(alarm_ind);
+                    break;
+                }
+                case BCMOLT_ONU_AUTO_SUBGROUP_GPON_ALARM:
+                {
+                    bcmolt_gpon_onu_alarms *onu_alarms = 
+                        &((bcmolt_onu_gpon_alarm_data *)msg)->gpon_onu_alarm;
+                    onu_alarm_ind->set_los_status(alarm_status_to_string(onu_alarms->losi));
+						  /* TODO: need to set lofi and loami 
+                    onu_alarm_ind->set_lof_status(alarm_status_to_string(onu_alarms->lofi));
+                    onu_alarm_ind->set_loami_status(alarm_status_to_string(
+                        onu_alarms->loami));
+                    */ 
+                    alarm_ind->set_allocated_onu_alarm_ind(onu_alarm_ind);
+                    ind.set_allocated_alarm_ind(alarm_ind);
+                    break;
+                 }
+        }
+    }
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuDyingGaspIndication(bcmbal_obj *obj) {
+static void OnuDyingGaspIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
-    openolt::DyingGaspIndication* dg_ind = new openolt::DyingGaspIndication;
+    openolt::DyingGaspIndication* dgi_ind = new openolt::DyingGaspIndication;
 
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_dgi*)obj)->key);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_DGI:
+                {
+                    bcmolt_onu_dgi_data* dgi_data = (bcmolt_onu_dgi_data *)msg;
+                    dgi_ind->set_status(alarm_status_to_string(dgi_data->alarm_status));
 
-    bcmbal_subscriber_terminal_dgi_data *data =
-        &(((bcmbal_subscriber_terminal_dgi*)obj)->data);
-
-
-    BCM_LOG(WARNING, openolt_log_id, "onu dying-gasp indication, intf_id %d, onu_id %d, alarm %d\n",
-        key->intf_id, key->sub_term_id, data->dgi_status);
-
-    dg_ind->set_intf_id(key->intf_id);
-    dg_ind->set_onu_id(key->sub_term_id);
-    dg_ind->set_status(alarm_status_to_string(data->dgi_status));
-
-    alarm_ind->set_allocated_dying_gasp_ind(dg_ind);
-    ind.set_allocated_alarm_ind(alarm_ind);
+                    alarm_ind->set_allocated_dying_gasp_ind(dgi_ind);
+                    ind.set_allocated_alarm_ind(alarm_ind);
+                    break;
+                }
+            }
+    }
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuDiscoveryIndication(bcmbal_cfg *obj) {
+static void OnuDiscoveryIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::OnuDiscIndication* onu_disc_ind = new openolt::OnuDiscIndication;
     openolt::SerialNumber* serial_number = new openolt::SerialNumber;
 
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_sub_term_disc*)obj)->key);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_PON_INTERFACE:
+            switch (msg->subgroup) {
+                case BCMOLT_PON_INTERFACE_AUTO_SUBGROUP_ONU_DISCOVERED:
+                {
+                    bcmolt_pon_interface_key *key =
+                        &((bcmolt_pon_interface_onu_discovered *)msg)->key;
 
-    bcmbal_subscriber_terminal_sub_term_disc_data *data =
-        &(((bcmbal_subscriber_terminal_sub_term_disc*)obj)->data);
+                    bcmolt_pon_interface_onu_discovered_data *data = 
+                        &((bcmolt_pon_interface_onu_discovered *)msg)->data;
 
-    bcmbal_serial_number *in_serial_number = &(data->serial_number);
+                    bcmolt_serial_number *in_serial_number = &(data->serial_number);
 
-    BCM_LOG(INFO, openolt_log_id, "onu discover indication, intf_id %d, serial_number %s\n",
-        key->intf_id, serial_number_to_str(in_serial_number).c_str());
+                    BCM_LOG(INFO, openolt_log_id, "onu discover indication, pon_ni %d, serial_number %s\n",
+                        key->pon_ni, serial_number_to_str(in_serial_number).c_str());
 
-    onu_disc_ind->set_intf_id(key->intf_id);
-    serial_number->set_vendor_id(reinterpret_cast<const char *>(in_serial_number->vendor_id), 4);
-    serial_number->set_vendor_specific(reinterpret_cast<const char *>(in_serial_number->vendor_specific), 8);
-    onu_disc_ind->set_allocated_serial_number(serial_number);
-    ind.set_allocated_onu_disc_ind(onu_disc_ind);
+                    onu_disc_ind->set_intf_id(key->pon_ni);
+                    serial_number->set_vendor_id(reinterpret_cast<const char *>(in_serial_number->vendor_id.arr), 4);
+                    serial_number->set_vendor_specific(reinterpret_cast<const char *>(in_serial_number->vendor_specific.arr), 8);
+                    onu_disc_ind->set_allocated_serial_number(serial_number);
+                    ind.set_allocated_onu_disc_ind(onu_disc_ind);
+                    break;
+                }
+        }
+    }
 
     oltIndQ.push(ind);
-
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuIndication(bcmbal_obj *obj) {
+static void OnuIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::OnuIndication* onu_ind = new openolt::OnuIndication;
 
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->key);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_STATE_CHANGE:
+                {
+                    bcmolt_onu_key *key = &((bcmolt_onu_state_change*)msg)->key;
+                    bcmolt_onu_state_change_data *data = &((bcmolt_onu_state_change*)msg)->data;
 
-    bcmbal_subscriber_terminal_oper_status_change_data *data =
-        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->data);
+                    BCM_LOG(INFO, openolt_log_id, "onu indication, pon_ni %d, onu_id %d, onu_state %d\n", key->pon_ni, key->onu_id, data->new_onu_state);
 
-    BCM_LOG(INFO, openolt_log_id, "onu indication, intf_id %d, onu_id %d, oper_state %d, admin_state %d\n",
-        key->intf_id, key->sub_term_id, data->new_oper_status, data->admin_state);
+                    onu_ind->set_intf_id(key->pon_ni);
+                    onu_ind->set_onu_id(key->onu_id);
+                    if (ONU_STATE_IF_UP(data->new_onu_state))
+                        onu_ind->set_oper_state("up");
+                    if (ONU_STATE_IF_DOWN(data->new_onu_state))
+                        onu_ind->set_oper_state("down");
 
-    onu_ind->set_intf_id(key->intf_id);
-    onu_ind->set_onu_id(key->sub_term_id);
-    if (data->new_oper_status == BCMBAL_STATUS_UP) {
-        onu_ind->set_oper_state("up");
-    } else {
-        onu_ind->set_oper_state("down");
+                    ind.set_allocated_onu_ind(onu_ind);
+                }
+            }
     }
-    if (data->admin_state == BCMBAL_STATE_UP) {
-        onu_ind->set_admin_state("up");
-    } else {
-        onu_ind->set_admin_state("down");
-    }
-
-    ind.set_allocated_onu_ind(onu_ind);
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuOperIndication(bcmbal_obj *obj) {
+static void OnuOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::OnuIndication* onu_ind = new openolt::OnuIndication;
 
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->key);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_STATE_CHANGE:
+                {
+                    bcmolt_onu_key *key = &((bcmolt_onu_state_change*)msg)->key;
+                    bcmolt_onu_state_change_data *data = &((bcmolt_onu_state_change*)msg)->data;
 
-    bcmbal_subscriber_terminal_oper_status_change_data *data =
-        &(((bcmbal_subscriber_terminal_oper_status_change*)obj)->data);
+                    onu_ind->set_intf_id(key->pon_ni);
+                    onu_ind->set_onu_id(key->onu_id);
+                    if (ONU_STATE_IF_UP(data->new_onu_state))
+                        onu_ind->set_oper_state("up");
+                    if (ONU_STATE_IF_DOWN(data->new_onu_state))
+                        onu_ind->set_oper_state("down");
+                    ind.set_allocated_onu_ind(onu_ind);
 
-    onu_ind->set_intf_id(key->intf_id);
-    onu_ind->set_onu_id(key->sub_term_id);
-    if (data->new_oper_status == BCMBAL_STATUS_UP) {
-        onu_ind->set_oper_state("up");
-    } else {
-        onu_ind->set_oper_state("down");
+                    BCM_LOG(INFO, openolt_log_id, "onu oper state indication, intf_id %d, onu_id %d, old oper state %d, new oper state %s\n",
+                        key->pon_ni, key->onu_id, data->new_onu_state, onu_ind->oper_state().c_str());
+                }
+            }
     }
-    if (data->admin_state == BCMBAL_STATE_UP) {
-        onu_ind->set_admin_state("up");
-    } else {
-        onu_ind->set_admin_state("down");
-    }
-
-    ind.set_allocated_onu_ind(onu_ind);
-
-    BCM_LOG(INFO, openolt_log_id, "onu oper state indication, intf_id %d, onu_id %d, old oper state %d, new oper state %s, admin_state %s\n",
-        key->intf_id, key->sub_term_id, data->old_oper_status, onu_ind->oper_state().c_str(), onu_ind->admin_state().c_str());
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OmciIndication(bcmbal_obj *obj) {
+static void OmciIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::OmciIndication* omci_ind = new openolt::OmciIndication;
-    bcmbal_packet_itu_omci_channel_rx *in =
-        (bcmbal_packet_itu_omci_channel_rx *)obj;
 
-    BCM_LOG(DEBUG, omci_log_id, "OMCI indication: intf_id %d, onu_id %d\n",
-        in->key.packet_send_dest.u.itu_omci_channel.intf_id,
-        in->key.packet_send_dest.u.itu_omci_channel.sub_term_id);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_OMCI_PACKET:
+                {
+                    bcmolt_onu_key *key = &((bcmolt_onu_omci_packet*)msg)->key;
+                    bcmolt_onu_omci_packet_data *data = &((bcmolt_onu_omci_packet*)msg)->data;
 
-    omci_ind->set_intf_id(in->key.packet_send_dest.u.itu_omci_channel.intf_id);
-    omci_ind->set_onu_id(in->key.packet_send_dest.u.itu_omci_channel.sub_term_id);
-    omci_ind->set_pkt(in->data.pkt.val, in->data.pkt.len);
+                    BCM_LOG(DEBUG, omci_log_id, "OMCI indication: pon_ni %d, onu_id %d\n", 
+                        key->pon_ni, key->onu_id);
 
-    ind.set_allocated_omci_ind(omci_ind);
+                    omci_ind->set_intf_id(key->pon_ni);
+                    omci_ind->set_onu_id(key->onu_id);
+                    omci_ind->set_pkt(data->buffer.arr, data->buffer.len);
+
+                    ind.set_allocated_omci_ind(omci_ind);
+                    break;
+                }
+        }
+    }
+
     oltIndQ.push(ind);
-
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno PacketIndication(bcmbal_obj *obj) {
+static void PacketIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::PacketIndication* pkt_ind = new openolt::PacketIndication;
-    bcmbal_packet_bearer_channel_rx *in = (bcmbal_packet_bearer_channel_rx *)obj;
 
-    uint32_t port_no = GetPortNum_(in->data.flow_id);
-    pkt_ind->set_intf_type(bcmbal_to_grpc_intf_type(in->data.intf_type));
-    pkt_ind->set_intf_id(in->data.intf_id);
-    pkt_ind->set_gemport_id(in->data.svc_port);
-    pkt_ind->set_flow_id(in->data.flow_id);
-    pkt_ind->set_pkt(in->data.pkt.val, in->data.pkt.len);
-    pkt_ind->set_port_no(port_no);
-    pkt_ind->set_cookie(in->data.flow_cookie);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_FLOW_AUTO_SUBGROUP_RECEIVE_ETH_PACKET:
+                {
+                    bcmolt_flow_key *key = &((bcmolt_flow_cfg*)msg)->key;
+                    bcmolt_flow_cfg_data *data = &((bcmolt_flow_cfg*)msg)->data;
+                    bcmolt_flow_receive_eth_packet_data *pkt_data = 
+                        &((bcmolt_flow_receive_eth_packet*)msg)->data;
 
-    ind.set_allocated_pkt_ind(pkt_ind);
+                    uint32_t port_no = GetPortNum_(key->flow_id);
+                    pkt_ind->set_intf_type(bcmbal_to_grpc_intf_type((bcmolt_interface_type)data->ingress_intf.intf_type));
+                    pkt_ind->set_intf_id(data->ingress_intf.intf_id);
+                    pkt_ind->set_gemport_id(data->svc_port_id);
+                    pkt_ind->set_flow_id(key->flow_id);
+                    pkt_ind->set_pkt(pkt_data->buffer.arr, pkt_data->buffer.len);
+                    pkt_ind->set_port_no(port_no);
+                    pkt_ind->set_cookie(data->cookie);
+                    ind.set_allocated_pkt_ind(pkt_ind);
 
-    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_type %s, intf_id %d, svc_port %d, flow_id %d port_no %d cookie %llu\n",
-        pkt_ind->intf_type().c_str(), in->data.intf_id, in->data.svc_port, in->data.flow_id, port_no, in->data.flow_cookie);
+                    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_type %s, intf_id %d, svc_port %d, flow_id %d port_no %d cookie %lu\n",
+                        pkt_ind->intf_type().c_str(), data->ingress_intf.intf_id, data->svc_port_id, key->flow_id, port_no, data->cookie);
+                }
+            }
+    }
 
     oltIndQ.push(ind);
-
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno FlowOperIndication(bcmbal_obj *obj) {
+static void FlowOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     BCM_LOG(DEBUG, openolt_log_id, "flow oper state indication\n");
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno FlowIndication(bcmbal_obj *obj) {
+static void FlowIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     BCM_LOG(DEBUG, openolt_log_id, "flow indication\n");
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno TmQIndication(bcmbal_obj *obj) {
+static void TmQIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     BCM_LOG(DEBUG, openolt_log_id, "traffic mgmt queue indication\n");
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno TmSchedIndication(bcmbal_obj *obj) {
+static void TmSchedIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     BCM_LOG(DEBUG, openolt_log_id,  "traffic mgmt sheduler indication\n");
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno McastGroupIndication(bcmbal_obj *obj) {
+static void McastGroupIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     BCM_LOG(DEBUG, openolt_log_id, "mcast group indication\n");
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuStartupFailureIndication(bcmbal_obj *obj) {
+static void OnuStartupFailureIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
     openolt::OnuStartupFailureIndication* sufi_ind = new openolt::OnuStartupFailureIndication;
 
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_sufi*)obj)->key);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_SUFI:
+                {
+                    bcmolt_onu_key *key = &((bcmolt_onu_sufi*)msg)->key;
+                    bcmolt_onu_sufi_data *data = &((bcmolt_onu_sufi*)msg)->data;
 
-    bcmbal_subscriber_terminal_sufi_data *data =
-        &(((bcmbal_subscriber_terminal_sufi*)obj)->data);
+                    BCM_LOG(WARNING, openolt_log_id, "onu startup failure indication, intf_id %d, onu_id %d, alarm %d\n",
+                        key->pon_ni, key->onu_id, data->alarm_status);
 
-    BCM_LOG(WARNING, openolt_log_id, "onu startup failure indication, intf_id %d, onu_id %d, alarm %d\n",
-        key->intf_id, key->sub_term_id, data->sufi_status);
+                    sufi_ind->set_intf_id(key->pon_ni);
+                    sufi_ind->set_onu_id(key->onu_id);
+                    sufi_ind->set_status(alarm_status_to_string(data->alarm_status));
+                    alarm_ind->set_allocated_onu_startup_fail_ind(sufi_ind);
 
-    sufi_ind->set_intf_id(key->intf_id);
-    sufi_ind->set_onu_id(key->sub_term_id);
-    sufi_ind->set_status(alarm_status_to_string(data->sufi_status));
-
-    alarm_ind->set_allocated_onu_startup_fail_ind(sufi_ind);
-    ind.set_allocated_alarm_ind(alarm_ind);
+                    ind.set_allocated_alarm_ind(alarm_ind);
+                }
+            }
+    }
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuSignalDegradeIndication(bcmbal_obj *obj) {
+static void OnuSignalDegradeIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
     openolt::OnuSignalDegradeIndication* sdi_ind = new openolt::OnuSignalDegradeIndication;
 
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_sdi*)obj)->key);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_SDI:
+                {
+                    bcmolt_onu_key *key = &((bcmolt_onu_sdi*)msg)->key;
+                    bcmolt_onu_sdi_data *data = &((bcmolt_onu_sdi*)msg)->data;
 
-    bcmbal_subscriber_terminal_sdi_data *data =
-        &(((bcmbal_subscriber_terminal_sdi*)obj)->data);
+                    BCM_LOG(WARNING, openolt_log_id, "onu signal degrade indication, intf_id %d, onu_id %d, alarm %d, BER %d\n",
+                        key->pon_ni, key->onu_id, data->alarm_status, data->ber);
 
-    BCM_LOG(WARNING, openolt_log_id, "onu signal degrade indication, intf_id %d, onu_id %d, alarm %d, BER %d\n",
-        key->intf_id, key->sub_term_id, data->sdi_status, data->ber);
+                    sdi_ind->set_intf_id(key->pon_ni);
+                    sdi_ind->set_onu_id(key->onu_id);
+                    sdi_ind->set_status(alarm_status_to_string(data->alarm_status));
+                    sdi_ind->set_inverse_bit_error_rate(data->ber);
+                    alarm_ind->set_allocated_onu_signal_degrade_ind(sdi_ind);
 
-    sdi_ind->set_intf_id(key->intf_id);
-    sdi_ind->set_onu_id(key->sub_term_id);
-    sdi_ind->set_status(alarm_status_to_string(data->sdi_status));
-    sdi_ind->set_inverse_bit_error_rate(data->ber);
-
-    alarm_ind->set_allocated_onu_signal_degrade_ind(sdi_ind);
-    ind.set_allocated_alarm_ind(alarm_ind);
+                    ind.set_allocated_alarm_ind(alarm_ind);
+                }
+            }
+    }
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuDriftOfWindowIndication(bcmbal_obj *obj) {
+static void OnuDriftOfWindowIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
     openolt::OnuDriftOfWindowIndication* dowi_ind = new openolt::OnuDriftOfWindowIndication;
 
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_dowi*)obj)->key);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_DOWI:
+                {
+                    bcmolt_onu_key *key = &((bcmolt_onu_dowi*)msg)->key; 
+                    bcmolt_onu_dowi_data *data = &((bcmolt_onu_dowi*)msg)->data;
 
-    bcmbal_subscriber_terminal_dowi_data *data =
-        &(((bcmbal_subscriber_terminal_dowi*)obj)->data);
+                    BCM_LOG(WARNING, openolt_log_id, "onu drift of window indication, intf_id %d, onu_id %d, alarm %d, drift %d, new_eqd %d\n",
+                        key->pon_ni, key->onu_id, data->alarm_status, data->drift_value, data->new_eqd);
 
-    BCM_LOG(WARNING, openolt_log_id, "onu drift of window indication, intf_id %d, onu_id %d, alarm %d, drift %d, new_eqd %d\n",
-        key->intf_id, key->sub_term_id, data->dowi_status, data->drift_value, data->new_eqd);
+                    dowi_ind->set_intf_id(key->pon_ni);
+                    dowi_ind->set_onu_id(key->onu_id);
+                    dowi_ind->set_status(alarm_status_to_string(data->alarm_status));
+                    dowi_ind->set_drift(data->drift_value);
+                    dowi_ind->set_new_eqd(data->new_eqd);
+                    alarm_ind->set_allocated_onu_drift_of_window_ind(dowi_ind);
 
-    dowi_ind->set_intf_id(key->intf_id);
-    dowi_ind->set_onu_id(key->sub_term_id);
-    dowi_ind->set_status(alarm_status_to_string(data->dowi_status));
-    dowi_ind->set_drift(data->drift_value);
-    dowi_ind->set_new_eqd(data->new_eqd);
-
-    alarm_ind->set_allocated_onu_drift_of_window_ind(dowi_ind);
-    ind.set_allocated_alarm_ind(alarm_ind);
+                    ind.set_allocated_alarm_ind(alarm_ind);
+                }
+            }
+    }
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuLossOfOmciChannelIndication(bcmbal_obj *obj) {
+static void OnuLossOfOmciChannelIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
     openolt::OnuLossOfOmciChannelIndication* looci_ind = new openolt::OnuLossOfOmciChannelIndication;
 
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_looci*)obj)->key);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_LOOCI:
+                {
+                    bcmolt_onu_key *key = &((bcmolt_onu_looci*)msg)->key;
+                    bcmolt_onu_looci_data *data = &((bcmolt_onu_looci*)msg)->data;
 
-    bcmbal_subscriber_terminal_looci_data *data =
-        &(((bcmbal_subscriber_terminal_looci*)obj)->data);
+                    BCM_LOG(WARNING, openolt_log_id, "onu loss of OMCI channel indication, intf_id %d, onu_id %d, alarm %d\n",
+                        key->pon_ni, key->onu_id, data->alarm_status);
 
-    BCM_LOG(WARNING, openolt_log_id, "onu loss of OMCI channel indication, intf_id %d, onu_id %d, alarm %d\n",
-        key->intf_id, key->sub_term_id, data->looci_status);
+                    looci_ind->set_intf_id(key->pon_ni);
+                    looci_ind->set_onu_id(key->onu_id);
+                    looci_ind->set_status(alarm_status_to_string(data->alarm_status));
+                    alarm_ind->set_allocated_onu_loss_omci_ind(looci_ind);
 
-    looci_ind->set_intf_id(key->intf_id);
-    looci_ind->set_onu_id(key->sub_term_id);
-    looci_ind->set_status(alarm_status_to_string(data->looci_status));
-
-    alarm_ind->set_allocated_onu_loss_omci_ind(looci_ind);
-    ind.set_allocated_alarm_ind(alarm_ind);
+                    ind.set_allocated_alarm_ind(alarm_ind);
+                }
+            }
+    }
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuSignalsFailureIndication(bcmbal_obj *obj) {
+static void OnuSignalsFailureIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
     openolt::OnuSignalsFailureIndication* sfi_ind = new openolt::OnuSignalsFailureIndication;
 
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_sfi*)obj)->key);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_SFI:
+                {
+                    bcmolt_onu_key *key = &((bcmolt_onu_sfi*)msg)->key;
+                    bcmolt_onu_sfi_data *data = &((bcmolt_onu_sfi*)msg)->data;
 
-    bcmbal_subscriber_terminal_sfi_data *data =
-        &(((bcmbal_subscriber_terminal_sfi*)obj)->data);
-
-    BCM_LOG(WARNING, openolt_log_id,  "onu signals failure indication, intf_id %d, onu_id %d, alarm %d, BER %d\n",
-        key->intf_id, key->sub_term_id, data->sfi_status, data->ber);
+                    BCM_LOG(WARNING, openolt_log_id,  "onu signals failure indication, intf_id %d, onu_id %d, alarm %d, BER %d\n",
+                        key->pon_ni, key->onu_id, data->alarm_status, data->ber);
 
 
-    sfi_ind->set_intf_id(key->intf_id);
-    sfi_ind->set_onu_id(key->sub_term_id);
-    sfi_ind->set_status(alarm_status_to_string(data->sfi_status));
-    sfi_ind->set_inverse_bit_error_rate(data->ber);
+                    sfi_ind->set_intf_id(key->pon_ni);
+                    sfi_ind->set_onu_id(key->onu_id);
+                    sfi_ind->set_status(alarm_status_to_string(data->alarm_status));
+                    sfi_ind->set_inverse_bit_error_rate(data->ber);
+                    alarm_ind->set_allocated_onu_signals_fail_ind(sfi_ind);
 
-    alarm_ind->set_allocated_onu_signals_fail_ind(sfi_ind);
-    ind.set_allocated_alarm_ind(alarm_ind);
+                    ind.set_allocated_alarm_ind(alarm_ind);
+                }
+            }
+    }
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuTransmissionInterferenceWarningIndication(bcmbal_obj *obj) {
+static void OnuTransmissionInterferenceWarningIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
     openolt::OnuTransmissionInterferenceWarning* tiwi_ind = new openolt::OnuTransmissionInterferenceWarning;
 
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_tiwi*)obj)->key);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_TIWI:
+                {
+                    bcmolt_onu_key *key = &((bcmolt_onu_tiwi*)msg)->key;
+                    bcmolt_onu_tiwi_data *data = &((bcmolt_onu_tiwi*)msg)->data;
 
-    bcmbal_subscriber_terminal_tiwi_data *data =
-        &(((bcmbal_subscriber_terminal_tiwi*)obj)->data);
+                    BCM_LOG(WARNING, openolt_log_id,  "onu transmission interference warning indication, intf_id %d, onu_id %d, alarm %d, drift %d\n",
+                        key->pon_ni, key->onu_id, data->alarm_status, data->drift_value);
 
-    BCM_LOG(WARNING, openolt_log_id,  "onu transmission interference warning indication, intf_id %d, onu_id %d, alarm %d, drift %d\n",
-        key->intf_id, key->sub_term_id, data->tiwi_status, data->drift_value);
+                    tiwi_ind->set_intf_id(key->pon_ni);
+                    tiwi_ind->set_onu_id(key->onu_id);
+                    tiwi_ind->set_status(alarm_status_to_string(data->alarm_status));
+                    tiwi_ind->set_drift(data->drift_value);
+                    alarm_ind->set_allocated_onu_tiwi_ind(tiwi_ind);
 
-    tiwi_ind->set_intf_id(key->intf_id);
-    tiwi_ind->set_onu_id(key->sub_term_id);
-    tiwi_ind->set_status(alarm_status_to_string(data->tiwi_status));
-    tiwi_ind->set_drift(data->drift_value);
-
-    alarm_ind->set_allocated_onu_tiwi_ind(tiwi_ind);
-    ind.set_allocated_alarm_ind(alarm_ind);
+                    ind.set_allocated_alarm_ind(alarm_ind);
+                }
+            }
+    }
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
-bcmos_errno OnuActivationFailureIndication(bcmbal_obj *obj) {
+static void OnuActivationFailureIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
     openolt::OnuActivationFailureIndication* activation_fail_ind = new openolt::OnuActivationFailureIndication;
 
-    bcmbal_subscriber_terminal_key *key =
-        &(((bcmbal_subscriber_terminal_sub_term_act_fail*)obj)->key);
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_ONU_ACTIVATION_COMPLETED:
+                {
+                    bcmolt_onu_key *key = &((bcmolt_onu_onu_activation_completed*)msg)->key;
+                    bcmolt_onu_onu_activation_completed_data *data = 
+                        &((bcmolt_onu_onu_activation_completed*)msg)->data;
 
-    BCM_LOG(WARNING, openolt_log_id, "onu activation failure indication, intf_id %d, onu_id %d\n",
-        key->intf_id, key->sub_term_id);
+                    BCM_LOG(WARNING, openolt_log_id, "onu activation failure indication, intf_id %d, onu_id %d, fail_reason %d\n",
+                        key->pon_ni, key->onu_id, data->fail_reason);
 
+                    activation_fail_ind->set_intf_id(key->pon_ni);
+                    activation_fail_ind->set_onu_id(key->onu_id);
+                    alarm_ind->set_allocated_onu_activation_fail_ind(activation_fail_ind);
 
-    activation_fail_ind->set_intf_id(key->intf_id);
-    activation_fail_ind->set_onu_id(key->sub_term_id);
-
-    alarm_ind->set_allocated_onu_activation_fail_ind(activation_fail_ind);
-    ind.set_allocated_alarm_ind(alarm_ind);
+                    ind.set_allocated_alarm_ind(alarm_ind);
+                }
+            }
+    }
 
     oltIndQ.push(ind);
-    return BCM_ERR_OK;
+    bcmolt_msg_free(msg);
 }
 
+/* removed by BAL v3.0
 bcmos_errno OnuProcessingErrorIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
@@ -611,226 +757,204 @@ bcmos_errno OnuProcessingErrorIndication(bcmbal_obj *obj) {
     oltIndQ.push(ind);
     return BCM_ERR_OK;
 }
+*/
 
 Status SubscribeIndication() {
-    bcmbal_cb_cfg cb_cfg = {};
-    uint16_t ind_subgroup;
+    bcmolt_rx_cfg rx_cfg = {};
+    bcmos_errno rc;
 
     if (subscribed) {
         return Status::OK;
     }
 
-    cb_cfg.module = BCMOS_MODULE_ID_NONE;
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_DEVICE;
+    rx_cfg.rx_cb = OltOperIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_device_auto_subgroup_connection_complete;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, 
+            "Olt connection complete state indication subscribe failed");
 
-    /* OLT device operational state change indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_ACCESS_TERMINAL;
-    ind_subgroup = bcmbal_access_terminal_auto_id_oper_status_change;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OltOperIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Olt operations state change indication subscribe failed");
-    }
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_DEVICE;
+    rx_cfg.rx_cb = OltOperIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_device_auto_subgroup_disconnection_complete;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, 
+            "Olt disconnection complete state indication subscribe failed");
+
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_DEVICE;
+    rx_cfg.rx_cb = OltOperIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_device_auto_subgroup_connection_failure;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, 
+            "Olt connection failure state indication subscribe failed");
 
     /* Interface LOS indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_INTERFACE;
-    ind_subgroup = bcmbal_interface_auto_id_los;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)LosIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_PON_INTERFACE;
+    rx_cfg.rx_cb = LosIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_pon_interface_auto_subgroup_los;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "LOS indication subscribe failed");
-    }
 
-    /* Interface indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_INTERFACE;
-    ind_subgroup = bcmbal_interface_auto_id_oper_status_change;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)IfIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Interface indication subscribe failed");
-    }
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_PON_INTERFACE;
+    rx_cfg.rx_cb = IfOperIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_pon_interface_auto_subgroup_state_change_completed;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, 
+            "PON Interface operations state change indication subscribe failed");
 
-    /* Interface operational state change indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_INTERFACE;
-    ind_subgroup = bcmbal_interface_auto_id_oper_status_change;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)IfOperIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Interface operations state change indication subscribe failed");
-    }
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_PON_INTERFACE;
+    rx_cfg.rx_cb = IfIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_pon_interface_auto_subgroup_state_change_completed;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, "PON Interface indication subscribe failed");
 
-    /* onu alarm indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_sub_term_alarm;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuAlarmIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_NNI_INTERFACE;
+    rx_cfg.rx_cb = IfOperIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_nni_interface_auto_subgroup_state_change;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, 
+            "NNI Interface operations state change indication subscribe failed");
+
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_NNI_INTERFACE;
+    rx_cfg.rx_cb = IfIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_nni_interface_auto_subgroup_state_change;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, "NNI Interface indication subscribe failed");
+
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuAlarmIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_xgpon_alarm;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu alarm indication subscribe failed");
-    }
 
-    /* onu dying-gasp indication  */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_dgi;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuDyingGaspIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuAlarmIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_gpon_alarm;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, "onu alarm indication subscribe failed");
+    
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuDyingGaspIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_dgi;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu dying-gasp indication subscribe failed");
-    }
 
-    /* onu discovery indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_sub_term_disc;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuDiscoveryIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_PON_INTERFACE;
+    rx_cfg.rx_cb = OnuDiscoveryIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_pon_interface_auto_subgroup_onu_discovered;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu discovery indication subscribe failed");
-    }
 
-    /* onu indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_oper_status_change;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_state_change;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu indication subscribe failed");
-    }
-    /* onu operational state change indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_oper_status_change;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuOperIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "onu operational state change indication subscribe failed");
-    }
 
-    /* Packet (bearer) indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_PACKET;
-    ind_subgroup = bcmbal_packet_auto_id_bearer_channel_rx;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)PacketIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Packet indication subscribe failed");
-    }
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuOperIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_state_change;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, 
+            "onu operational state change indication subscribe failed");
 
-    /* Flow Operational State Change */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_FLOW;
-    ind_subgroup = bcmbal_flow_auto_id_oper_status_change;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)FlowOperIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Flow operational state change indication subscribe failed");
-    }
-#if 0
-    /* Flow Indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_FLOW;
-    ind_subgroup = bcmbal_flow_auto_id_ind;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)FlowIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Flow indication subscribe failed");
-    }
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuStartupFailureIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_sufi;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, 
+            "onu startup failure indication subscribe failed");
 
-    /* TM queue indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_TM_QUEUE;
-    ind_subgroup = bcmbal_tm_queue_auto_id_ind;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)TmQIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Traffic mgmt queue indication subscribe failed");
-    }
-#endif
-
-    /* TM sched indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_TM_SCHED;
-    ind_subgroup = bcmbal_tm_sched_auto_id_oper_status_change;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)TmSchedIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Traffic mgmt queue indication subscribe failed");
-    }
-
-#if 0
-    /* Multicast group indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_GROUP;
-    ind_subgroup = bcmbal_group_auto_id_ind;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)McastGroupIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "Multicast group indication subscribe failed");
-    }
-#endif
-
-
-    /* ONU startup failure indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_sufi;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuStartupFailureIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "onu startup failure indication subscribe failed");
-    }
-
-    /* SDI indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_sdi;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuSignalDegradeIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuSignalDegradeIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_sdi;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu sdi indication subscribe failed");
-    }
 
-    /* DOWI indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_dowi;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuDriftOfWindowIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuDriftOfWindowIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_dowi;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu dowi indication subscribe failed");
-    }
 
     /* LOOCI indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_looci;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuLossOfOmciChannelIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuLossOfOmciChannelIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_looci;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu looci indication subscribe failed");
-    }
 
     /* SFI indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_sfi;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuSignalsFailureIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuSignalsFailureIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_sfi;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu sfi indication subscribe failed");
-    }
 
     /* TIWI indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_tiwi;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuTransmissionInterferenceWarningIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuTransmissionInterferenceWarningIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_tiwi;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu tiwi indication subscribe failed");
-    }
+     
+    /* ONU Activation Failure Indiction */
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuActivationFailureIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_onu_activation_completed;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, 
+            "onu activation falaire indication subscribe failed");
 
-    /* TIWI indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_sub_term_act_fail;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuActivationFailureIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "onu activation falaire indication subscribe failed");
-    }
-
-    /* ONU processing error indication */
-    cb_cfg.obj_type = BCMBAL_OBJ_ID_SUBSCRIBER_TERMINAL;
-    ind_subgroup = bcmbal_subscriber_terminal_auto_id_processing_error;
-    cb_cfg.p_subgroup = &ind_subgroup;
-    cb_cfg.ind_cb_hdlr = (f_bcmbal_ind_handler)OnuProcessingErrorIndication;
-    if (BCM_ERR_OK != bcmbal_subscribe_ind(DEFAULT_ATERM_ID, &cb_cfg)) {
-        return Status(grpc::StatusCode::INTERNAL, "onu processing error indication subscribe failed");
-    }
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_FLOW;
+    rx_cfg.rx_cb = PacketIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_flow_auto_subgroup_receive_eth_packet;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, "Packet indication subscribe failed");
 
     subscribed = true;
 

@@ -38,7 +38,7 @@ Status EnableUplinkIf_(uint32_t intf_id);
 Status DisableUplinkIf_(uint32_t intf_id);
 Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
 Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, uint32_t port_no, const std::string pkt);
-Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt);
+Status UplinkPacketOut_(bcmolt_flow_id flow_id, uint32_t intf_id, const std::string pkt);
 Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t port_no,
                 uint32_t flow_id, const std::string flow_type,
                 int32_t alloc_id, int32_t network_intf_id,

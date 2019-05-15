@@ -121,7 +121,8 @@ class OpenoltService final : public openolt::Openolt::Service {
             openolt::Empty* response) override {
         return UplinkPacketOut_(
             request->intf_id(),
-            request->pkt());
+            request->pkt(),
+            request->flow_id());
     }
 
     Status FlowAdd(
@@ -243,7 +244,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             const openolt::Empty* request,
             openolt::Empty* response) override {
 
-        system("shutdown -r now");
+        uint8_t ret = system("shutdown -r now");
 
         return Status::OK;
 

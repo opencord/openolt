@@ -28,7 +28,7 @@ OBJS = tech_profile.pb.o tech_profile.grpc.pb.o openolt.pb.o openolt.grpc.pb.o .
 all: googleapis libopenoltapi.a
 
 libopenoltapi.a: $(OBJS)
-	ar ru $@ $^
+	ar cr $@ $^
 	ranlib $@
 
 googleapis:

@@ -27,18 +27,18 @@
 extern "C"
 {
 #include <bcmos_system.h>
-#include <bal_api.h>
-#include <bal_api_end.h>
-#include <flow_fsm.h>
+#include <bcmolt_api.h>
+#include <bcmolt_api_model_api_structs.h>
 }
 
 //FIXME
 #define FLOWS_COUNT 100
 
-bcmbal_flow_key* flows_keys = new bcmbal_flow_key[FLOWS_COUNT];
+bcmolt_flow_key* flows_keys = new bcmolt_flow_key[FLOWS_COUNT];
+bcmolt_odid device_id = 0;    
 
 void init_stats() {
-    memset(flows_keys, 0, FLOWS_COUNT * sizeof(bcmbal_flow_key));
+    memset(flows_keys, 0, FLOWS_COUNT * sizeof(bcmolt_flow_key));
 }
 
 openolt::PortStatistics* get_default_port_statistics() {
@@ -75,46 +75,105 @@ openolt::FlowStatistics* get_default_flow_statistics() {
 }
 #endif
 
-openolt::PortStatistics* collectPortStatistics(bcmbal_interface_key key) {
+openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
 
     bcmos_errno err;
-    bcmbal_interface_stat stat;     /**< declare main API struct */
-    bcmos_bool clear_on_read = false;
+    bcmolt_stat_flags clear_on_read = BCMOLT_STAT_FLAGS_NONE;
+    bcmolt_nni_interface_stats nni_stats;
+    bcmolt_onu_itu_pon_stats pon_stats;
+    bcmolt_pon_interface_itu_pon_stats itu_pon_stats;
 
     openolt::PortStatistics* port_stats = get_default_port_statistics();
 
-    /* init the API struct */
-    BCMBAL_STAT_INIT(&stat, interface, key);
-    BCMBAL_STAT_PROP_GET(&stat, interface, all_properties);
+    switch (intf_ref.intf_type) {
+        case BCMOLT_INTERFACE_TYPE_NNI:
+        {
+            bcmolt_nni_interface_key nni_intf_key;
+            nni_intf_key.id = intf_ref.intf_id;
+            /* init the API struct */
+            BCMOLT_STAT_INIT(&nni_stats, nni_interface, stats, nni_intf_key);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_bytes);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_packets);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_ucast_packets);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_mcast_packets);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_bcast_packets);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_error_packets);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_bytes);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_packets);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_ucast_packets);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_mcast_packets);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_bcast_packets);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_error_packets);
 
-    /* call API */
-    err = bcmbal_stat_get(DEFAULT_ATERM_ID, &stat.hdr, clear_on_read);
-    if (err == BCM_ERR_OK)
-    {
-        //std::cout << "Interface statistics retrieved"
-        //          << " intf_id:" << intf_id << std::endl;
+            /* call API */
+            err = bcmolt_stat_get((bcmolt_oltid)device_id, &nni_stats.hdr, clear_on_read);
+            if (err == BCM_ERR_OK)
+            {
+                //std::cout << "Interface statistics retrieved"
+                //          << " intf_id:" << intf_id << std::endl;
+            
+                port_stats->set_rx_bytes(nni_stats.data.rx_bytes);
+                port_stats->set_rx_packets(nni_stats.data.rx_packets);
+                port_stats->set_rx_ucast_packets(nni_stats.data.rx_ucast_packets);
+                port_stats->set_rx_mcast_packets(nni_stats.data.rx_mcast_packets);
+                port_stats->set_rx_bcast_packets(nni_stats.data.rx_bcast_packets);
+                port_stats->set_rx_error_packets(nni_stats.data.rx_error_packets);
+                port_stats->set_tx_bytes(nni_stats.data.tx_bytes);
+                port_stats->set_tx_packets(nni_stats.data.tx_packets);
+                port_stats->set_tx_ucast_packets(nni_stats.data.tx_ucast_packets);
+                port_stats->set_tx_mcast_packets(nni_stats.data.tx_mcast_packets);
+                port_stats->set_tx_bcast_packets(nni_stats.data.tx_bcast_packets);
+                port_stats->set_tx_error_packets(nni_stats.data.tx_error_packets);
+            
+            } else {
+                BCM_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d\n",
+                    (int)intf_ref.intf_id, (int)intf_ref.intf_type);
+            }
+            break;
+        }
+        case BCMOLT_INTERFACE_TYPE_PON:
+        {
+				bcmolt_pon_interface_key key;
+            key.pon_ni = (bcmolt_interface)intf_ref.intf_id;
+            BCMOLT_STAT_INIT(&itu_pon_stats, pon_interface, itu_pon_stats, key);
+            BCMOLT_MSG_FIELD_GET(&itu_pon_stats, tx_packets);
+            BCMOLT_MSG_FIELD_GET(&itu_pon_stats, bip_errors);
+            BCMOLT_MSG_FIELD_GET(&itu_pon_stats, rx_crc_error);
 
-        port_stats->set_rx_bytes(stat.data.rx_bytes);
-        port_stats->set_rx_packets(stat.data.rx_packets);
-        port_stats->set_rx_ucast_packets(stat.data.rx_ucast_packets);
-        port_stats->set_rx_mcast_packets(stat.data.rx_mcast_packets);
-        port_stats->set_rx_bcast_packets(stat.data.rx_bcast_packets);
-        port_stats->set_rx_error_packets(stat.data.rx_error_packets);
-        port_stats->set_tx_bytes(stat.data.tx_bytes);
-        port_stats->set_tx_packets(stat.data.tx_packets);
-        port_stats->set_tx_ucast_packets(stat.data.tx_ucast_packets);
-        port_stats->set_tx_mcast_packets(stat.data.tx_mcast_packets);
-        port_stats->set_tx_bcast_packets(stat.data.tx_bcast_packets);
-        port_stats->set_tx_error_packets(stat.data.tx_error_packets);
-        port_stats->set_rx_crc_errors(stat.data.rx_crc_errors);
-        port_stats->set_bip_errors(stat.data.bip_errors);
+            /* call API */
+            err = bcmolt_stat_get((bcmolt_oltid)device_id, &itu_pon_stats.hdr, clear_on_read);
+            if (err == BCM_ERR_OK) {
+                port_stats->set_tx_packets(itu_pon_stats.data.tx_packets);
+                port_stats->set_bip_errors(itu_pon_stats.data.bip_errors);
+                port_stats->set_rx_crc_errors(itu_pon_stats.data.rx_crc_error);
+            } else {
+                BCM_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d\n",
+                    (int)intf_ref.intf_id, (int)intf_ref.intf_type);
+            }
+            {
+                bcmolt_onu_key key;
+                key.pon_ni = (bcmolt_interface)intf_ref.intf_id;
+                BCMOLT_MSG_FIELD_GET(&pon_stats, rx_bytes);
+                BCMOLT_MSG_FIELD_GET(&pon_stats, rx_packets);
+                BCMOLT_MSG_FIELD_GET(&pon_stats, tx_bytes);
+                BCMOLT_STAT_INIT(&pon_stats, onu, itu_pon_stats, key);
 
-    } else {
-        BCM_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d\n",
-            (int)key.intf_id, (int)key.intf_type);
-    }
+                /* call API */
+                err = bcmolt_stat_get((bcmolt_oltid)device_id, &pon_stats.hdr, clear_on_read);
+                if (err == BCM_ERR_OK) {
+                    port_stats->set_rx_bytes(pon_stats.data.rx_bytes);
+                    port_stats->set_rx_packets(pon_stats.data.rx_packets);
+                    port_stats->set_tx_bytes(pon_stats.data.tx_bytes);
+                } else {
+                    BCM_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d\n",
+                        (int)intf_ref.intf_id, (int)intf_ref.intf_type);
+                }
+            }
+            break;
+        }
+    } 
 
-    port_stats->set_intf_id(interface_key_to_port_no(key));
+    port_stats->set_intf_id(interface_key_to_port_no((bcmolt_interface_id)intf_ref.intf_id, (bcmolt_interface_type)intf_ref.intf_type));
     time_t now;
     time(&now);
     port_stats->set_timestamp((int)now);
@@ -182,11 +241,12 @@ void stats_collection() {
 
     //Uplink ports
     for (int i = 0; i < NumNniIf_(); i++) {
-        bcmbal_interface_key nni_interface;
-        nni_interface.intf_type = BCMBAL_INTF_TYPE_NNI;
-        nni_interface.intf_id = i;
+        bcmolt_intf_ref intf_ref;
+        intf_ref.intf_type = BCMOLT_INTERFACE_TYPE_NNI;
+        intf_ref.intf_id = i;
 
-        openolt::PortStatistics* port_stats = collectPortStatistics(nni_interface);
+        openolt::PortStatistics* port_stats =
+            collectPortStatistics(intf_ref);
 
         openolt::Indication ind;
         ind.set_allocated_port_stats(port_stats);
@@ -194,11 +254,12 @@ void stats_collection() {
     }
     //Pon ports
     for (int i = 0; i < NumPonIf_(); i++) {
-        bcmbal_interface_key pon_interface;
-        pon_interface.intf_type = BCMBAL_INTF_TYPE_PON;
-        pon_interface.intf_id = i;
+        bcmolt_intf_ref intf_ref;
+        intf_ref.intf_type = BCMOLT_INTERFACE_TYPE_PON;
+        intf_ref.intf_id = i;
 
-        openolt::PortStatistics* port_stats = collectPortStatistics(pon_interface);
+        openolt::PortStatistics* port_stats = 
+            collectPortStatistics(intf_ref);
 
         openolt::Indication ind;
         ind.set_allocated_port_stats(port_stats);

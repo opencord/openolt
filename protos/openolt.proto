@@ -269,6 +269,7 @@ message OnuPacket {
 message UplinkPacket {
     fixed32 intf_id = 1;
     bytes pkt = 2;
+    fixed32 flow_id = 3;
 }
 
 message DeviceInfo {

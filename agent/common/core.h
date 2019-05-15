@@ -45,7 +45,7 @@ Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
 Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, uint32_t port_no, uint32_t gemport_id, const std::string pkt);
 Status ProbeDeviceCapabilities_();
 Status ProbePonIfTechnology_();
-Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt);
+Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt, uint16_t flow_id);
 Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t port_no,
                 uint32_t flow_id, const std::string flow_type,
                 int32_t alloc_id, int32_t network_intf_id,
@@ -60,6 +60,8 @@ Status RemoveTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
 Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues);
 Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues);
 uint32_t GetPortNum_(uint32_t flow_id);
+int get_status_bcm_cli_quit(void);
+uint16_t get_dev_id(void); 
 
 void stats_collection();
 #endif

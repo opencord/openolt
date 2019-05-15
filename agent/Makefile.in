@@ -27,14 +27,17 @@ OPENOLTDEVICE ?= generic
 # SW-BCM68620_<VER>.zip - Broadcom BAL source and Maple SDK.
 # sdk-all-<SDK_VER>.tar.gz - Broadcom Qumran SDK.
 # ACCTON_BAL_<BAL_VER>-<DEV_VER>.patch - Accton/Edgecore's patch.
-BAL_MAJOR_VER = 03.00
-BAL_VER = 3.0.3.3
+BAL_MAJOR_VER = 3
+BAL_MINOR_VER = 0
+BAL_REV_A_VER = 3
+BAL_REV_B_VER = 3
+BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER)
+BAL_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
 SDK_VER = 6.5.13
 DEV_VER ?= 201904171432
 #
 # Version of Open Network Linux (ONL).
 ONL_KERN_VER_MAJOR = 4.14
-ONL_KERN_VER_MINOR = 49
 #
 # Build directory
 BUILD_DIR = build
@@ -98,7 +101,6 @@ endif
 ##        ONL
 ##
 ##
-ONL_KERN_VER = $(ONL_KERN_VER_MAJOR).$(ONL_KERN_VER_MINOR)
 ONL_REPO = $(OPENOLTDEVICE)-onl
 ONL_DIR = $(BUILD_DIR)/$(ONL_REPO)
 onl:
@@ -106,7 +108,7 @@ onl:
 		mkdir -p $(ONL_DIR); \
 		git clone https://github.com/opencomputeproject/OpenNetworkLinux.git $(ONL_DIR)/OpenNetworkLinux; \
 		cp download/Makefile.onl $(ONL_DIR)/Makefile; \
-		install -m 755 download/build-asfvolt16.sh $(ONL_DIR)/OpenNetworkLinux; \
+		install -m 755 download/build-$(OPENOLTDEVICE).sh $(ONL_DIR)/OpenNetworkLinux; \
 		make -C $(ONL_DIR) $(OPENOLTDEVICE)-$(ONL_KERN_VER_MAJOR); \
 	fi;
 onl-force:
@@ -117,51 +119,61 @@ distclean-onl:
 ########################################################################
 ##
 ##
+##        Broadcom LIBRARY APIs
+##
+##
+BAL_API_DIR = $(BUILD_DIR)/bal-api-$(BAL_API_VER)
+
+bal-api-$(BAL_API_VER):
+	if [ ! -d "$(BAL_API_DIR)" ]; then \
+		mkdir -p $(BAL_API_DIR); \
+		git clone https://github.com/balapi/bal-api-3.0.git $(BAL_API_DIR); \
+	fi;
+bal-api-clean:
+	rm $(BAL_API_DIR)
+
+########################################################################
+##
+##
 ##        BAL
 ##
 ##
 BAL_ZIP = SW-BCM68620_$(subst .,_,$(BAL_VER)).tgz
 SDK_ZIP = sdk-all-$(SDK_VER).tar.gz
 ACCTON_PATCH = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER).patch
-OPENOLT_BAL_PATCH = OPENOLT_BAL_$(BAL_VER).patch
 BAL_DIR = $(BUILD_DIR)/$(OPENOLTDEVICE)-bal
-BCM_SDK = $(BAL_DIR)/switch_sdk/6.5.13
-BALLIBDIR = $(BAL_DIR)/build/asfvolt16-bal/build/lib/libbal_core.so
-BALLIBNAME = bal_core.so
-BAL_INC = -I$(BAL_DIR)/bal_release/src/common/os_abstraction \
-	-I$(BAL_DIR)/bal_release/src/common/os_abstraction/posix \
-	-I$(BAL_DIR)/bal_release/src/common/config \
-	-I$(BAL_DIR)/bal_release/src/core/platform \
-	-I$(BAL_DIR)/bal_release/src/core/main \
-	-I$(BAL_DIR)/bal_release/src/common/include \
-	-I$(BAL_DIR)/bal_release/src/lib/libbalapi \
-	-I$(BAL_DIR)/bal_release/src/balapiend \
-	-I$(BAL_DIR)/bal_release/src/common/dev_log \
-	-I$(BAL_DIR)/bal_release/src/common/bal_dist_utils  \
-	-I$(BAL_DIR)/bal_release/src/lib/libtopology \
-	-I$(BAL_DIR)/bal_release/src/lib/libcmdline \
-	-I$(BAL_DIR)/bal_release/src/lib/libutils \
-	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/utils \
-	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/model \
-	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_driver/api \
-	-I$(BAL_DIR)/bal_release/3rdparty/maple/sdk/host_reference/cli
+BCM_SDK = $(BAL_DIR)/switch_sdk/$(SDK_VER)
+BALLIBDIR = $(BAL_DIR)/build/host_reference/host_api
+BALLIBNAME = bal_host_api
+BAL_INC = -I$(BAL_DIR)/host_driver/bal/bal_include \
+          -I$(BAL_DIR)/host_driver/topology \
+          -I$(BAL_DIR)/host_driver/utils \
+          -I$(BAL_DIR)/host_driver/api \
+          -I$(BAL_DIR)/host_customized/os_abstraction \
+          -I$(BAL_DIR)/host_customized/os_abstraction/posix \
+          -I$(BAL_DIR)/host_customized/config \
+          -I$(BAL_DIR)/host_driver/api_conn_mgr \
+          -I$(BAL_DIR)/host_driver/conn_mgr \
+          -I$(BAL_DIR)/host_driver/api/host/topology \
+          -I$(BAL_DIR)/host_reference/cli \
+          -I$(BAL_DIR)/host_reference/api_cli \
+          -I$(BAL_API_DIR)/include \
+          -I$(BAL_API_DIR)/include/object_model
 CXXFLAGS += $(BAL_INC) -I $(BAL_DIR)/lib/cmdline
-CXXFLAGS += -DBCMOS_MSG_QUEUE_DOMAIN_SOCKET -DBCMOS_MSG_QUEUE_UDP_SOCKET -DBCMOS_MEM_CHECK -DBCMOS_SYS_UNITTEST -DENABLE_LOG
+CXXFLAGS += -DBCMOS_MSG_QUEUE_DOMAIN_SOCKET -DBCMOS_MSG_QUEUE_UDP_SOCKET -DBCMOS_MEM_CHECK -DBCMOS_SYS_UNITTEST -DENABLE_LOG -DENABLE_CLI
 
-sdk: onl
+sdk: onl bal-api-$(BAL_API_VER)
 ifeq ("$(wildcard $(BAL_DIR))","")
 	mkdir $(BAL_DIR)
 	tar zxvf download/$(BAL_ZIP) --strip 1 -C $(BAL_DIR)
 	cp download/$(SDK_ZIP) $(BCM_SDK)
 	chmod -R 744 $(BAL_DIR)
 	cat download/$(ACCTON_PATCH) | patch -p1 -d $(BAL_DIR)
-	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) ONL_DIR=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux SW_UTIL_SHELL=y
-	echo 'auto_create_interface_tm=y' >> $(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/board_files/broadcom/bal_config.ini
+	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) ONL_DIR=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux SW_UTIL_SHELL=y OPEN_SOURCE=y
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
 endif
 
 bal-release: sdk
-	echo 'auto_create_interface_tm=y' >> $(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/board_files/broadcom/bal_config.ini
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
 
 bal-clean:
@@ -229,17 +241,15 @@ SRCS = $(wildcard src/*.cc) $(wildcard common/*.cc) $(wildcard device/$(OPENOLTD
 OBJS = $(SRCS:.cc=.o)
 DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
-#all: $(BUILD_DIR)/openolt
-all: notes onl sdk
-notes:
-	echo "\033[1;31m!!! The OpenOLT source codes is not yet support the BAL V3.0, so ignoring to build !!!\033[0m"
+all: $(BUILD_DIR)/openolt
 $(BUILD_DIR)/openolt: sdk protos $(OBJS)
 	$(CXX) $(LDFLAGS) -L$(BALLIBDIR) $(OBJS) $(OPENOLT_API_LIB) $(LIBPROTOBUF_PATH)/libprotobuf.a -o $@ -l$(BALLIBNAME) $(shell pkg-config --libs protobuf grpc++ grpc)
-	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
-	ln -sf $(PWD)/$(BAL_DIR)/bcm68620_release/$(OPENOLTDEVICE)/release/broadcom/libbal_api_dist.so $(BUILD_DIR)/.
-	ln -sf $(PWD)/$(BAL_DIR)/bal_release/build/core/src/apps/bal_core_dist/bal_core_dist $(BUILD_DIR)/.
+	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
+	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_reference/host_api/strip/libbal_host_api.so $(BUILD_DIR)/.
+	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_driver/dev_mgmt_daemon/dev_mgmt_daemon $(BUILD_DIR)/.
 	ln -sf $(LIBGRPC_PATH)/libgrpc.so.6 $(BUILD_DIR)/libgrpc.so.6
 	ln -sf $(LIBGRPC_PATH)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++.so.1
+	ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 $(BUILD_DIR)/libstdc++.so.6
 src/%.o: src/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I./common -c $< -o $@
 
