@@ -55,6 +55,10 @@ static void OmciIndication(bcmolt_devid olt, bcmolt_msg *msg);
          state == BCMOLT_ONU_OPERATION_ACTIVE_STANDBY) ? BCMOS_TRUE : BCMOS_FALSE)
 #define ONU_STATE_IF_UP(state) \
        ((state == BCMOLT_ONU_OPERATION_ACTIVE) ? BCMOS_TRUE : BCMOS_FALSE)
+#define ONU_RANGING_STATE_IF_UP(state) \
+       ((state == BCMOLT_RESULT_SUCCESS) ? BCMOS_TRUE : BCMOS_FALSE)
+#define ONU_RANGING_STATE_IF_DOWN(state) \
+       ((state != BCMOLT_RESULT_SUCCESS) ? BCMOS_TRUE : BCMOS_FALSE)
 
 std::string bcmbal_to_grpc_intf_type(bcmolt_interface_type intf_type)
 {
@@ -74,7 +78,6 @@ static void OltOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
 
     switch (msg->subgroup) {
         case BCMOLT_DEVICE_AUTO_SUBGROUP_CONNECTION_COMPLETE:
-            ProbeDeviceCapabilities_();
             admin_state = "up";
             olt_ind->set_oper_state("up");
             break;
@@ -90,22 +93,6 @@ static void OltOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     ind.set_allocated_olt_ind(olt_ind);
 
     if (msg->subgroup == BCMOLT_DEVICE_AUTO_SUBGROUP_CONNECTION_COMPLETE) {
-        // Enable all PON interfaces. 
-        for (int i = 0; i < NumPonIf_(); i++) {
-            status = EnablePonIf_(i);
-            if (!status.ok()) {
-                // FIXME - raise alarm to report error in enabling PON
-            }
-        }
-
-        // Enable all NNI interfaces. 
-        for (int i = 0; i < NumNniIf_(); i++) {
-            status = EnableUplinkIf_(i);
-            if (!status.ok()) {
-                // FIXME - raise alarm to report error in enabling PON
-            }
-        }
-
         /* register for omci indication */
         {
             bcmolt_rx_cfg rx_cfg = {};
@@ -115,8 +102,6 @@ static void OltOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
             rx_cfg.module = BCMOS_MODULE_ID_OMCI_TRANSPORT;
             bcmolt_ind_subscribe(current_device, &rx_cfg);
         }
-
-        ProbePonIfTechnology_();
         state.activate();
     }
     else {
@@ -168,8 +153,6 @@ static void IfIndication(bcmolt_devid olt, bcmolt_msg *msg) {
             switch (msg->subgroup) {
                 case BCMOLT_PON_INTERFACE_AUTO_SUBGROUP_STATE_CHANGE_COMPLETED:
                 { 
-                    BCM_LOG(INFO, openolt_log_id, "intf indication, intf_id: %d\n",
-                        ((bcmolt_pon_interface_state_change_completed *)msg)->key.pon_ni);
                     bcmolt_pon_interface_key *key = 
                         &((bcmolt_pon_interface_state_change_completed*)msg)->key;
                     bcmolt_pon_interface_state_change_completed_data *data = 
@@ -373,18 +356,19 @@ static void OnuIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     switch (msg->obj_type) {
         case BCMOLT_OBJ_ID_ONU:
             switch (msg->subgroup) {
-                case BCMOLT_ONU_AUTO_SUBGROUP_STATE_CHANGE:
+                case BCMOLT_ONU_AUTO_SUBGROUP_RANGING_COMPLETED:
                 {
-                    bcmolt_onu_key *key = &((bcmolt_onu_state_change*)msg)->key;
-                    bcmolt_onu_state_change_data *data = &((bcmolt_onu_state_change*)msg)->data;
+                    bcmolt_onu_key *key = &((bcmolt_onu_ranging_completed*)msg)->key;
+                    bcmolt_onu_ranging_completed_data *data = &((bcmolt_onu_ranging_completed*)msg)->data;
 
-                    BCM_LOG(INFO, openolt_log_id, "onu indication, pon_ni %d, onu_id %d, onu_state %d\n", key->pon_ni, key->onu_id, data->new_onu_state);
+                    BCM_LOG(INFO, openolt_log_id, "onu indication, pon_ni %d, onu_id %d, onu_state %s\n", 
+                        key->pon_ni, key->onu_id, (data->status==BCMOLT_RESULT_SUCCESS)?"up":"down");
 
                     onu_ind->set_intf_id(key->pon_ni);
                     onu_ind->set_onu_id(key->onu_id);
-                    if (ONU_STATE_IF_UP(data->new_onu_state))
+                    if (ONU_RANGING_STATE_IF_UP(data->status))
                         onu_ind->set_oper_state("up");
-                    if (ONU_STATE_IF_DOWN(data->new_onu_state))
+                    if (ONU_RANGING_STATE_IF_DOWN(data->status))
                         onu_ind->set_oper_state("down");
 
                     ind.set_allocated_onu_ind(onu_ind);
@@ -713,17 +697,18 @@ static void OnuActivationFailureIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     switch (msg->obj_type) {
         case BCMOLT_OBJ_ID_ONU:
             switch (msg->subgroup) {
-                case BCMOLT_ONU_AUTO_SUBGROUP_ONU_ACTIVATION_COMPLETED:
+                case BCMOLT_ONU_AUTO_SUBGROUP_ONU_DEACTIVATION_COMPLETED:
                 {
                     bcmolt_onu_key *key = &((bcmolt_onu_onu_activation_completed*)msg)->key;
                     bcmolt_onu_onu_activation_completed_data *data = 
                         &((bcmolt_onu_onu_activation_completed*)msg)->data;
 
-                    BCM_LOG(WARNING, openolt_log_id, "onu activation failure indication, intf_id %d, onu_id %d, fail_reason %d\n",
+                    BCM_LOG(INFO, openolt_log_id, "Got onu deactivation, intf_id %d, onu_id %d, fail_reason %d\n",
                         key->pon_ni, key->onu_id, data->fail_reason);
 
                     activation_fail_ind->set_intf_id(key->pon_ni);
                     activation_fail_ind->set_onu_id(key->onu_id);
+                    activation_fail_ind->set_fail_reason(data->fail_reason);
                     alarm_ind->set_allocated_onu_activation_fail_ind(activation_fail_ind);
 
                     ind.set_allocated_alarm_ind(alarm_ind);
@@ -872,7 +857,8 @@ Status SubscribeIndication() {
     rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
     rx_cfg.rx_cb = OnuIndication;
     rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
-    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_state_change;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_ranging_completed;
+
     rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu indication subscribe failed");
@@ -942,7 +928,7 @@ Status SubscribeIndication() {
     rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
     rx_cfg.rx_cb = OnuActivationFailureIndication;
     rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
-    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_onu_activation_completed;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_onu_deactivation_completed;
     rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, 

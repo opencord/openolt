@@ -474,6 +474,7 @@ message OnuTransmissionInterferenceWarning {
 message OnuActivationFailureIndication {
     fixed32 intf_id = 1;
     fixed32 onu_id = 2;
+    fixed32 fail_reason = 3;
 }
 
 message OnuProcessingErrorIndication {

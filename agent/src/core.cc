@@ -354,7 +354,7 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
 
     // Legacy, device-wide ranges. To be deprecated when adapter
     // is upgraded to support per-interface ranges
-    if (board_technology == "XGPON") {
+    if (board_technology == "XGS-PON") {
         device_info->set_onu_id_start(1);
         device_info->set_onu_id_end(255);
         device_info->set_alloc_id_start(MIN_ALLOC_ID_XGSPON);
@@ -604,17 +604,19 @@ Status Enable_(int argc, char *argv[]) {
                     bcmolt_device_key key = {.device_id = dev};
                     bcmolt_device_connect oper;
                     bcmolt_device_cfg cfg;
-                    BCM_LOG(INFO, openolt_log_id, "Enable Maple - %d/%d\n", dev, BCM_MAX_DEVS_PER_LINE_CARD);
+                    BCM_LOG(INFO, openolt_log_id, "Enable Maple - %d/%d\n", dev + 1, BCM_MAX_DEVS_PER_LINE_CARD);
                     BCMOLT_OPER_INIT(&oper, device, connect, key);
                     BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
-                    BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_XGPON__2_X);
+                    BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_XGS__2_X);
                     err = bcmolt_oper_submit(dev_id, &oper.hdr);
                     if (err) 
                         BCM_LOG(ERROR, openolt_log_id, "Enable Maple deivce %d failed\n", dev);
                     bcmos_usleep(200000);
                 }
-                else
+                else {
                     BCM_LOG(ERROR, openolt_log_id, "Maple deivce %d already connected\n", dev);
+                    state.activate();
+                }
             }
             init_stats();
         }
@@ -690,6 +692,7 @@ bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_s
 
 Status EnablePonIf_(uint32_t intf_id) {
     bcmos_errno err = BCM_ERR_OK; 
+    bcmolt_pon_interface_cfg interface_obj;
     bcmolt_pon_interface_key intf_key = {.pon_ni = (bcmolt_interface)intf_id};
     bcmolt_pon_interface_set_pon_interface_state pon_interface_set_state;
     bcmolt_interface_state state;
@@ -701,9 +704,20 @@ Status EnablePonIf_(uint32_t intf_id) {
             return Status::OK;
         }
     } 
+    BCMOLT_CFG_INIT(&interface_obj, pon_interface, intf_key);
     BCMOLT_OPER_INIT(&pon_interface_set_state, pon_interface, set_pon_interface_state, intf_key);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, discovery.control, BCMOLT_CONTROL_STATE_ENABLE);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, discovery.interval, 5000);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, discovery.onu_post_discovery_mode,
+        BCMOLT_ONU_POST_DISCOVERY_MODE_ACTIVATE);
     BCMOLT_FIELD_SET(&pon_interface_set_state.data, pon_interface_set_pon_interface_state_data,
         operation, BCMOLT_INTERFACE_OPERATION_ACTIVE_WORKING);
+
+    err = bcmolt_cfg_set(dev_id, &interface_obj.hdr);
+    if (err != BCM_ERR_OK) {
+        BCM_LOG(ERROR, openolt_log_id, "Failed to enable discovery onu: %d\n", intf_id);
+        return bcm_to_grpc_err(err, "Failed to enable discovery onu");
+    }
     err = bcmolt_oper_submit(dev_id, &pon_interface_set_state.hdr);
     if (err != BCM_ERR_OK) {
         BCM_LOG(ERROR, openolt_log_id, "Failed to enable PON interface: %d\n", intf_id);
@@ -790,10 +804,10 @@ Status ProbeDeviceCapabilities_() {
             olt_cfg.data.bal_state == BCMOLT_BAL_STATE_BAL_AND_SWITCH_READY 
             ? "up" : "down");
 
-    BCM_LOG(INFO, openolt_log_id, "--------------- version %s object model: %d\n", 
+    BCM_LOG(INFO, openolt_log_id, "version %s object model: %d\n", 
         bal_version.c_str(), BAL_API_VERSION);
 
-    BCM_LOG(INFO, openolt_log_id, "--------------- topology nni:%d pon:%d dev:%d ppd:%d family: %s\n",
+    BCM_LOG(INFO, openolt_log_id, "topology nni:%d pon:%d dev:%d ppd:%d family: %s\n",
             num_of_nni_ports,
             num_of_pon_ports,
             BCM_MAX_DEVS_PER_LINE_CARD,
@@ -825,7 +839,7 @@ Status ProbePonIfTechnology_() {
             if(err != BCM_ERR_RANGE) BCM_LOG(ERROR, openolt_log_id, "Failed to get PON config: %d\n", intf_id);
         }
         else {
-            if (board_technology == "XGPON") {
+            if (board_technology == "XGS-PON") {
                 switch(interface_obj.data.xgpon_trx.transceiver_type) {
                     case BCMOLT_XGPON_TRX_TYPE_LTH_7222_PC:
                     case BCMOLT_XGPON_TRX_TYPE_WTD_RTXM266_702: 
@@ -834,7 +848,7 @@ Status ProbePonIfTechnology_() {
                     case BCMOLT_XGPON_TRX_TYPE_LTH_5302_PC: 
                     case BCMOLT_XGPON_TRX_TYPE_LTH_7226_A_PC_PLUS: 
                     case BCMOLT_XGPON_TRX_TYPE_D272RR_SSCB_DM: 
-                        intf_technologies[intf_id] = "XGPON";
+                        intf_technologies[intf_id] = "XGS-PON";
                         break;
                 }
             } else if (board_technology == "GPON") {
@@ -921,30 +935,42 @@ Status DisablePonIf_(uint32_t intf_id) {
 
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific, uint32_t pir) {
-
-    bcmolt_onu_cfg cfg_obj;
-    bcmolt_onu_key key;
+    bcmos_errno err = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key;
     bcmolt_serial_number serial_number; /**< ONU serial number */
     bcmolt_bin_str_36 registration_id; /**< ONU registration ID */
 
-    BCM_LOG(INFO, openolt_log_id,  "Enabling ONU %d on PON %d : vendor id %s, vendor specific %s, pir %d\n",
-        onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str(), pir);
+    onu_key.onu_id = onu_id;
+    onu_key.pon_ni = intf_id;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
+    err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
+    if (err == BCM_ERR_OK) { 
+        if ((onu_cfg.data.onu_state == BCMOLT_ONU_STATE_PROCESSING || 
+             onu_cfg.data.onu_state == BCMOLT_ONU_STATE_ACTIVE) ||
+           (onu_cfg.data.onu_state == BCMOLT_ONU_STATE_INACTIVE &&
+				onu_cfg.data.onu_old_state == BCMOLT_ONU_STATE_NOT_CONFIGURED))
+            return Status::OK;
+    }
 
-    key.onu_id = onu_id;
-    key.pon_ni = intf_id;
-    BCMOLT_CFG_INIT(&cfg_obj, onu, key);
+    BCM_LOG(INFO, openolt_log_id,  "Enabling ONU %d on PON %d : vendor id %s, \
+        vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id, 
+        vendor_specific_to_str(vendor_specific).c_str(), pir);
+
     memcpy(serial_number.vendor_id.arr, vendor_id, 4);
     memcpy(serial_number.vendor_specific.arr, vendor_specific, 4);
-    BCMOLT_MSG_FIELD_SET(&cfg_obj, itu.serial_number, serial_number);
-    BCMOLT_MSG_FIELD_SET(&cfg_obj, itu.auto_learning, BCMOS_TRUE);
-	 /*set burst and data profiles to fec disabled*/
-	 BCMOLT_MSG_FIELD_SET(&cfg_obj, itu.xgpon.ranging_burst_profile, 0);
-	 BCMOLT_MSG_FIELD_SET(&cfg_obj, itu.xgpon.data_burst_profile, 1);
-
-    bcmos_errno err = bcmolt_cfg_set(dev_id, &cfg_obj.hdr);	
-    if (err) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to enable ONU %d on PON %d\n", onu_id, intf_id);
-        return bcm_to_grpc_err(err, "Failed to enable ONU");
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    BCMOLT_MSG_FIELD_SET(&onu_cfg, onu_rate, BCMOLT_ONU_RATE_RATE_10G_DS_10G_US);
+    BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.serial_number, serial_number);
+    BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.auto_learning, BCMOS_TRUE);
+    /*set burst and data profiles to fec disabled*/
+    BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.ranging_burst_profile, 0);
+    BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.data_burst_profile, 1);
+    err = bcmolt_cfg_set(dev_id, &onu_cfg.hdr);	
+    if (err != BCM_ERR_OK) {
+        BCM_LOG(ERROR, openolt_log_id, "Failed to set activate ONU %d on PON %d, err %d\n", onu_id, intf_id, err);
+        return bcm_to_grpc_err(err, "Failed to activate ONU");
     }
 
     return Status::OK;
@@ -952,24 +978,31 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
 
 Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific) {
+    bcmos_errno err = BCM_ERR_OK;
+    bcmolt_onu_set_onu_state onu_oper; /* declare main API struct */
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key; /**< Object key. */
+    bcmolt_onu_state onu_state;
 
-    bcmolt_onu_cfg cfg_obj;
-    bcmolt_onu_key key;
-    bcmolt_serial_number serial_number; /**< ONU serial number */
-    bcmolt_bin_str_36 registration_id; /**< ONU registration ID */
-
-    BCM_LOG(INFO, openolt_log_id,  "Deactivating ONU %d on PON %d : vendor id %s, vendor specific %s\n",
-        onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str());
-
-    key.onu_id= onu_id;
-    key.pon_ni = intf_id;
-    BCMOLT_CFG_INIT(&cfg_obj, onu, key);
-    BCMOLT_MSG_FIELD_SET(&cfg_obj, onu_state, BCMOLT_ONU_STATE_INACTIVE);
-
-    bcmos_errno err = bcmolt_cfg_set(dev_id, &cfg_obj.hdr);	
-    if (err) {
-        BCM_LOG(ERROR, openolt_log_id,  "Failed to deactivate ONU %d on PON %d\n", onu_id, intf_id);
-        return Status(grpc::StatusCode::INTERNAL, "Failed to deactivate ONU");
+    onu_key.onu_id = onu_id;
+    onu_key.pon_ni = intf_id;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
+    err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
+    if (err == BCM_ERR_OK) { 
+        switch (onu_state) {
+            case BCMOLT_ONU_OPERATION_ACTIVE:
+                BCMOLT_OPER_INIT(&onu_oper, onu, set_onu_state, onu_key);
+                BCMOLT_FIELD_SET(&onu_oper.data, onu_set_onu_state_data, 
+                    onu_state, BCMOLT_ONU_OPERATION_INACTIVE);
+                err = bcmolt_oper_submit(dev_id, &onu_oper.hdr);
+                if (err != BCM_ERR_OK) {
+                    BCM_LOG(ERROR, openolt_log_id, "Failed to \
+                        deactivate ONU %d on PON %d, err %d\n", onu_id, intf_id, err);
+                    return bcm_to_grpc_err(err, "Failed to deactivate ONU");
+                }
+                break;
+        }
     }
 
     return Status::OK;

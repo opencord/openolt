@@ -153,10 +153,10 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
             {
                 bcmolt_onu_key key;
                 key.pon_ni = (bcmolt_interface)intf_ref.intf_id;
+                BCMOLT_STAT_INIT(&pon_stats, onu, itu_pon_stats, key);
                 BCMOLT_MSG_FIELD_GET(&pon_stats, rx_bytes);
                 BCMOLT_MSG_FIELD_GET(&pon_stats, rx_packets);
                 BCMOLT_MSG_FIELD_GET(&pon_stats, tx_bytes);
-                BCMOLT_STAT_INIT(&pon_stats, onu, itu_pon_stats, key);
 
                 /* call API */
                 err = bcmolt_stat_get((bcmolt_oltid)device_id, &pon_stats.hdr, clear_on_read);
