@@ -58,7 +58,7 @@ dev_log_id omci_log_id = bcm_dev_log_id_register("OMCI", DEV_LOG_LEVEL_INFO, DEV
 #define MAX_SUPPORTED_INTF 16
 #define BAL_RSC_MANAGER_BASE_TM_SCHED_ID 16384
 #define MAX_TM_QUEUE_ID 8192
-#define MAX_TM_SCHED_ID 16384
+#define MAX_TM_SCHED_ID 1003
 #define EAP_ETHER_TYPE 34958
 
 static unsigned int num_of_nni_ports = 0;
@@ -71,8 +71,8 @@ static std::string chip_family(UNKNOWN_TECH);
 static unsigned int OPENOLT_FIELD_LEN = 200;
 static std::string firmware_version = "Openolt.2018.10.04";
 
-const uint32_t tm_upstream_sched_id_start = 18432;
-const uint32_t tm_downstream_sched_id_start = 16384;
+const uint32_t tm_upstream_sched_id_start = 1020;
+const uint32_t tm_downstream_sched_id_start = 1004;
 //0 to 3 are default queues. Lets not use them.
 const uint32_t tm_queue_id_start = 4;
 // Upto 8 fixed Upstream. Queue id 0 to 3 are pre-created, lets not use them.
@@ -723,6 +723,11 @@ Status EnablePonIf_(uint32_t intf_id) {
         BCM_LOG(ERROR, openolt_log_id, "Failed to enable PON interface: %d\n", intf_id);
         return bcm_to_grpc_err(err, "Failed to enable PON interface");
     }
+    else {
+        BCM_LOG(INFO, openolt_log_id, "Successfully enabled PON interface: %d\n", intf_id);
+        BCM_LOG(INFO, openolt_log_id, "Initializing tm sched creation for PON interface: %d\n", intf_id);
+        CreateDefaultSchedQueue_(intf_id, downstream);
+    }
 
     return Status::OK;
 }
@@ -901,6 +906,8 @@ Status EnableUplinkIf_(uint32_t intf_id) {
     if (err == BCM_ERR_OK) {
         if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
             BCM_LOG(INFO, openolt_log_id, "NNI interface: %d already enabled\n", intf_id);
+            BCM_LOG(INFO, openolt_log_id, "Initializing tm sched creation for NNI interface: %d\n", intf_id);
+            CreateDefaultSchedQueue_(intf_id, upstream);
             return Status::OK;
         }
     }
@@ -912,6 +919,11 @@ Status EnableUplinkIf_(uint32_t intf_id) {
     if (err != BCM_ERR_OK) {
         BCM_LOG(ERROR, openolt_log_id, "Failed to enable NNI interface: %d, err %d\n", intf_id, err);
         return bcm_to_grpc_err(err, "Failed to enable NNI interface");
+    }
+    else {
+        BCM_LOG(INFO, openolt_log_id, "Successfully enabled NNI interface: %d\n", intf_id);
+        BCM_LOG(INFO, openolt_log_id, "Initializing tm sched creation for NNI interface: %d\n", intf_id);
+        CreateDefaultSchedQueue_(intf_id, upstream);
     }
 
     return Status::OK;
@@ -1170,7 +1182,7 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt, bcmolt_flow_id 
     bcmolt_flow_send_eth_packet oper; /* declare main API struct */
 
     key.flow_id = flow_id;
-    key.flow_type = BCMOLT_FLOW_TYPE_UPSTREAM; /* send from uplink dirction */
+    key.flow_type = BCMOLT_FLOW_TYPE_UPSTREAM; /* send from uplink direction */
 
     /* Initialize the API struct. */
     BCMOLT_OPER_INIT(&oper, flow, send_eth_packet, key);
@@ -1495,6 +1507,79 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
     return Status::OK;
 }
 
+Status CreateDefaultSchedQueue_(uint32_t intf_id, const std::string direction) {
+    bcmos_errno err;
+    bcmolt_tm_sched_cfg tm_sched_cfg;
+    bcmolt_tm_sched_key tm_sched_key = {.id = 1};
+    tm_sched_key.id = get_default_tm_sched_id(intf_id, direction);
+
+    // bcmbal_tm_sched_owner
+    BCMOLT_CFG_INIT(&tm_sched_cfg, tm_sched, tm_sched_key);
+
+    /**< The output of the tm_sched object instance */
+    BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.type, BCMOLT_TM_SCHED_OUTPUT_TYPE_INTERFACE);
+
+    if (direction.compare(upstream) == 0) {
+        // In upstream it is NNI scheduler
+        BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.u.interface.interface_ref.intf_type, BCMOLT_INTERFACE_TYPE_NNI);
+    } else if (direction.compare(downstream) == 0) {
+        // In downstream it is PON scheduler
+        BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.u.interface.interface_ref.intf_type, BCMOLT_INTERFACE_TYPE_PON);
+    }
+
+    BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.u.interface.interface_ref.intf_id, intf_id);
+
+    // bcmbal_tm_sched_type
+    // set the deafult policy to strict priority
+    BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, sched_type, BCMOLT_TM_SCHED_TYPE_SP);
+
+    // num_priorities: Max number of strict priority scheduling elements
+    BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, num_priorities, 4);
+
+    // bcmbal_tm_shaping
+    uint32_t cir = 1000000;
+    uint32_t pir = 1000000;
+    uint32_t burst = 65536;
+    BCM_LOG(INFO, openolt_log_id, "applying traffic shaping in %s pir=%u, burst=%u\n",
+       direction.c_str(), pir, burst);
+    BCMOLT_FIELD_SET_PRESENT(&tm_sched_cfg.data.rate, tm_shaping, pir);
+    BCMOLT_FIELD_SET_PRESENT(&tm_sched_cfg.data.rate, tm_shaping, burst);
+    // FIXME: Setting CIR, results in BAL throwing error 'tm_sched minimum rate is not supported yet'
+    // BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, rate.cir, cir);
+    BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, rate.pir, pir);
+    BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, rate.burst, burst);
+
+    err = bcmolt_cfg_set(dev_id, &tm_sched_cfg.hdr);
+    if (err) {
+        BCM_LOG(ERROR, openolt_log_id, "Failed to create %s scheduler, id %d, intf_id %d\n", direction.c_str(), tm_sched_key.id, intf_id);
+        return Status(grpc::StatusCode::INTERNAL, "Failed to create %s scheduler", direction.c_str());
+    }
+    BCM_LOG(INFO, openolt_log_id, "Create %s scheduler success, id %d, intf_id %d\n", direction.c_str(), tm_sched_key.id, intf_id);
+
+    // Create 4 Queues for each default PON scheduler
+    for (int queue_id = 0; queue_id < 4; queue_id++) {
+        bcmolt_tm_queue_cfg tm_queue_cfg;
+        bcmolt_tm_queue_key tm_queue_key = {};
+        tm_queue_key.sched_id = get_default_tm_sched_id(intf_id, direction);
+        tm_queue_key.id = queue_id;
+
+        BCMOLT_CFG_INIT(&tm_queue_cfg, tm_queue, tm_queue_key);
+        BCMOLT_MSG_FIELD_SET(&tm_queue_cfg, tm_sched_param.type, BCMOLT_TM_SCHED_PARAM_TYPE_PRIORITY);
+        BCMOLT_MSG_FIELD_SET(&tm_queue_cfg, tm_sched_param.u.priority.priority, queue_id);
+
+        err = bcmolt_cfg_set(dev_id, &tm_queue_cfg.hdr);
+        if (err) {
+            BCM_LOG(ERROR, openolt_log_id, "Failed to create %s tm queue, id %d, sched_id %d\n", \
+                    direction.c_str(), tm_queue_key.id, tm_queue_key.sched_id);
+            return Status(grpc::StatusCode::INTERNAL, "Failed to create %s tm queue", direction.c_str());
+        }
+
+        BCM_LOG(INFO, openolt_log_id, "Create %s tm_queue success, id %d, sched_id %d\n", \
+                direction.c_str(), tm_queue_key.id, tm_queue_key.sched_id);
+    }
+    return Status::OK;
+}
+
 bcmos_errno CreateSched(std::string direction, uint32_t intf_id, uint32_t onu_id, uint32_t uni_id, uint32_t port_no,
                  uint32_t alloc_id, tech_profile::AdditionalBW additional_bw, uint32_t weight, uint32_t priority,
                  tech_profile::SchedulingPolicy sched_policy, tech_profile::TrafficShapingInfo tf_sh_info) {
@@ -1502,67 +1587,62 @@ bcmos_errno CreateSched(std::string direction, uint32_t intf_id, uint32_t onu_id
     bcmos_errno err;
 
     if (direction == downstream) {
+        bcmolt_tm_sched_cfg tm_sched_cfg;
+        bcmolt_tm_sched_key tm_sched_key = {.id = 1};
+        tm_sched_key.id = get_tm_sched_id(intf_id, onu_id, uni_id, direction);
 
-        bcmolt_tm_sched_cfg cfg;
-        bcmolt_tm_sched_key key = { };
-        key.id = get_tm_sched_id(intf_id, onu_id, uni_id, direction);
+        // bcmbal_tm_sched_owner
+        // In downstream it is sub_term scheduler
+        BCMOLT_CFG_INIT(&tm_sched_cfg, tm_sched, tm_sched_key);
 
-        BCMOLT_CFG_INIT(&cfg, tm_sched, key);
+        /**< The output of the tm_sched object instance */
+        BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.type, BCMOLT_TM_SCHED_OUTPUT_TYPE_TM_SCHED);
 
-        {
-            // bcmbal_tm_sched_owner
-            // In downstream it is sub_term scheduler
-            bcmolt_tm_sched_attachment_point attachment_point; /**< The output of the tm_sched object instance */
-            BCMOLT_MSG_FIELD_SET(&cfg , attachment_point.u.interface.interface_ref.intf_type, BCMOLT_INTERFACE_TYPE_PON);
-            BCMOLT_MSG_FIELD_SET(&cfg , attachment_point.u.interface.interface_ref.intf_id, intf_id);
-            /* removed by BAL v3.0, N/A - No direct attachment point of type ONU, same functionality may 
-               be achieved using the' virtual' type of attachment.
-            tm_sched_owner.u.sub_term.intf_id = intf_id;
-            tm_sched_owner.u.sub_term.sub_term_id = onu_id;
-            */
+        // bcmbal_tm_sched_parent
+        // The parent for the sub_term scheduler is the PON scheduler in the downstream
+        BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.u.tm_sched.tm_sched_id, get_default_tm_sched_id(intf_id, direction));
+        BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.u.tm_sched.tm_sched_param.u.priority.priority, priority);
+        /* removed by BAL v3.0, N/A - No direct attachment point of type ONU, same functionality may 
+           be achieved using the' virtual' type of attachment.
+        tm_sched_owner.u.sub_term.intf_id = intf_id;
+        tm_sched_owner.u.sub_term.sub_term_id = onu_id;
+        */
 
-            // bcmbal_tm_sched_type
-            // set the deafult policy to strict priority
-            BCMOLT_MSG_FIELD_SET(&cfg, sched_type, BCMOLT_TM_SCHED_TYPE_SP);
+        // bcmbal_tm_sched_type
+        // set the deafult policy to strict priority
+        BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, sched_type, BCMOLT_TM_SCHED_TYPE_SP);
 
-            // bcmbal_tm_sched_parent
-            // The parent for the sub_term scheduler is the PON scheduler in the downstream
+        // num_priorities: Max number of strict priority scheduling elements
+        BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, num_priorities, 8);
 
-            BCMOLT_MSG_FIELD_SET(&cfg , attachment_point.u.tm_sched.tm_sched_id, get_default_tm_sched_id(intf_id, downstream));
-            BCMOLT_FIELD_SET_PRESENT(&cfg.data.attachment_point.u.tm_sched.tm_sched_param.u.priority, tm_sched_param_priority, priority);
-            BCMOLT_MSG_FIELD_SET(&cfg , attachment_point.u.tm_sched.tm_sched_param.u.priority.priority, 1);
-
-            // num_priorities: Max number of strict priority scheduling elements
-            BCMOLT_MSG_FIELD_SET(&cfg, num_priorities, 8);
-
-            // bcmbal_tm_shaping
-            if (tf_sh_info.cir() >= 0 && tf_sh_info.pir() > 0) {
-                uint32_t cir = tf_sh_info.cir();
-                uint32_t pir = tf_sh_info.pir();
-                uint32_t burst = tf_sh_info.pbs();
-                BCM_LOG(INFO, openolt_log_id, "applying traffic shaping in DL cir=%u, pir=%u, burst=%u\n",
-                   cir, pir, burst);
-                BCMOLT_FIELD_SET_PRESENT(&cfg.data.rate, tm_shaping, pir);
-                BCMOLT_FIELD_SET_PRESENT(&cfg.data.rate, tm_shaping, burst);
-                // FIXME: Setting CIR, results in BAL throwing error 'tm_sched minimum rate is not supported yet'
-                BCMOLT_MSG_FIELD_SET(&cfg , rate.cir, cir);
-                BCMOLT_MSG_FIELD_SET(&cfg , rate.pir, pir);
-                BCMOLT_MSG_FIELD_SET(&cfg , rate.burst, burst);
-            }
+        // bcmbal_tm_shaping
+        if (tf_sh_info.cir() >= 0 && tf_sh_info.pir() > 0) {
+            uint32_t cir = tf_sh_info.cir();
+            uint32_t pir = tf_sh_info.pir();
+            uint32_t burst = tf_sh_info.pbs();
+            BCM_LOG(INFO, openolt_log_id, "applying traffic shaping in DL cir=%u, pir=%u, burst=%u\n",
+               cir, pir, burst);
+            BCMOLT_FIELD_SET_PRESENT(&tm_sched_cfg.data.rate, tm_shaping, pir);
+            BCMOLT_FIELD_SET_PRESENT(&tm_sched_cfg.data.rate, tm_shaping, burst);
+            // FIXME: Setting CIR, results in BAL throwing error 'tm_sched minimum rate is not supported yet'
+            //BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, rate.cir, cir);
+            BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, rate.pir, pir);
+            BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, rate.burst, burst);
         }
 
-        err = bcmolt_cfg_set(dev_id, &(cfg.hdr));
+        err = bcmolt_cfg_set(dev_id, &tm_sched_cfg.hdr);
         if (err) {
-            BCM_LOG(ERROR, openolt_log_id, "Failed to create downstream subscriber scheduler, id %d, intf_id %d, \
-                    onu_id %d, uni_id %d, port_no %u\n", key.id, intf_id, onu_id,uni_id,port_no);
+            BCM_LOG(ERROR, openolt_log_id, "Failed to create downstream subscriber scheduler, id %d, \
+                    intf_id %d, onu_id %d, uni_id %d, port_no %u\n", tm_sched_key.id, intf_id, onu_id, \
+                    uni_id, port_no);
             return err;
         }
         BCM_LOG(INFO, openolt_log_id, "Create downstream subscriber sched, id %d, intf_id %d, onu_id %d, \
-                uni_id %d, port_no %u\n", key.id,intf_id,onu_id,uni_id,port_no);
+                uni_id %d, port_no %u\n", tm_sched_key.id, intf_id, onu_id, uni_id, port_no);
 
     } else { //upstream
         bcmolt_itupon_alloc_cfg cfg;
-		  bcmolt_itupon_alloc_key key = { };
+        bcmolt_itupon_alloc_key key = { };
         key.pon_ni = intf_id;
         key.alloc_id = alloc_id;
 
@@ -1595,7 +1675,6 @@ bcmos_errno CreateSched(std::string direction, uint32_t intf_id, uint32_t onu_id
         BCMOLT_MSG_FIELD_SET(&cfg, sla.weight, 0);
         /**< Alloc ID Priority used in case of Extended DBA mode */
         BCMOLT_MSG_FIELD_SET(&cfg, sla.priority, 0);
-        BCMOLT_MSG_FIELD_SET(&cfg, onu_id, 2);
 
         err = bcmolt_cfg_set(dev_id, &(cfg.hdr));
         if (err) {
