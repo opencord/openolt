@@ -26,11 +26,12 @@ DEB_DH_INSTALL_SOURCEDIR = $(CURDIR)/debian/tmp
 
 override_dh_auto_install: 
 	mkdir -p $(DEB_DH_INSTALL_SOURCEDIR)/tmp
-	cp -a $(CURDIR)/debian/release_asfvolt16_V02.06.201804301043.tar.gz $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/release_asfvolt16_V3.0.3.201904171432.tar.gz $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 	cp -a $(CURDIR)/debian/libgrpc++.so.1 $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 	cp -a $(CURDIR)/debian/libgrpc.so.6 $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/libstdc++.so.6 $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/libbal_host_api.so $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 	cp -a $(CURDIR)/debian/openolt $(DEB_DH_INSTALL_SOURCEDIR)/tmp
-	cp -a $(CURDIR)/debian/init.d $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 	cp -a $(CURDIR)/debian/logrotate.d $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 
 #override_dh_shlibdeps:

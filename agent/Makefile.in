@@ -250,14 +250,17 @@ $(BUILD_DIR)/openolt: sdk protos $(OBJS)
 	ln -sf $(LIBGRPC_PATH)/libgrpc.so.6 $(BUILD_DIR)/libgrpc.so.6
 	ln -sf $(LIBGRPC_PATH)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++.so.1
 	ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 $(BUILD_DIR)/libstdc++.so.6
+	strip $(BUILD_DIR)/openolt
 src/%.o: src/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I./common -c $< -o $@
 
 deb:
-	cp $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz mkdebian/debian
+	cp $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz mkdebian/debian
 	cp $(BUILD_DIR)/openolt mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc.so.6 mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc++.so.1 mkdebian/debian
+	cp $(BUILD_DIR)/libstdc++.so.6 mkdebian/debian
+	cp $(BUILD_DIR)/libbal_host_api.so mkdebian/debian
 	cp -a scripts/init.d mkdebian/debian
 	cd mkdebian && ./build_$(OPENOLTDEVICE)_deb.sh
 	mv *.deb $(BUILD_DIR)/openolt.deb

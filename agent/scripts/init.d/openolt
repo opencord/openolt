@@ -15,7 +15,7 @@ PATH="/broadcom:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 APPDIR="/broadcom"
 #APPBIN="/broadcom/openolt"
 APPBIN="openolt"
-APPARGS="-C 127.0.0.1:55001"
+APPARGS=""
 USER="root"
 GROUP="root"
 
@@ -26,7 +26,7 @@ set -e
 start() {
   touch /var/log/$NAME.log
   printf "Starting '$NAME'... "
-  sleep 20
+  sleep 60
   start-stop-daemon --verbose --start --chuid "$USER:$GROUP" --background --no-close --make-pidfile --pidfile /var/run/$NAME.pid --chdir "$APPDIR" --exec "$APPBIN" -- $APPARGS < /dev/tty1 >> /var/log/$NAME.log 2>&1 || true
   printf "done\n"
 }

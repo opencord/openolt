@@ -10,12 +10,12 @@
 # Description:       Broadcom BAL core daemon
 ### END INIT INFO
 
-NAME="bal_core_dist"
+NAME="dev_mgmt_daemon"
 PATH="/broadcom:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 APPDIR="/broadcom"
-#APPBIN="/broadcom/bal_core_dist"
-APPBIN="bal_core_dist"
-APPARGS="-C :55001"
+APPBIN="dev_mgmt_daemon"
+APPARGS="-d -pcie"
+PID_FILE="root_dev_mgmt_pid"
 USER="root"
 GROUP="root"
 
