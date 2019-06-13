@@ -59,6 +59,9 @@ static void OmciIndication(bcmolt_devid olt, bcmolt_msg *msg);
        ((state == BCMOLT_RESULT_SUCCESS) ? BCMOS_TRUE : BCMOS_FALSE)
 #define ONU_RANGING_STATE_IF_DOWN(state) \
        ((state != BCMOLT_RESULT_SUCCESS) ? BCMOS_TRUE : BCMOS_FALSE)
+#define SET_OPER_STATE(indication,state) \
+       (INTERFACE_STATE_IF_UP(state)) ? indication->set_oper_state("up") : \
+       indication->set_oper_state("down")
 
 std::string bcmbal_to_grpc_intf_type(bcmolt_interface_type intf_type)
 {
@@ -159,10 +162,7 @@ static void IfIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                         &((bcmolt_pon_interface_state_change_completed*)msg)->data;
 
                     intf_ind->set_intf_id(key->pon_ni);
-				        if (INTERFACE_STATE_IF_UP(data->new_state))
-                        intf_ind->set_oper_state("up");
-                    if (INTERFACE_STATE_IF_DOWN(data->new_state))
-                        intf_ind->set_oper_state("down");
+                    SET_OPER_STATE(intf_ind, data->new_state);
                     ind.set_allocated_intf_ind(intf_ind);
                     break;
                 }
@@ -180,10 +180,7 @@ static void IfIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                         &((bcmolt_nni_interface_state_change *)msg)->data;
 
                     intf_ind->set_intf_id(key->id);
-				        if (INTERFACE_STATE_IF_UP(data->new_state))
-                        intf_ind->set_oper_state("up");
-                    if (INTERFACE_STATE_IF_DOWN(data->new_state))
-                        intf_ind->set_oper_state("down");
+                    SET_OPER_STATE(intf_ind, data->new_state);
                     ind.set_allocated_intf_ind(intf_ind);
                     break;
                 }
@@ -207,11 +204,7 @@ static void IfOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                     bcmolt_pon_interface_state_change_completed_data *data = &((bcmolt_pon_interface_state_change_completed*)msg)->data;
                     intf_oper_ind->set_intf_id(key->pon_ni);
                     intf_oper_ind->set_type(bcmbal_to_grpc_intf_type(BCMOLT_INTERFACE_TYPE_PON));
-			           if (INTERFACE_STATE_IF_UP(data->new_state))
-                        intf_oper_ind->set_oper_state("up");
-                    if (INTERFACE_STATE_IF_DOWN(data->new_state))
-                        intf_oper_ind->set_oper_state("down");
-
+                    SET_OPER_STATE(intf_oper_ind, data->new_state);
                     BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_type %s, intf_id %d, oper_state %s\n",
                         intf_oper_ind->type().c_str(), key->pon_ni, intf_oper_ind->oper_state().c_str());
                     ind.set_allocated_intf_oper_ind(intf_oper_ind);
@@ -228,12 +221,7 @@ static void IfOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                     bcmolt_interface_type intf_type = BCMOLT_INTERFACE_TYPE_NNI;
                     intf_oper_ind->set_intf_id(key->id);
                     intf_oper_ind->set_type(bcmbal_to_grpc_intf_type(BCMOLT_INTERFACE_TYPE_NNI));
-
-                    if (INTERFACE_STATE_IF_UP(data->new_state))
-                        intf_oper_ind->set_oper_state("up");
-                    if (INTERFACE_STATE_IF_DOWN(data->new_state))
-                        intf_oper_ind->set_oper_state("down");
-                    
+                    SET_OPER_STATE(intf_oper_ind, data->new_state);           
                     BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_type %s, intf_id %d, oper_state %s\n",
                         intf_oper_ind->type().c_str(), key->id, intf_oper_ind->oper_state().c_str());
                     ind.set_allocated_intf_oper_ind(intf_oper_ind);
@@ -361,17 +349,17 @@ static void OnuIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                     bcmolt_onu_key *key = &((bcmolt_onu_ranging_completed*)msg)->key;
                     bcmolt_onu_ranging_completed_data *data = &((bcmolt_onu_ranging_completed*)msg)->data;
 
-                    BCM_LOG(INFO, openolt_log_id, "onu indication, pon_ni %d, onu_id %d, onu_state %s\n", 
-                        key->pon_ni, key->onu_id, (data->status==BCMOLT_RESULT_SUCCESS)?"up":"down");
-
                     onu_ind->set_intf_id(key->pon_ni);
                     onu_ind->set_onu_id(key->onu_id);
                     if (ONU_RANGING_STATE_IF_UP(data->status))
                         onu_ind->set_oper_state("up");
                     if (ONU_RANGING_STATE_IF_DOWN(data->status))
                         onu_ind->set_oper_state("down");
-
+                    (key->onu_id)?onu_ind->set_admin_state("up"):onu_ind->set_admin_state("down");
                     ind.set_allocated_onu_ind(onu_ind);
+                    BCM_LOG(INFO, openolt_log_id, "onu indication, pon_ni %d, onu_id %d, onu_state %s, onu_admin %s\n", 
+                        key->pon_ni, key->onu_id, (data->status==BCMOLT_RESULT_SUCCESS)?"up":"down",
+                        (key->onu_id)?"up":"down");
                 }
             }
     }
@@ -797,14 +785,6 @@ Status SubscribeIndication() {
         return Status(grpc::StatusCode::INTERNAL, 
             "PON Interface operations state change indication subscribe failed");
 
-    rx_cfg.obj_type = BCMOLT_OBJ_ID_PON_INTERFACE;
-    rx_cfg.rx_cb = IfIndication;
-    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
-    rx_cfg.subgroup = bcmolt_pon_interface_auto_subgroup_state_change_completed;
-    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
-    if(rc != BCM_ERR_OK)
-        return Status(grpc::StatusCode::INTERNAL, "PON Interface indication subscribe failed");
-
     rx_cfg.obj_type = BCMOLT_OBJ_ID_NNI_INTERFACE;
     rx_cfg.rx_cb = IfOperIndication;
     rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
@@ -813,14 +793,6 @@ Status SubscribeIndication() {
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, 
             "NNI Interface operations state change indication subscribe failed");
-
-    rx_cfg.obj_type = BCMOLT_OBJ_ID_NNI_INTERFACE;
-    rx_cfg.rx_cb = IfIndication;
-    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
-    rx_cfg.subgroup = bcmolt_nni_interface_auto_subgroup_state_change;
-    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
-    if(rc != BCM_ERR_OK)
-        return Status(grpc::StatusCode::INTERNAL, "NNI Interface indication subscribe failed");
 
     rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
     rx_cfg.rx_cb = OnuAlarmIndication;
@@ -862,15 +834,6 @@ Status SubscribeIndication() {
     rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu indication subscribe failed");
-
-    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
-    rx_cfg.rx_cb = OnuOperIndication;
-    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
-    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_state_change;
-    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
-    if(rc != BCM_ERR_OK)
-        return Status(grpc::StatusCode::INTERNAL, 
-            "onu operational state change indication subscribe failed");
 
     rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
     rx_cfg.rx_cb = OnuStartupFailureIndication;

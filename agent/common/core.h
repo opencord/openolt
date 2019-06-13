@@ -63,6 +63,7 @@ Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues);
 uint32_t GetPortNum_(uint32_t flow_id);
 int get_status_bcm_cli_quit(void);
 uint16_t get_dev_id(void); 
+Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state);
 
 void stats_collection();
 #endif

@@ -50,16 +50,22 @@ int main(int argc, char** argv) {
     for (int i = 0; i < NumPonIf_(); i++) {
         status = EnablePonIf_(i);
         if (!status.ok()) {
-            // FIXME - raise alarm to report error in enabling PON
+            // raise alarm to report error in enabling PON
+            pushOltOperInd(i, "pon", "down");
         }
+        else
+            pushOltOperInd(i, "pon", "up");
     }
     sleep(2);
     // Enable all NNI interfaces.
     for (int i = 0; i < NumNniIf_(); i++) {
         status = EnableUplinkIf_(i);
         if (!status.ok()) {
-            // FIXME - raise alarm to report error in enabling PON
+            // raise alarm to report error in enabling PON
+            pushOltOperInd(i, "nni", "down");
         }
+        else
+            pushOltOperInd(i, "nni", "up");
     }
 
     RunServer();

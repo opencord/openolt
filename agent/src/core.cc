@@ -312,7 +312,7 @@ bool is_tm_queue_id_present(int pon_intf_id, int onu_id, int uni_id, int gemport
     return queue_map.count(key) > 0 ? true: false;
 }
 
-char* openolt_read_sysinfo(char* field_name, char* field_val)
+char* openolt_read_sysinfo(const char* field_name, char* field_val)
 {
    FILE *fp;
    /* Prepare the command*/
@@ -452,6 +452,19 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
     // device_info->set_gemport_id_end(XGPON_NUM_OF_GEM_PORT_IDS_PER_PON * num_of_pon_ports ? - 1);
     // device_info->set_pon_ports(num_of_pon_ports);
 
+    return Status::OK;
+}
+
+Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state)
+{
+	 openolt::Indication ind;
+	 openolt::IntfOperIndication* intf_oper_ind = new openolt::IntfOperIndication;
+
+	 intf_oper_ind->set_type(type);
+	 intf_oper_ind->set_intf_id(intf_id);
+	 intf_oper_ind->set_oper_state(state);
+	 ind.set_allocated_intf_oper_ind(intf_oper_ind);
+	 oltIndQ.push(ind);
     return Status::OK;
 }
 
@@ -651,12 +664,8 @@ Status Disable_() {
     Status status = DisableUplinkIf_(nni_intf_id);
     if (status.ok()) {
         state.deactivate();
-        openolt::Indication ind;
-        openolt::OltIndication* olt_ind = new openolt::OltIndication;
-        olt_ind->set_oper_state("down");
-        ind.set_allocated_olt_ind(olt_ind);
         BCM_LOG(INFO, openolt_log_id, "Disable OLT, add an extra indication\n");
-        oltIndQ.push(ind);
+        pushOltOperInd(nni_intf_id, "nni", "up");
     }
     return status;
 
@@ -666,12 +675,8 @@ Status Reenable_() {
     Status status = EnableUplinkIf_(0);
     if (status.ok()) {
         state.activate();
-        openolt::Indication ind;
-        openolt::OltIndication* olt_ind = new openolt::OltIndication;
-        olt_ind->set_oper_state("up");
-        ind.set_allocated_olt_ind(olt_ind);
         BCM_LOG(INFO, openolt_log_id, "Reenable OLT, add an extra indication\n");
-        oltIndQ.push(ind);
+        pushOltOperInd(0, "nni", "up");
     }
     return status;
 }
