@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-DEVMEM_MAJOR=`cat /sys/module/devmem/parameters/bcmolt_devmem_chrdev_major`
 # kill CLI applications
 echo "kill running time application"
 [ -n "`pidof dev_mgmt_daemon`" ] && killall dev_mgmt_daemon
@@ -45,7 +44,6 @@ rm -rf /dev/linux-kernel-bde
 rm -rf /dev/coop_dba_example
 rm -rf /dev/coop_dba
 for i in {0..7}; do
-    MAJOR=$(($DEVMEM_MAJOR + $i))
     [ ! -f /dev/bcmolt_devmem_sram$i ] && rm -f /dev/bcmolt_devmem_sram$i
     [ ! -f /dev/bcmolt_devmem_ddr$i ] && rm -f /dev/bcmolt_devmem_ddr$i
     [ ! -f /dev/bcmolt_devmem_regs$i ] && rm -f /dev/bcmolt_devmem_regs$i

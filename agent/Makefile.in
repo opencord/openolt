@@ -61,7 +61,7 @@ SYSTEM ?= $(HOST_SYSTEM)
 LIBGRPC_PATH=$(shell pkg-config --libs-only-L grpc | sed s/-L// | sed s/\ //g)
 LIBPROTOBUF_PATH=$(shell PKG_CONFIG_ALLOW_SYSTEM_LIBS=true pkg-config --libs-only-L protobuf | sed s/-L// | sed s/\ //g)
 
-CXX = @CXX@
+CXX = @CXX@-4.9
 CXXFLAGS += @CXXFLAGS@
 CXXFLAGS += $(shell pkg-config --cflags-only-I grpc++)
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
@@ -74,7 +74,7 @@ export CXX CXXFLAGS
 
 prereq:
 	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
-	sudo apt-get install -y build-essential autoconf libssl-dev gawk debhelper dh-systemd init-system-helpers
+	sudo apt-get install -y build-essential autoconf libssl-dev gawk debhelper dh-systemd init-system-helpers curl cmake ccache g++-4.9
 
 	# Install GRPC, libprotobuf and protoc
 	rm -rf $(GRPC_DST)

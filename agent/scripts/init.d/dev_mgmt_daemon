@@ -14,7 +14,7 @@ NAME="dev_mgmt_daemon"
 PATH="/broadcom:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 APPDIR="/broadcom"
 APPBIN="dev_mgmt_daemon"
-APPARGS="-d -pcie"
+APPARGS="-pcie -syslog"
 PID_FILE="root_dev_mgmt_pid"
 USER="root"
 GROUP="root"
@@ -24,9 +24,9 @@ set -e
 . /lib/lsb/init-functions
 
 start() {
-  touch /var/log/$NAME.log
   printf "Starting '$NAME'... "
-  start-stop-daemon --verbose --start --chuid "$USER:$GROUP" --background --no-close --make-pidfile --pidfile /var/run/$NAME.pid --chdir "$APPDIR" --exec "$APPBIN" -- $APPARGS < /dev/tty1 >> /var/log/$NAME.log 2>&1 || true
+  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$APPDIR
+  start-stop-daemon --verbose --start --chuid "$USER:$GROUP" --background --no-close --chdir "$APPDIR" --exec "$APPBIN" -- $APPARGS 2>&1 || true
   printf "done\n"
 }
 
@@ -42,17 +42,17 @@ killtree() {
 
 stop() {
   printf "Stopping '$NAME'... "
-  [ -z `cat /var/run/$NAME.pid 2>/dev/null` ] || \
-  while test -d /proc/$(cat /var/run/$NAME.pid); do
-    killtree $(cat /var/run/$NAME.pid) 15
+  [ -z `cat /tmp/$PID_FILE 2>/dev/null` ] || \
+  while test -d /proc/$(cat /tmp/$PID_FILE); do
+    killtree $(cat /tmp/$PID_FILE) 15
     sleep 0.5
   done 
-  [ -z `cat /var/run/$NAME.pid 2>/dev/null` ] || rm /var/run/$NAME.pid
+  [ -z `cat /tmp/$PID_FILE 2>/dev/null` ] || rm /tmp/$PID_FILE
   printf "done\n"
 }
 
 status() {
-  status_of_proc -p /var/run/$NAME.pid $APPDIR/$APPBIN $NAME && exit 0 || exit $?
+  status_of_proc -p /tmp/$PID_FILE $APPDIR/$APPBIN $NAME && exit 0 || exit $?
 }
 
 case "$1" in
