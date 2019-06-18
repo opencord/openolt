@@ -169,6 +169,10 @@ ifeq ("$(wildcard $(BAL_DIR))","")
 	cp download/$(SDK_ZIP) $(BCM_SDK)
 	chmod -R 744 $(BAL_DIR)
 	cat download/$(ACCTON_PATCH) | patch -p1 -d $(BAL_DIR)
+	# For fixed Broadcom bug, The patch file have provided temporary change in BAL v3.0
+	# Broadcom CS8250563: Getting the wrong state using NNI interface?
+	# Broadcom CS8341292: I got error message "Failed to allocate message for NNI state change!"
+	cat download/ACCTON_BAL_$(BAL_VER)-V$(DEV_VER)_r1-bug-fixed.patch | patch -p1 -d $(BAL_DIR)
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) ONL_DIR=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux SW_UTIL_SHELL=y OPEN_SOURCE=y
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
 endif
