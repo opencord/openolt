@@ -695,6 +695,56 @@ bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_s
     return err;
 }
 
+uint64_t get_flow_status(uint16_t flow_id, uint16_t data_id) {
+    bcmos_errno err;
+    bcmolt_flow_key flow_key;
+    bcmolt_flow_cfg flow_cfg;
+
+    flow_key.flow_id = flow_id;
+
+    BCMOLT_CFG_INIT(&flow_cfg, flow, flow_key);
+
+    switch (data_id) {
+        case INTF_TYPE: //intf_type
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, ingress_intf);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                BCM_LOG(ERROR, openolt_log_id,  "Failed to get intf_type\n");
+                return err;
+            }
+            return flow_cfg.data.ingress_intf.intf_type;
+        case INTF_ID: //intf_id
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, ingress_intf);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                BCM_LOG(ERROR, openolt_log_id,  "Failed to get intf_id\n");
+                return err;
+            }
+            return flow_cfg.data.ingress_intf.intf_id;
+
+        case SVC_PORT_ID: //svc_port_id
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, svc_port_id);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                BCM_LOG(ERROR, openolt_log_id,  "Failed to get svc_port_id\n");
+                return err;
+            }
+            return flow_cfg.data.svc_port_id;
+        case COOKIE: //cookie 
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, cookie);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                BCM_LOG(ERROR, openolt_log_id,  "Failed to get cookie\n");
+                return err;
+            }
+            return flow_cfg.data.cookie;
+        default:
+            return BCM_ERR_INTERNAL;
+    }
+
+	 return err;
+}
+
 Status EnablePonIf_(uint32_t intf_id) {
     bcmos_errno err = BCM_ERR_OK; 
     bcmolt_pon_interface_cfg interface_obj;
@@ -1231,7 +1281,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
     uint32_t ether_type = 0;
 
     BCM_LOG(INFO, openolt_log_id, "flow add - intf_id %d, onu_id %d, uni_id %d, port_no %u, flow_id %d, flow_type %s, \
-            gemport_id %d, network_intf_id %d, cookie %"PRIu64"\n", \
+gemport_id %d, network_intf_id %d, cookie %"PRIu64"\n", \
             access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type.c_str(), gemport_id, network_intf_id, cookie);
 
     key.flow_id = flow_id;

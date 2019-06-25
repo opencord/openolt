@@ -28,6 +28,13 @@ using grpc::Status;
 
 extern State state;
 
+enum FLOW_CFG {
+    INTF_TYPE = 0,
+    INTF_ID = 1,
+	 SVC_PORT_ID = 2,
+	 COOKIE = 3
+};
+
 Status Enable_(int argc, char *argv[]);
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific, uint32_t pir);
@@ -64,6 +71,7 @@ uint32_t GetPortNum_(uint32_t flow_id);
 int get_status_bcm_cli_quit(void);
 uint16_t get_dev_id(void); 
 Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state);
+uint64_t get_flow_status(uint16_t flow_id, uint16_t data_id);
 
 void stats_collection();
 #endif

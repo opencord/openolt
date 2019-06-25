@@ -62,8 +62,12 @@ static void OmciIndication(bcmolt_devid olt, bcmolt_msg *msg);
 #define SET_OPER_STATE(indication,state) \
        (INTERFACE_STATE_IF_UP(state)) ? indication->set_oper_state("up") : \
        indication->set_oper_state("down")
+#define GET_FLOW_TYPE(type) \
+       (type == BCMOLT_FLOW_TYPE_UPSTREAM) ? "upstream" : \
+       (type == BCMOLT_FLOW_TYPE_DOWNSTREAM) ? "downstream" : \
+       (type == BCMOLT_FLOW_TYPE_MULTICAST) ? "multicast" : "unknown"
 
-std::string bcmbal_to_grpc_intf_type(bcmolt_interface_type intf_type)
+std::string bcmolt_to_grpc_intf_type(bcmolt_interface_type intf_type)
 {
     if (intf_type == BCMOLT_INTERFACE_TYPE_NNI) {
         return "nni";
@@ -203,7 +207,7 @@ static void IfOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                     bcmolt_pon_interface_key *key = &((bcmolt_pon_interface_state_change_completed*)msg)->key;
                     bcmolt_pon_interface_state_change_completed_data *data = &((bcmolt_pon_interface_state_change_completed*)msg)->data;
                     intf_oper_ind->set_intf_id(key->pon_ni);
-                    intf_oper_ind->set_type(bcmbal_to_grpc_intf_type(BCMOLT_INTERFACE_TYPE_PON));
+                    intf_oper_ind->set_type(bcmolt_to_grpc_intf_type(BCMOLT_INTERFACE_TYPE_PON));
                     SET_OPER_STATE(intf_oper_ind, data->new_state);
                     BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_type %s, intf_id %d, oper_state %s\n",
                         intf_oper_ind->type().c_str(), key->pon_ni, intf_oper_ind->oper_state().c_str());
@@ -220,7 +224,7 @@ static void IfOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                     bcmolt_interface intf_id = key->id;
                     bcmolt_interface_type intf_type = BCMOLT_INTERFACE_TYPE_NNI;
                     intf_oper_ind->set_intf_id(key->id);
-                    intf_oper_ind->set_type(bcmbal_to_grpc_intf_type(BCMOLT_INTERFACE_TYPE_NNI));
+                    intf_oper_ind->set_type(bcmolt_to_grpc_intf_type(BCMOLT_INTERFACE_TYPE_NNI));
                     SET_OPER_STATE(intf_oper_ind, data->new_state);           
                     BCM_LOG(INFO, openolt_log_id, "intf oper state indication, intf_type %s, intf_id %d, oper_state %s\n",
                         intf_oper_ind->type().c_str(), key->id, intf_oper_ind->oper_state().c_str());
@@ -432,27 +436,28 @@ static void PacketIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::PacketIndication* pkt_ind = new openolt::PacketIndication;
 
     switch (msg->obj_type) {
-        case BCMOLT_OBJ_ID_ONU:
+        case BCMOLT_OBJ_ID_FLOW:
             switch (msg->subgroup) {
                 case BCMOLT_FLOW_AUTO_SUBGROUP_RECEIVE_ETH_PACKET:
                 {
-                    bcmolt_flow_key *key = &((bcmolt_flow_cfg*)msg)->key;
-                    bcmolt_flow_cfg_data *data = &((bcmolt_flow_cfg*)msg)->data;
+                    bcmolt_flow_receive_eth_packet *pkt = 
+                        (bcmolt_flow_receive_eth_packet*)msg;
                     bcmolt_flow_receive_eth_packet_data *pkt_data = 
                         &((bcmolt_flow_receive_eth_packet*)msg)->data;
 
-                    uint32_t port_no = GetPortNum_(key->flow_id);
-                    pkt_ind->set_intf_type(bcmbal_to_grpc_intf_type((bcmolt_interface_type)data->ingress_intf.intf_type));
-                    pkt_ind->set_intf_id(data->ingress_intf.intf_id);
-                    pkt_ind->set_gemport_id(data->svc_port_id);
-                    pkt_ind->set_flow_id(key->flow_id);
+                    uint32_t port_no = GetPortNum_(pkt->key.flow_id);
+                    pkt_ind->set_intf_type(bcmolt_to_grpc_intf_type((bcmolt_interface_type)get_flow_status(pkt->key.flow_id, INTF_TYPE)));
+                    pkt_ind->set_intf_id(get_flow_status(pkt->key.flow_id, INTF_ID));
+                    pkt_ind->set_gemport_id(get_flow_status(pkt->key.flow_id, SVC_PORT_ID));
+                    pkt_ind->set_flow_id(pkt->key.flow_id);
                     pkt_ind->set_pkt(pkt_data->buffer.arr, pkt_data->buffer.len);
                     pkt_ind->set_port_no(port_no);
-                    pkt_ind->set_cookie(data->cookie);
+                    pkt_ind->set_cookie(get_flow_status(pkt->key.flow_id, COOKIE));
                     ind.set_allocated_pkt_ind(pkt_ind);
 
-                    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_type %s, intf_id %d, svc_port %d, flow_id %d port_no %d cookie %lu\n",
-                        pkt_ind->intf_type().c_str(), data->ingress_intf.intf_id, data->svc_port_id, key->flow_id, port_no, data->cookie);
+                    BCM_LOG(INFO, openolt_log_id, "packet indication, intf_type %s, intf_id %d, svc_port %d, flow_type %s, flow_id %d, port_no %d, cookie %"PRIu64"\n",
+                        pkt_ind->intf_type().c_str(), pkt_ind->intf_id(), pkt_ind->gemport_id(), GET_FLOW_TYPE(pkt->key.flow_type), 
+                        pkt_ind->flow_id(), port_no, pkt_ind->cookie());
                 }
             }
     }
