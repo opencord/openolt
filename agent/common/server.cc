@@ -220,6 +220,15 @@ class OpenoltService final : public openolt::Openolt::Service {
         return EnablePonIf_(request->intf_id());
     }
 
+    Status GetPonIf(
+            ServerContext* context,
+            const openolt::Interface* request,
+            openolt::IntfIndication* response) override {
+
+        // TODO - Return the oper status of the pon interface
+        return Status::OK;
+    }
+
     Status DisablePonIf(
             ServerContext* context,
             const openolt::Interface* request,
