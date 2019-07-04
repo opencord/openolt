@@ -7,7 +7,7 @@ The OpenOLT agent is used by [VOLTHA](https://github.com/opencord/voltha)
 through the [OpenOLT
 adapter](https://github.com/opencord/voltha/tree/master/voltha/adapters/openolt).
 
-OpenOLT agent uses Broadcom's BAL (Broadband Access Layer) software for Maple/Qumran chipsets based OLT such as the EdgeCore/Accton ASFVOLT16.
+OpenOLT agent uses Broadcom's BAL (Broadband Access Layer) software for Maple/Qumran chipsets based OLT such as the Edgecore/Accton ASXvOLT16.
 
 ```text
 
@@ -45,7 +45,7 @@ A list of tested devices and optics can be found in the [CORD hardware
 requirements](https://github.com/opencord/docs/blob/master/prereqs/hardware.md#suggested-hardware)
 guide, in the *R-CORD access equipment and optics* section.
 
-## Pre-built debian packages of OpenOLT agent for Accton/Edgecore ASFVOLT16
+## Pre-built debian packages of OpenOLT agent for Accton/Edgecore ASXvOLT16
 
 Accton/Edgecore makes available pre-built debian packages of OpenOLT agent to their customers.
 Contact your Accton/Edgecore representative for more information.
@@ -223,9 +223,9 @@ make OPENOLTDEVICE=asfvolt16 clean-all
 
 ## FAQ
 
-The information here may be specific to specific OLT and ONU hardware such as Edgecore ASFVOLT16 OLT and Broadcom based ONUs.
+The information here may be specific to specific OLT and ONU hardware such as Edgecore ASXvOLT16 OLT and Broadcom based ONUs.
 
-### How to change speed of ASFVOLT16 NNI interface?
+### How to change speed of ASXvOLT16 NNI interface?
 
 Auto-negotiation on the NNI (uplink) interfaces is not tested. By default, the OpenOLT agent sets the speed of the NNI interfaces to 100G. To downgrade the network interface speed to 40G, add the following lines at the end of the qax.soc (/broadcom/qax.soc) configuration file. A restart of the bal_core_dist and openolt executables is required after the change.
 
