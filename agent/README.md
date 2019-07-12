@@ -103,6 +103,7 @@ Open a terminal and run the Broadcom BAL software (*bal_core_dist*):
 cd /broadcom
 ./bal_core_dist -C :55001
 ```
+The `bal_core_dist` executable, when run in foreground, presents the CLI for Broadcom's BAL - Broadband Access Layer which is useful for debugging.
 
 While the first executable still runs (even in background), open another
 terminal and run *openolt*:
@@ -159,7 +160,32 @@ The versions currently supported by the OpenOLT agent are:
 
 ### System Requirements
 
-OpenOLT agent builds on *Ubuntu 14.04 LTS*.
+
+**Hardware** :
+
+CPU: Dual-core (4 Threads) up.
+
+Memory: 6G bytes.
+
+Hard Disk: 40G of disk free space.
+
+**Software** :
+
+1. docker  - to grab the build workspace
+    Follow below instructions for docker installation :
+https://docs.docker.com/engine/installation/debian/
+
+2. binfmt-support -  kernel support for ppc builds
+
+       $ sudo apt-get install binfmt-support
+
+3. Essential tools for building packages
+
+       $ sudo apt-get install build-essential
+
+4. At least 4G of ram and 4G of swap -  compilation is memory intensive
+
+5. All of the testing is done with Debian, other Linux distributions may  work, but we suggest using Debian 8.
 
 ### Build procedure
 
@@ -174,14 +200,14 @@ git clone https://gerrit.opencord.org/openolt
 Copy the Broadcom source and patch files to the openolt/download directory:
 
 ```shell
-cd openolt/download
+cd openolt/agent/download
 cp SW-BCM68620_2_6_0_1.zip sdk-all-6.5.7.tar.gz ACCTON_BAL_2.6.0.1-V201804301043.patch OPENOLT_BAL_2.6.0.1.patch ./download
 ```
 
 Run Autoconfig to generate the appropriate makefile scaffolding for the desired target
 
 ```shell
-cd openolt
+cd openolt/agent
 ./configure
 ```
 
