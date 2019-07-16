@@ -76,11 +76,13 @@ dpkg -i openolt.deb
 Rebooting the OLT (after the installation) will start bal_core_dist and openolt as init.d services:
 
 Rebooting the OLT will start the bal_core_dist and openolt services:
+
 ```shell
 reboot
 ```
 The services can also be stopped/started manually:
-```shell 
+
+```shell
 service bal_core_dist stop
 service openolt stop
 service bal_core_dist start
@@ -88,6 +90,7 @@ service openolt start
 ```
 
 Check the status of the services:
+
 ```shell
 service bal_core_dist status
 service openolt status
@@ -103,6 +106,7 @@ Open a terminal and run the Broadcom BAL software (*bal_core_dist*):
 cd /broadcom
 ./bal_core_dist -C :55001
 ```
+
 The `bal_core_dist` executable, when run in foreground, presents the CLI for Broadcom's BAL - Broadband Access Layer which is useful for debugging.
 
 While the first executable still runs (even in background), open another
@@ -177,11 +181,11 @@ https://docs.docker.com/engine/installation/debian/
 
 2. binfmt-support -  kernel support for ppc builds
 
-       $ sudo apt-get install binfmt-support
+       `sudo apt-get install binfmt-support`
 
 3. Essential tools for building packages
 
-       $ sudo apt-get install build-essential
+       `sudo apt-get install build-essential`
 
 4. At least 4G of ram and 4G of swap -  compilation is memory intensive
 

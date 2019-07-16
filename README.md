@@ -80,7 +80,8 @@ Rebooting the OLT will start the bal_core_dist and openolt services:
 reboot
 ```
 The services can also be stopped/started manually:
-```shell 
+
+```shell
 service bal_core_dist stop
 service openolt stop
 service bal_core_dist start
@@ -177,11 +178,11 @@ https://docs.docker.com/engine/installation/debian/
 
 2. binfmt-support -  kernel support for ppc builds
 
-       $ sudo apt-get install binfmt-support
+       `sudo apt-get install binfmt-support`
 
 3. Essential tools for building packages
 
-       $ sudo apt-get install build-essential
+       `sudo apt-get install build-essential`
 
 4. At least 4G of ram and 4G of swap -  compilation is memory intensive
 
