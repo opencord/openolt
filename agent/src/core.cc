@@ -58,8 +58,20 @@ dev_log_id omci_log_id = bcm_dev_log_id_register("OMCI", DEV_LOG_LEVEL_INFO, DEV
 #define MAX_SUPPORTED_INTF 16
 #define BAL_RSC_MANAGER_BASE_TM_SCHED_ID 16384
 #define MAX_TM_QUEUE_ID 8192
-#define MAX_TM_SCHED_ID 1003
+#define MAX_TM_SCHED_ID 4075
 #define EAP_ETHER_TYPE 34958
+#define XGS_BANDWIDTH_GRANULARITY 16000
+#define GPON_BANDWIDTH_GRANULARITY 32000
+#define FILL_ARRAY(ARRAY,START,END,VALUE) for(int i=START;i<END;ARRAY[i++]=VALUE);
+
+#define GET_FLOW_INTERFACE_TYPE(type) \
+       (type == BCMOLT_FLOW_INTERFACE_TYPE_PON) ? "PON" : \
+       (type == BCMOLT_FLOW_INTERFACE_TYPE_NNI) ? "NNI" : \
+       (type == BCMOLT_FLOW_INTERFACE_TYPE_HOST) ? "HOST" : "unknown"
+#define GET_PKT_TAG_TYPE(type) \
+       (type == BCMOLT_PKT_TAG_TYPE_UNTAGGED) ? "UNTAG" : \
+       (type == BCMOLT_PKT_TAG_TYPE_SINGLE_TAG) ? "SINGLE_TAG" : \
+       (type == BCMOLT_PKT_TAG_TYPE_DOUBLE_TAG) ? "DOUBLE_TAG" : "unknown"
 
 static unsigned int num_of_nni_ports = 0;
 static unsigned int num_of_pon_ports = 0;
@@ -69,10 +81,10 @@ static const std::string MIXED_TECH("mixed");
 static std::string board_technology(UNKNOWN_TECH);
 static std::string chip_family(UNKNOWN_TECH);
 static unsigned int OPENOLT_FIELD_LEN = 200;
-static std::string firmware_version = "Openolt.2018.10.04";
+static std::string firmware_version = "Openolt.2019.07.01";
 
-const uint32_t tm_upstream_sched_id_start = 1020;
-const uint32_t tm_downstream_sched_id_start = 1004;
+const uint32_t tm_upstream_sched_id_start = 4092;
+const uint32_t tm_downstream_sched_id_start = 4076;
 //0 to 3 are default queues. Lets not use them.
 const uint32_t tm_queue_id_start = 4;
 // Upto 8 fixed Upstream. Queue id 0 to 3 are pre-created, lets not use them.
@@ -86,6 +98,8 @@ static bcmcli_entry *api_parent_dir;
 bcmos_bool status_bcm_cli_quit = BCMOS_FALSE;
 bcmos_task bal_cli_thread;
 const char *bal_cli_thread_name = "bal_cli_thread";
+uint16_t flow_id_counters = 0;
+int flow_id_data[16384][2];
 
 State state;
 
@@ -120,7 +134,7 @@ static bcmos_errno CreateSched(std::string direction, uint32_t access_intf_id, u
                           uint32_t port_no, uint32_t alloc_id, tech_profile::AdditionalBW additional_bw, uint32_t weight, \
                           uint32_t priority, tech_profile::SchedulingPolicy sched_policy,
                           tech_profile::TrafficShapingInfo traffic_shaping_info);
-static bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, std::string direction);
+static bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::string direction);
 static bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, \
                                uint32_t priority, uint32_t gemport_id);
 static bcmos_errno RemoveQueue(std::string direction, int intf_id, int onu_id, int uni_id, uint32_t port_no, int alloc_id);
@@ -147,7 +161,7 @@ static inline int get_default_tm_sched_id(int intf_id, std::string direction) {
         return tm_downstream_sched_id_start + intf_id;
     }
     else {
-        BCM_LOG(ERROR, openolt_log_id, "invalid direction - %s\n", direction.c_str());
+        OPENOLT_LOG(ERROR, openolt_log_id, "invalid direction - %s\n", direction.c_str());
         return 0;
     }
 }
@@ -312,6 +326,20 @@ bool is_tm_queue_id_present(int pon_intf_id, int onu_id, int uni_id, int gemport
     return queue_map.count(key) > 0 ? true: false;
 }
 
+inline const char *get_flow_acton_command(uint32_t command) {
+    char actions[200] = { };
+    char *s_actions_ptr = actions;
+    if (command & BCMOLT_ACTION_CMD_ID_ADD_OUTER_TAG) strcat(s_actions_ptr, "ADD_OUTER_TAG|");
+    if (command & BCMOLT_ACTION_CMD_ID_REMOVE_OUTER_TAG) strcat(s_actions_ptr, "REMOVE_OUTER_TAG|");
+    if (command & BCMOLT_ACTION_CMD_ID_XLATE_OUTER_TAG) strcat(s_actions_ptr, "TRANSLATE_OUTER_TAG|");
+    if (command & BCMOLT_ACTION_CMD_ID_ADD_INNER_TAG) strcat(s_actions_ptr, "ADD_INNTER_TAG|");
+    if (command & BCMOLT_ACTION_CMD_ID_REMOVE_INNER_TAG) strcat(s_actions_ptr, "REMOVE_INNER_TAG|");
+    if (command & BCMOLT_ACTION_CMD_ID_XLATE_INNER_TAG) strcat(s_actions_ptr, "TRANSLATE_INNER_TAG|");
+    if (command & BCMOLT_ACTION_CMD_ID_REMARK_OUTER_PBITS) strcat(s_actions_ptr, "REMOVE_OUTER_PBITS|");
+    if (command & BCMOLT_ACTION_CMD_ID_REMARK_INNER_PBITS) strcat(s_actions_ptr, "REMAKE_INNER_PBITS|");
+    return s_actions_ptr;
+}
+
 char* openolt_read_sysinfo(const char* field_name, char* field_val)
 {
    FILE *fp;
@@ -323,7 +351,7 @@ char* openolt_read_sysinfo(const char* field_name, char* field_val)
    fp = popen(command, "r");
    if (fp == NULL) {
        /*The client has to check for a Null field value in this case*/
-       BCM_LOG(INFO, openolt_log_id,  "Failed to query the %s\n", field_name);
+       OPENOLT_LOG(INFO, openolt_log_id,  "Failed to query the %s\n", field_name);
        return field_val;
    }
 
@@ -332,7 +360,7 @@ char* openolt_read_sysinfo(const char* field_name, char* field_val)
        uint8_t ret;
        ret = fread(field_val, OPENOLT_FIELD_LEN, 1, fp);
        if (ret >= OPENOLT_FIELD_LEN)
-           BCM_LOG(INFO, openolt_log_id,  "Read data length %u\n", ret);
+           OPENOLT_LOG(INFO, openolt_log_id,  "Read data length %u\n", ret);
        pclose(fp);
    }
    return field_val;
@@ -349,7 +377,7 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
     char serial_number[OPENOLT_FIELD_LEN];
     memset(serial_number, '\0', OPENOLT_FIELD_LEN);
     openolt_read_sysinfo("Serial Number", serial_number);
-    BCM_LOG(INFO, openolt_log_id, "Fetched device serial number %s\n", serial_number);
+    OPENOLT_LOG(INFO, openolt_log_id, "Fetched device serial number %s\n", serial_number);
     device_info->set_device_serial_number(serial_number);
 
     // Legacy, device-wide ranges. To be deprecated when adapter
@@ -384,7 +412,7 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
             ranges[intf_technology] = range;
             range->set_technology(intf_technology);
 
-            if (intf_technology == "xgspon") {
+            if (intf_technology == "XGS-PON") {
                 openolt::DeviceInfo::DeviceResourceRanges::Pool* pool;
 
                 pool = range->add_pools();
@@ -411,7 +439,7 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
                 pool->set_start(1);
                 pool->set_end(16383);
             }
-            else if (intf_technology == "gpon") {
+            else if (intf_technology == "GPON") {
                 openolt::DeviceInfo::DeviceResourceRanges::Pool* pool;
 
                 pool = range->add_pools();
@@ -457,14 +485,14 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
 
 Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state)
 {
-	 openolt::Indication ind;
-	 openolt::IntfOperIndication* intf_oper_ind = new openolt::IntfOperIndication;
+    openolt::Indication ind;
+    openolt::IntfOperIndication* intf_oper_ind = new openolt::IntfOperIndication;
 
-	 intf_oper_ind->set_type(type);
-	 intf_oper_ind->set_intf_id(intf_id);
-	 intf_oper_ind->set_oper_state(state);
-	 ind.set_allocated_intf_oper_ind(intf_oper_ind);
-	 oltIndQ.push(ind);
+    intf_oper_ind->set_type(type);
+    intf_oper_ind->set_intf_id(intf_id);
+    intf_oper_ind->set_oper_state(state);
+    ind.set_allocated_intf_oper_ind(intf_oper_ind);
+    oltIndQ.push(ind);
     return Status::OK;
 }
 
@@ -481,7 +509,7 @@ static int _bal_apiend_cli_thread_handler(long data)
     char init_string[]="\n";
     bcmcli_session *sess = current_session;
     bcmos_task_parm bal_cli_task_p_dummy;
-    
+
     /* Switch to interactive mode if not stopped in the init script */
     if (!bcmcli_is_stopped(sess))
     {       
@@ -492,15 +520,15 @@ static int _bal_apiend_cli_thread_handler(long data)
          * work.
          */
         bcmcli_parse(sess, init_string);
-        
+
         /* Process user input until EOF or quit command */
         bcmcli_driver(sess);
     };      
-    BCM_LOG(INFO, openolt_log_id, "BAL API End CLI terminated\n");
+    OPENOLT_LOG(INFO, openolt_log_id, "BAL API End CLI terminated\n");
 
     /* Cleanup */
     bcmcli_session_close(current_session);
-    bcmcli_token_destroy(NULL);	 
+    bcmcli_token_destroy(NULL);
     return 0;
 }
 
@@ -546,7 +574,7 @@ bcmos_errno bcmolt_apiend_cli_init() {
         bal_cli_task_p.name = bal_cli_thread_name;
         bal_cli_task_p.handler = _bal_apiend_cli_thread_handler;
         bal_cli_task_p.priority = TASK_PRIORITY_CLI;
- 
+
         ret = bcmos_task_create(&bal_cli_thread, &bal_cli_task_p);
         if (BCM_ERR_OK != ret)
         {
@@ -568,7 +596,7 @@ Status Enable_(int argc, char *argv[]) {
         /* Initialize host subsystem */
         err = bcmolt_host_init(&init_parms);
         if (BCM_ERR_OK != err) {
-            BCM_LOG(ERROR, openolt_log_id, "Failed to init OLT\n");
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to init OLT\n");
             return bcm_to_grpc_err(err, "Failed to init OLT");
         }
 
@@ -587,25 +615,25 @@ Status Enable_(int argc, char *argv[]) {
 
         err = bcmolt_apiend_cli_init();
         if (BCM_ERR_OK != err) {
-            BCM_LOG(ERROR, openolt_log_id, "Failed to add apiend init\n");
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to add apiend init\n");
             return bcm_to_grpc_err(err, "Failed to add apiend init");
         }
 
         bcmos_fastlock_init(&data_lock, 0);
-        BCM_LOG(INFO, openolt_log_id, "Enable OLT - %s-%s\n", VENDOR_ID, MODEL_ID);
+        OPENOLT_LOG(INFO, openolt_log_id, "Enable OLT - %s-%s\n", VENDOR_ID, MODEL_ID);
 
         if (bcmolt_api_conn_mgr_is_connected(dev_id))
         {
             Status status = SubscribeIndication();
             if (!status.ok()) {
-                BCM_LOG(ERROR, openolt_log_id, "SubscribeIndication failed - %s : %s\n",
+                OPENOLT_LOG(ERROR, openolt_log_id, "SubscribeIndication failed - %s : %s\n",
                     grpc_status_code_to_string(status.error_code()).c_str(),
                     status.error_message().c_str());
-
                 return status;
             }
             bcmos_errno err;
             bcmolt_odid dev;
+            OPENOLT_LOG(INFO, openolt_log_id, "Enabling PON %d Devices ... \n", BCM_MAX_DEVS_PER_LINE_CARD);
             for (dev = 0; dev < BCM_MAX_DEVS_PER_LINE_CARD; dev++) {
                 bcmolt_device_cfg dev_cfg = { }; 
                 bcmolt_device_key dev_key = { };
@@ -616,18 +644,16 @@ Status Enable_(int argc, char *argv[]) {
                 if (err == BCM_ERR_NOT_CONNECTED) { 
                     bcmolt_device_key key = {.device_id = dev};
                     bcmolt_device_connect oper;
-                    bcmolt_device_cfg cfg;
-                    BCM_LOG(INFO, openolt_log_id, "Enable Maple - %d/%d\n", dev + 1, BCM_MAX_DEVS_PER_LINE_CARD);
                     BCMOLT_OPER_INIT(&oper, device, connect, key);
                     BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
                     BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_XGS__2_X);
                     err = bcmolt_oper_submit(dev_id, &oper.hdr);
                     if (err) 
-                        BCM_LOG(ERROR, openolt_log_id, "Enable Maple deivce %d failed\n", dev);
+                        OPENOLT_LOG(ERROR, openolt_log_id, "Enable PON deivce %d failed\n", dev);
                     bcmos_usleep(200000);
                 }
                 else {
-                    BCM_LOG(ERROR, openolt_log_id, "Maple deivce %d already connected\n", dev);
+                    OPENOLT_LOG(WARNING, openolt_log_id, "PON deivce %d already connected\n", dev);
                     state.activate();
                 }
             }
@@ -636,7 +662,7 @@ Status Enable_(int argc, char *argv[]) {
     }
 
     /* Start CLI */
-    BCM_LOG(INFO, def_log_id, "Starting CLI\n");
+    OPENOLT_LOG(INFO, def_log_id, "Starting CLI\n");
     //If already enabled, generate an extra indication ????
     return Status::OK;
 }
@@ -661,10 +687,10 @@ Status Disable_() {
     //This fails with Operation Not Supported, bug ???
 
     //TEMPORARY WORK AROUND
-    Status status = DisableUplinkIf_(nni_intf_id);
+    Status status = SetStateUplinkIf_(nni_intf_id, false);
     if (status.ok()) {
         state.deactivate();
-        BCM_LOG(INFO, openolt_log_id, "Disable OLT, add an extra indication\n");
+        OPENOLT_LOG(INFO, openolt_log_id, "Disable OLT, add an extra indication\n");
         pushOltOperInd(nni_intf_id, "nni", "up");
     }
     return status;
@@ -672,10 +698,10 @@ Status Disable_() {
 }
 
 Status Reenable_() {
-    Status status = EnableUplinkIf_(0);
+    Status status = SetStateUplinkIf_(0, true);
     if (status.ok()) {
         state.activate();
-        BCM_LOG(INFO, openolt_log_id, "Reenable OLT, add an extra indication\n");
+        OPENOLT_LOG(INFO, openolt_log_id, "Reenable OLT, add an extra indication\n");
         pushOltOperInd(0, "nni", "up");
     }
     return status;
@@ -695,54 +721,247 @@ bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_s
     return err;
 }
 
-uint64_t get_flow_status(uint16_t flow_id, uint16_t data_id) {
+inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t data_id) {
     bcmos_errno err;
     bcmolt_flow_key flow_key;
     bcmolt_flow_cfg flow_cfg;
 
     flow_key.flow_id = flow_id;
+    flow_key.flow_type = (bcmolt_flow_type)flow_type;
 
     BCMOLT_CFG_INIT(&flow_cfg, flow, flow_key);
 
     switch (data_id) {
-        case INTF_TYPE: //intf_type
-            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, ingress_intf);
+        case ONU_ID: //onu_id
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, onu_id);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
-                BCM_LOG(ERROR, openolt_log_id,  "Failed to get intf_type\n");
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get onu_id\n");
                 return err;
             }
-            return flow_cfg.data.ingress_intf.intf_type;
-        case INTF_ID: //intf_id
-            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, ingress_intf);
+            return flow_cfg.data.onu_id;
+        case FLOW_TYPE: 
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
-                BCM_LOG(ERROR, openolt_log_id,  "Failed to get intf_id\n");
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get flow_type\n");
                 return err;
             }
-            return flow_cfg.data.ingress_intf.intf_id;
-
+            return flow_cfg.key.flow_type; 
         case SVC_PORT_ID: //svc_port_id
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, svc_port_id);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
-                BCM_LOG(ERROR, openolt_log_id,  "Failed to get svc_port_id\n");
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get svc_port_id\n");
                 return err;
             }
             return flow_cfg.data.svc_port_id;
+        case PRIORITY:  
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, priority);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get priority\n");
+                return err;
+            }
+            return flow_cfg.data.priority;
         case COOKIE: //cookie 
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, cookie);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
-                BCM_LOG(ERROR, openolt_log_id,  "Failed to get cookie\n");
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get cookie\n");
                 return err;
             }
             return flow_cfg.data.cookie;
+        case INGRESS_INTF_TYPE: //ingress intf_type
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, ingress_intf);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get ingress intf_type\n");
+                return err;
+            }
+            return flow_cfg.data.ingress_intf.intf_type;
+        case EGRESS_INTF_TYPE: //egress intf_type
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, egress_intf);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get egress intf_type\n");
+                return err;
+            }
+            return flow_cfg.data.egress_intf.intf_type;
+        case INGRESS_INTF_ID: //ingress intf_id
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, ingress_intf);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get ingress intf_id\n");
+                return err;
+            }
+            return flow_cfg.data.ingress_intf.intf_id;
+        case EGRESS_INTF_ID: //egress intf_id
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, egress_intf);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get egress intf_id\n");
+                return err;
+            }
+            return flow_cfg.data.egress_intf.intf_id;
+        case CLASSIFIER_O_VID:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get classifier o_vid\n");
+                return err;
+            }
+            return flow_cfg.data.classifier.o_vid;
+        case CLASSIFIER_O_PBITS:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get classifier o_pbits\n");
+                return err;
+            }
+            return flow_cfg.data.classifier.o_pbits;
+        case CLASSIFIER_I_VID:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get classifier i_vid\n");
+                return err;
+            }
+            return flow_cfg.data.classifier.i_vid;
+        case CLASSIFIER_I_PBITS: 
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get classifier i_pbits\n");
+                return err;
+            }
+            return flow_cfg.data.classifier.i_pbits;
+        case CLASSIFIER_ETHER_TYPE:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get classifier ether_type\n");
+                return err;
+            }
+            return flow_cfg.data.classifier.ether_type;
+        case CLASSIFIER_IP_PROTO: 
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get classifier ip_proto\n");
+                return err;
+            }
+            return flow_cfg.data.classifier.ip_proto;
+        case CLASSIFIER_SRC_PORT:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get classifier src_port\n");
+                return err;
+            }
+            return flow_cfg.data.classifier.src_port;
+        case CLASSIFIER_DST_PORT: 
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get classifier dst_port\n");
+                return err;
+            }
+            return flow_cfg.data.classifier.dst_port;
+        case CLASSIFIER_PKT_TAG_TYPE: 
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get classifier pkt_tag_type\n");
+                return err;
+            }
+            return flow_cfg.data.classifier.pkt_tag_type;
+        case EGRESS_QOS_TYPE:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, egress_qos);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get egress_qos type\n");
+                return err;
+            }
+            return flow_cfg.data.egress_qos.type;
+        case EGRESS_QOS_QUEUE_ID:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, egress_qos);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get egress_qos queue_id\n");
+                return err;
+            }
+            switch (flow_cfg.data.egress_qos.type) {
+                case BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE:
+                    return flow_cfg.data.egress_qos.u.fixed_queue.queue_id;
+                case BCMOLT_EGRESS_QOS_TYPE_TC_TO_QUEUE:
+                    return flow_cfg.data.egress_qos.u.tc_to_queue.tc_to_queue_id;
+                case BCMOLT_EGRESS_QOS_TYPE_PBIT_TO_TC:
+                    return flow_cfg.data.egress_qos.u.pbit_to_tc.tc_to_queue_id;
+                case BCMOLT_EGRESS_QOS_TYPE_NONE:
+                default:
+                    return -1;
+            }
+        case EGRESS_QOS_TM_SCHED_ID:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, egress_qos);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get egress_qos tm_sched_id\n");
+                return err;
+            }
+            return flow_cfg.data.egress_qos.tm_sched.id;
+        case ACTION_CMDS_BITMASK:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, action);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get action cmds_bitmask\n");
+                return err;
+            }
+            return flow_cfg.data.action.cmds_bitmask;
+        case ACTION_O_VID:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, action);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get action o_vid\n");
+                return err;
+            }
+            return flow_cfg.data.action.o_vid;
+        case ACTION_O_PBITS: 
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, action);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get action o_pbits\n");
+                return err;
+            }
+            return flow_cfg.data.action.o_pbits;
+        case ACTION_I_VID:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, action);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get action i_vid\n");
+                return err;
+            }
+            return flow_cfg.data.action.i_vid;
+        case ACTION_I_PBITS:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, action);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get action i_pbits\n");
+                return err;
+            }
+            return flow_cfg.data.action.i_pbits;
+        case STATE:
+            BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, state);
+            err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get state\n");
+                return err;
+            }
+            return flow_cfg.data.state;
         default:
             return BCM_ERR_INTERNAL;
     }
 
-	 return err;
+    return err;
 }
 
 Status EnablePonIf_(uint32_t intf_id) {
@@ -755,7 +974,7 @@ Status EnablePonIf_(uint32_t intf_id) {
     err = get_pon_interface_status((bcmolt_interface)intf_id, &state); 
     if (err == BCM_ERR_OK) {
         if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
-            BCM_LOG(INFO, openolt_log_id, "PON interface: %d already enabled\n", intf_id);
+            OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d already enabled\n", intf_id);
             return Status::OK;
         }
     } 
@@ -765,43 +984,29 @@ Status EnablePonIf_(uint32_t intf_id) {
     BCMOLT_MSG_FIELD_SET(&interface_obj, discovery.interval, 5000);
     BCMOLT_MSG_FIELD_SET(&interface_obj, discovery.onu_post_discovery_mode,
         BCMOLT_ONU_POST_DISCOVERY_MODE_ACTIVATE);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.los, true);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.onu_alarms, true);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.tiwi, true);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.ack_timeout, true);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.sfi, true);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.loki, true);
     BCMOLT_FIELD_SET(&pon_interface_set_state.data, pon_interface_set_pon_interface_state_data,
         operation, BCMOLT_INTERFACE_OPERATION_ACTIVE_WORKING);
 
     err = bcmolt_cfg_set(dev_id, &interface_obj.hdr);
     if (err != BCM_ERR_OK) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to enable discovery onu: %d\n", intf_id);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to enable discovery onu, PON interface %d, err %d\n", intf_id, err);
         return bcm_to_grpc_err(err, "Failed to enable discovery onu");
     }
     err = bcmolt_oper_submit(dev_id, &pon_interface_set_state.hdr);
     if (err != BCM_ERR_OK) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to enable PON interface: %d\n", intf_id);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to enable PON interface: %d\n", intf_id);
         return bcm_to_grpc_err(err, "Failed to enable PON interface");
     }
     else {
-        BCM_LOG(INFO, openolt_log_id, "Successfully enabled PON interface: %d\n", intf_id);
-        BCM_LOG(INFO, openolt_log_id, "Initializing tm sched creation for PON interface: %d\n", intf_id);
+        OPENOLT_LOG(INFO, openolt_log_id, "Successfully enabled PON interface: %d\n", intf_id);
+        OPENOLT_LOG(INFO, openolt_log_id, "Initializing tm sched creation for PON interface: %d\n", intf_id);
         CreateDefaultSchedQueue_(intf_id, downstream);
-    }
-
-    return Status::OK;
-}
-
-Status DisableUplinkIf_(uint32_t intf_id) {
-    bcmolt_pon_interface_key intf_key = {.pon_ni = (uint8_t)intf_id};
-    bcmolt_pon_interface_set_pon_interface_state pon_interface_set_state;
-
-    BCMOLT_OPER_INIT(&pon_interface_set_state, pon_interface, set_pon_interface_state, intf_key);
-    BCMOLT_MSG_FIELD_SET(&pon_interface_set_state, operation, BCMOLT_INTERFACE_OPERATION_ACTIVE_WORKING );
-
-    bcmos_errno err = bcmolt_oper_submit(dev_id, &pon_interface_set_state.hdr);
-    if (err == BCM_ERR_OK) {
-        /* Wait for the interface activation to successfully complete */
-        BCM_LOG(DEBUG, openolt_log_id, "PON interface: %d already enabled\n", intf_id);
-        return Status::OK;
-    } else {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to enable PON interface: %d\n", intf_id);
-        return bcm_to_grpc_err(err, "Failed to enable PON interface");
     }
 
     return Status::OK;
@@ -813,20 +1018,9 @@ Status ProbeDeviceCapabilities_() {
     bcmolt_device_key dev_key = { };
     bcmolt_olt_cfg olt_cfg = { };
     bcmolt_olt_key olt_key = { };
-
-    dev_key.device_id = dev_id;
-    BCMOLT_CFG_INIT(&dev_cfg, device, dev_key);
-    BCMOLT_MSG_FIELD_GET(&dev_cfg, firmware_sw_version);
-    BCMOLT_MSG_FIELD_GET(&dev_cfg, chip_family);
-    BCMOLT_MSG_FIELD_GET(&dev_cfg, system_mode);
-    err = bcmolt_cfg_get(dev_id, &dev_cfg.hdr);
-    if (err) { 
-        BCM_LOG(ERROR, openolt_log_id, "device: Failed to query OLT\n");
-        return bcm_to_grpc_err(err, "device: Failed to query OLT");
-    }
-
     bcmolt_topology_map topo_map[BCM_MAX_PONS_PER_OLT] = { };
     bcmolt_topology topo = { };
+
     topo.topology_maps.len = BCM_MAX_PONS_PER_OLT;
     topo.topology_maps.arr = &topo_map[0];
     BCMOLT_CFG_INIT(&olt_cfg, olt, olt_key);
@@ -836,50 +1030,67 @@ Status ProbeDeviceCapabilities_() {
         sizeof(bcmolt_topology_map) * topo.topology_maps.len);
     err = bcmolt_cfg_get(dev_id, &olt_cfg.hdr);
     if (err) { 
-        BCM_LOG(ERROR, openolt_log_id, "cfg: Failed to query OLT\n");
+        OPENOLT_LOG(ERROR, openolt_log_id, "cfg: Failed to query OLT\n");
         return bcm_to_grpc_err(err, "cfg: Failed to query OLT");
-    }
-
-    std::string bal_version;
-    bal_version += std::to_string(dev_cfg.data.firmware_sw_version.major)
-                + "." + std::to_string(dev_cfg.data.firmware_sw_version.minor)
-                + "." + std::to_string(dev_cfg.data.firmware_sw_version.revision);
-    firmware_version = "BAL." + bal_version + "__" + firmware_version;
-
-    switch(dev_cfg.data.system_mode) {
-        case 9 ... 12:  board_technology = "GPON"; break;
-        case 13 ... 16: board_technology = "XGPON"; break;
-        case 18 ... 20: board_technology = "XGS-PON"; break;
-    }
-
-    switch(dev_cfg.data.chip_family) {
-        case BCMOLT_CHIP_FAMILY_CHIP_FAMILY_6862_X_: chip_family = "Maple"; break;
-        case BCMOLT_CHIP_FAMILY_CHIP_FAMILY_6865_X_: chip_family = "Aspen"; break;
     }
 
     num_of_nni_ports = olt_cfg.data.topology.num_switch_ports;
     num_of_pon_ports = olt_cfg.data.topology.topology_maps.len;
 
-    BCM_LOG(INFO, openolt_log_id, "OLT capabilitites, oper_state: %s\n", 
+    OPENOLT_LOG(INFO, openolt_log_id, "OLT capabilitites, oper_state: %s\n", 
             olt_cfg.data.bal_state == BCMOLT_BAL_STATE_BAL_AND_SWITCH_READY 
             ? "up" : "down");
 
-    BCM_LOG(INFO, openolt_log_id, "version %s object model: %d\n", 
-        bal_version.c_str(), BAL_API_VERSION);
-
-    BCM_LOG(INFO, openolt_log_id, "topology nni:%d pon:%d dev:%d ppd:%d family: %s\n",
+    OPENOLT_LOG(INFO, openolt_log_id, "topology nni: %d pon: %d dev: %d\n",
             num_of_nni_ports,
             num_of_pon_ports,
-            BCM_MAX_DEVS_PER_LINE_CARD,
-            BCM_MAX_PONS_PER_DEV,
-            chip_family.c_str());
+            BCM_MAX_DEVS_PER_LINE_CARD); 
 
-    BCM_LOG(INFO, openolt_log_id, "PON num_intfs: %d global board_technology: %s\n", 
-        num_of_pon_ports, board_technology.c_str());
+    for (int devid = 0; devid < BCM_MAX_DEVS_PER_LINE_CARD; devid++) {
+        dev_key.device_id = devid;
+        BCMOLT_CFG_INIT(&dev_cfg, device, dev_key);
+        BCMOLT_MSG_FIELD_GET(&dev_cfg, firmware_sw_version);
+        BCMOLT_MSG_FIELD_GET(&dev_cfg, chip_family);
+        BCMOLT_MSG_FIELD_GET(&dev_cfg, system_mode);
+        err = bcmolt_cfg_get(dev_id, &dev_cfg.hdr);
+        if (err) { 
+            OPENOLT_LOG(ERROR, openolt_log_id, "device: Failed to query OLT\n");
+            return bcm_to_grpc_err(err, "device: Failed to query OLT");
+        }
+
+        std::string bal_version;
+        bal_version += std::to_string(dev_cfg.data.firmware_sw_version.major)
+                    + "." + std::to_string(dev_cfg.data.firmware_sw_version.minor)
+                    + "." + std::to_string(dev_cfg.data.firmware_sw_version.revision);
+        firmware_version = "BAL." + bal_version + "__" + firmware_version;
+
+        switch(dev_cfg.data.system_mode) {
+            case 10: board_technology = "GPON"; FILL_ARRAY(intf_technologies,devid*4,(devid+1)*4,"GPON"); break;
+            case 11: board_technology = "GPON"; FILL_ARRAY(intf_technologies,devid*8,(devid+1)*8,"GPON"); break;
+            case 12: board_technology = "GPON"; FILL_ARRAY(intf_technologies,devid*16,(devid+1)*16,"GPON"); break;
+            case 13: board_technology = "XGPON"; FILL_ARRAY(intf_technologies,devid*2,(devid+1)*2,"XGPON"); break;
+            case 14: board_technology = "XGPON"; FILL_ARRAY(intf_technologies,devid*4,(devid+1)*4,"XGPON"); break;
+            case 15: board_technology = "XGPON"; FILL_ARRAY(intf_technologies,devid*8,(devid+1)*8,"XGPON"); break;
+            case 16: board_technology = "XGPON"; FILL_ARRAY(intf_technologies,devid*16,(devid+1)*16,"XGPON"); break;
+            case 18: board_technology = "XGS-PON"; FILL_ARRAY(intf_technologies,devid*2,(devid+1)*2,"XGS-PON"); break;
+            case 19: board_technology = "XGS-PON"; FILL_ARRAY(intf_technologies,devid*16,(devid+1)*16,"XGS-PON"); break;
+            case 20: board_technology = MIXED_TECH; FILL_ARRAY(intf_technologies,devid*2,(devid+1)*2,MIXED_TECH); break;
+        }
+
+        switch(dev_cfg.data.chip_family) {
+            case BCMOLT_CHIP_FAMILY_CHIP_FAMILY_6862_X_: chip_family = "Maple"; break;
+            case BCMOLT_CHIP_FAMILY_CHIP_FAMILY_6865_X_: chip_family = "Aspen"; break;
+        }
+
+        OPENOLT_LOG(INFO, openolt_log_id, "device %d, pon: %d, version %s object model: %d, family: %s, board_technology: %s\n",
+            devid, BCM_MAX_PONS_PER_DEV, bal_version.c_str(), BAL_API_VERSION, chip_family.c_str(), board_technology.c_str());
+
+        bcmos_usleep(500000);
+    }
 
     return Status::OK;
 }
-
+#if 0
 Status ProbePonIfTechnology_() {
     // Probe maximum extent possible as configured into BAL driver to determine
     // which are active in the current BAL topology. And for those
@@ -890,13 +1101,15 @@ Status ProbePonIfTechnology_() {
 
         interface_key.pon_ni = intf_id;
         BCMOLT_CFG_INIT(&interface_obj, pon_interface, interface_key);
-        BCMOLT_MSG_FIELD_GET(&interface_obj, gpon_trx);
-        BCMOLT_MSG_FIELD_GET(&interface_obj, xgpon_trx);
+        if (board_technology == "XGS-PON") 
+            BCMOLT_MSG_FIELD_GET(&interface_obj, xgs_ngpon2_trx);
+        else if (board_technology == "GPON")
+            BCMOLT_MSG_FIELD_GET(&interface_obj, gpon_trx);
 
         bcmos_errno err = bcmolt_cfg_get(dev_id, &interface_obj.hdr);
         if (err != BCM_ERR_OK) {
             intf_technologies[intf_id] = UNKNOWN_TECH;
-            if(err != BCM_ERR_RANGE) BCM_LOG(ERROR, openolt_log_id, "Failed to get PON config: %d\n", intf_id);
+            if(err != BCM_ERR_RANGE) OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get PON config: %d err %d\n", intf_id, err);
         }
         else {
             if (board_technology == "XGS-PON") {
@@ -917,7 +1130,7 @@ Status ProbePonIfTechnology_() {
                     case BCMOLT_TRX_TYPE_LTE_3680_M:
                     case BCMOLT_TRX_TYPE_SOURCE_PHOTONICS:
                     case BCMOLT_TRX_TYPE_LTE_3680_P_TYPE_C_PLUS:
-			           case BCMOLT_TRX_TYPE_LTE_3680_P_BC: 
+                    case BCMOLT_TRX_TYPE_LTE_3680_P_BC: 
                         intf_technologies[intf_id] = "GPON";
                         break;
                 }
@@ -931,10 +1144,9 @@ Status ProbePonIfTechnology_() {
 
         }
     }
-
     return Status::OK;
 }
-
+#endif
 unsigned NumNniIf_() {return num_of_nni_ports;}
 unsigned NumPonIf_() {return num_of_pon_ports;}
 
@@ -951,7 +1163,7 @@ bcmos_errno get_nni_interface_status(bcmolt_interface id, bcmolt_interface_state
     return err;
 }
 
-Status EnableUplinkIf_(uint32_t intf_id) {
+Status SetStateUplinkIf_(uint32_t intf_id, bool set_state) {
     bcmos_errno err = BCM_ERR_OK; 
     bcmolt_nni_interface_key intf_key = {.id = (bcmolt_interface)intf_id};
     bcmolt_nni_interface_set_nni_state nni_interface_set_state;
@@ -959,26 +1171,37 @@ Status EnableUplinkIf_(uint32_t intf_id) {
 
     err = get_nni_interface_status((bcmolt_interface)intf_id, &state); 
     if (err == BCM_ERR_OK) {
-        if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
-            BCM_LOG(INFO, openolt_log_id, "NNI interface: %d already enabled\n", intf_id);
-            BCM_LOG(INFO, openolt_log_id, "Initializing tm sched creation for NNI interface: %d\n", intf_id);
+        if (set_state && state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
+            OPENOLT_LOG(INFO, openolt_log_id, "NNI interface: %d already enabled\n", intf_id);
+            OPENOLT_LOG(INFO, openolt_log_id, "Initializing tm sched creation for NNI interface: %d\n", intf_id);
             CreateDefaultSchedQueue_(intf_id, upstream);
+            return Status::OK;
+        } else if (!set_state && state == BCMOLT_INTERFACE_STATE_INACTIVE) {
+            OPENOLT_LOG(INFO, openolt_log_id, "NNI interface: %d already disabled\n", intf_id);
             return Status::OK;
         }
     }
 
     BCMOLT_OPER_INIT(&nni_interface_set_state, nni_interface, set_nni_state, intf_key);
-    BCMOLT_FIELD_SET(&nni_interface_set_state.data, nni_interface_set_nni_state_data,
-        nni_state, BCMOLT_INTERFACE_OPERATION_ACTIVE_WORKING);
+    if (set_state) {
+        BCMOLT_FIELD_SET(&nni_interface_set_state.data, nni_interface_set_nni_state_data,
+            nni_state, BCMOLT_INTERFACE_OPERATION_ACTIVE_WORKING);
+    } else {
+        BCMOLT_FIELD_SET(&nni_interface_set_state.data, nni_interface_set_nni_state_data,
+            nni_state, BCMOLT_INTERFACE_OPERATION_INACTIVE);
+    }
     err = bcmolt_oper_submit(dev_id, &nni_interface_set_state.hdr);
     if (err != BCM_ERR_OK) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to enable NNI interface: %d, err %d\n", intf_id, err);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to %s NNI interface: %d, err %d\n",
+            (set_state)?"enable":"disable", intf_id, err);
         return bcm_to_grpc_err(err, "Failed to enable NNI interface");
     }
     else {
-        BCM_LOG(INFO, openolt_log_id, "Successfully enabled NNI interface: %d\n", intf_id);
-        BCM_LOG(INFO, openolt_log_id, "Initializing tm sched creation for NNI interface: %d\n", intf_id);
-        CreateDefaultSchedQueue_(intf_id, upstream);
+        OPENOLT_LOG(INFO, openolt_log_id, "Successfully %s NNI interface: %d\n", (set_state)?"enable":"disable", intf_id);
+        if (set_state) {
+            OPENOLT_LOG(INFO, openolt_log_id, "Initializing tm sched creation for NNI interface: %d\n", intf_id);
+            CreateDefaultSchedQueue_(intf_id, upstream);
+        }
     }
 
     return Status::OK;
@@ -993,7 +1216,7 @@ Status DisablePonIf_(uint32_t intf_id) {
     BCMOLT_MSG_FIELD_GET(&interface_obj, state);
     bcmos_errno err = bcmolt_cfg_get(dev_id, &interface_obj.hdr);
     if (err) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to disable PON interface: %d\n", intf_id);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to disable PON interface: %d\n", intf_id);
         return bcm_to_grpc_err(err, "Failed to disable PON interface");
     }
 
@@ -1017,12 +1240,12 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
         if ((onu_cfg.data.onu_state == BCMOLT_ONU_STATE_PROCESSING || 
              onu_cfg.data.onu_state == BCMOLT_ONU_STATE_ACTIVE) ||
            (onu_cfg.data.onu_state == BCMOLT_ONU_STATE_INACTIVE &&
-				onu_cfg.data.onu_old_state == BCMOLT_ONU_STATE_NOT_CONFIGURED))
+             onu_cfg.data.onu_old_state == BCMOLT_ONU_STATE_NOT_CONFIGURED))
             return Status::OK;
     }
 
-    BCM_LOG(INFO, openolt_log_id,  "Enabling ONU %d on PON %d : vendor id %s, \
-        vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id, 
+    OPENOLT_LOG(INFO, openolt_log_id,  "Enabling ONU %d on PON %d : vendor id %s, \
+vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id, 
         vendor_specific_to_str(vendor_specific).c_str(), pir);
 
     memcpy(serial_number.vendor_id.arr, vendor_id, 4);
@@ -1034,9 +1257,9 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     /*set burst and data profiles to fec disabled*/
     BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.ranging_burst_profile, 0);
     BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.data_burst_profile, 1);
-    err = bcmolt_cfg_set(dev_id, &onu_cfg.hdr);	
+    err = bcmolt_cfg_set(dev_id, &onu_cfg.hdr);
     if (err != BCM_ERR_OK) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to set activate ONU %d on PON %d, err %d\n", onu_id, intf_id, err);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to set activate ONU %d on PON %d, err %d\n", onu_id, intf_id, err);
         return bcm_to_grpc_err(err, "Failed to activate ONU");
     }
 
@@ -1064,8 +1287,8 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
                     onu_state, BCMOLT_ONU_OPERATION_INACTIVE);
                 err = bcmolt_oper_submit(dev_id, &onu_oper.hdr);
                 if (err != BCM_ERR_OK) {
-                    BCM_LOG(ERROR, openolt_log_id, "Failed to \
-                        deactivate ONU %d on PON %d, err %d\n", onu_id, intf_id, err);
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Failed to \
+deactivate ONU %d on PON %d, err %d\n", onu_id, intf_id, err);
                     return bcm_to_grpc_err(err, "Failed to deactivate ONU");
                 }
                 break;
@@ -1078,7 +1301,7 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
 Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific) {
 
-    BCM_LOG(INFO, openolt_log_id,  "DeleteOnu ONU %d on PON %d : vendor id %s, vendor specific %s\n",
+    OPENOLT_LOG(INFO, openolt_log_id,  "DeleteOnu ONU %d on PON %d : vendor id %s, vendor specific %s\n",
         onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str());
 
     // Need to deactivate before removing it (BAL rules)
@@ -1094,17 +1317,17 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     bcmolt_onu_cfg cfg_obj;
     bcmolt_onu_key key;
 
-    BCM_LOG(INFO, openolt_log_id, "Processing subscriber terminal cfg clear for sub_term_id %d  and intf_id %d\n",
+    OPENOLT_LOG(INFO, openolt_log_id, "Processing subscriber terminal cfg clear for sub_term_id %d  and intf_id %d\n",
         onu_id, intf_id);
 
     key.onu_id = onu_id;
     key.pon_ni = intf_id;
     BCMOLT_CFG_INIT(&cfg_obj, onu, key);
 
-    bcmos_errno err = bcmolt_cfg_clear(dev_id, &cfg_obj.hdr);	
+    bcmos_errno err = bcmolt_cfg_clear(dev_id, &cfg_obj.hdr);
     if (err != BCM_ERR_OK)
     {
-       BCM_LOG(ERROR, openolt_log_id, "Failed to clear information for BAL subscriber_terminal_id %d, Interface ID %d\n",
+       OPENOLT_LOG(ERROR, openolt_log_id, "Failed to clear information for BAL subscriber_terminal_id %d, Interface ID %d\n",
             onu_id, intf_id);
         return Status(grpc::StatusCode::INTERNAL, "Failed to delete ONU");
     }
@@ -1157,9 +1380,10 @@ Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt) {
 
     bcmos_errno err = bcmolt_oper_submit(dev_id, &omci_cpu_packets.hdr);
     if (err) {
-        BCM_LOG(ERROR, omci_log_id, "Error sending OMCI message to ONU %d on PON %d\n", onu_id, intf_id);
+        OPENOLT_LOG(ERROR, omci_log_id, "Error sending OMCI message to ONU %d on PON %d\n", onu_id, intf_id);
+        return bcm_to_grpc_err(err, "send OMCI failed");
     } else {
-        BCM_LOG(DEBUG, omci_log_id, "OMCI request msg of length %d sent to ONU %d on PON %d : %s\n",
+        OPENOLT_LOG(DEBUG, omci_log_id, "OMCI request msg of length %d sent to ONU %d on PON %d : %s\n",
             buf.len, onu_id, intf_id, pkt.c_str());
     }
     free(buf.arr);
@@ -1192,11 +1416,11 @@ Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, uint32_t port_no, uint32
             bcmos_fastlock_unlock(&data_lock, 0);
 
             if (!found) {
-                BCM_LOG(ERROR, openolt_log_id, "Packet out failed to find destination for ONU %d port_no %u on PON %d\n",
+                OPENOLT_LOG(ERROR, openolt_log_id, "Packet out failed to find destination for ONU %d port_no %u on PON %d\n",
                         onu_id, port_no, intf_id);
                 return grpc::Status(grpc::StatusCode::NOT_FOUND, "no flow for port_no");
             }
-            BCM_LOG(INFO, openolt_log_id, "Gem port %u found for ONU %d port_no %u on PON %d\n",
+            OPENOLT_LOG(INFO, openolt_log_id, "Gem port %u found for ONU %d port_no %u on PON %d\n",
                     gemport_id, onu_id, port_no, intf_id);
         }
 
@@ -1214,15 +1438,15 @@ Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, uint32_t port_no, uint32
         BCMOLT_MSG_FIELD_SET(&pon_interface_cpu_packets, gem_port_list, gem_port_list);
         BCMOLT_MSG_FIELD_SET(&pon_interface_cpu_packets, buffer, buf);
 
-        BCM_LOG(INFO, openolt_log_id, "Packet out of length %d sent to gemport %d on pon %d port_no %u\n",
+        OPENOLT_LOG(INFO, openolt_log_id, "Packet out of length %d sent to gemport %d on pon %d port_no %u\n",
             (uint8_t)pkt.size(), gemport_id, intf_id, port_no);
 
         /* call API */
-        bcmolt_oper_submit(0, &pon_interface_cpu_packets.hdr);
+        bcmolt_oper_submit(dev_id, &pon_interface_cpu_packets.hdr);
     }
     else {
         //TODO: Port No is 0, it is coming sender requirement.
-        BCM_LOG(INFO, openolt_log_id, "port_no %d onu %d on pon %d\n",
+        OPENOLT_LOG(INFO, openolt_log_id, "port_no %d onu %d on pon %d\n",
             port_no, onu_id, intf_id);
     }
     free(buf.arr);
@@ -1231,12 +1455,31 @@ Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, uint32_t port_no, uint32
 }
 
 Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt, bcmolt_flow_id flow_id) {
-    bcmolt_flow_cfg cfg;
     bcmolt_flow_key key = {}; /* declare key */
     bcmolt_bin_str buffer = {};
     bcmolt_flow_send_eth_packet oper; /* declare main API struct */
 
-    key.flow_id = flow_id;
+    //validate flow_id and find flow_id/flow type: upstream/ingress type: PON/egress type: NNI
+    if (get_flow_status(flow_id, BCMOLT_FLOW_TYPE_UPSTREAM, FLOW_TYPE) == BCMOLT_FLOW_TYPE_UPSTREAM && \
+        get_flow_status(flow_id, BCMOLT_FLOW_TYPE_UPSTREAM, INGRESS_INTF_TYPE) == BCMOLT_FLOW_INTERFACE_TYPE_PON && \
+        get_flow_status(flow_id, BCMOLT_FLOW_TYPE_UPSTREAM, EGRESS_INTF_TYPE) == BCMOLT_FLOW_INTERFACE_TYPE_NNI)
+        key.flow_id = flow_id;
+    else {
+        if (flow_id_counters != 0) {
+            for (int flowid=0; flowid < flow_id_counters; flowid++) {
+                int flow_index = flow_id_data[flowid][0];
+                if (get_flow_status(flow_index, BCMOLT_FLOW_TYPE_UPSTREAM, FLOW_TYPE) == BCMOLT_FLOW_TYPE_UPSTREAM && \
+                    get_flow_status(flow_index, BCMOLT_FLOW_TYPE_UPSTREAM, INGRESS_INTF_TYPE) == BCMOLT_FLOW_INTERFACE_TYPE_PON && \
+                    get_flow_status(flow_index, BCMOLT_FLOW_TYPE_UPSTREAM, EGRESS_INTF_TYPE) == BCMOLT_FLOW_INTERFACE_TYPE_NNI) {
+                    key.flow_id = flow_index;
+                    break;
+                }
+            }
+        }
+        else
+            return grpc::Status(grpc::StatusCode::NOT_FOUND, "no flow id found");
+    }
+
     key.flow_type = BCMOLT_FLOW_TYPE_UPSTREAM; /* send from uplink direction */
 
     /* Initialize the API struct. */
@@ -1246,14 +1489,17 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt, bcmolt_flow_id 
     buffer.arr = (uint8_t *)malloc((buffer.len)*sizeof(uint8_t));
     memcpy(buffer.arr, (uint8_t *)pkt.data(), buffer.len);
     if (buffer.arr == NULL) {
-        BCM_LOG(ERROR, openolt_log_id, "allocate pakcet buffer failed\n");
+        OPENOLT_LOG(ERROR, openolt_log_id, "allocate pakcet buffer failed\n");
         return bcm_to_grpc_err(BCM_ERR_PARM, "allocate pakcet buffer failed");
     }
     BCMOLT_FIELD_SET(&oper.data, flow_send_eth_packet_data, buffer, buffer);
 
     bcmos_errno err = bcmolt_oper_submit(dev_id, &oper.hdr);
-    if (err)
-        BCM_LOG(ERROR, omci_log_id, "Error sending packets to port %d\n", intf_id);
+    if (err) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Error sending packets to port %d, flow_id %d, err %d\n", intf_id, key.flow_id, err);
+    } else {
+        OPENOLT_LOG(INFO, openolt_log_id, "sent packets to port %d in upstream direction (flow_id %d)\n", intf_id, key.flow_id);
+    }
 
     return Status::OK;
 }
@@ -1269,6 +1515,91 @@ uint32_t GetPortNum_(uint32_t flow_id) {
     return port_no;
 }
 
+#define FLOW_LOG(level,msg,err) \
+    do { \
+    OPENOLT_LOG(level, openolt_log_id, "--------> %s (flow_id %d) err: %d <--------\n", msg, key.flow_id, err); \
+    OPENOLT_LOG(level, openolt_log_id, "intf_id %d, onu_id %d, uni_id %d, port_no %u, cookie %"PRIu64"\n", \
+        access_intf_id, onu_id, uni_id, port_no, cookie); \
+    OPENOLT_LOG(level, openolt_log_id, "flow_type %s, queue_id %d, sched_id %d\n", flow_type.c_str(), \
+        cfg.data.egress_qos.u.fixed_queue.queue_id, cfg.data.egress_qos.tm_sched.id); \
+    OPENOLT_LOG(level, openolt_log_id, "Ingress(intfd_type %s, intf_id %d), Egress(intf_type %s, intf_id %d)\n", \
+        GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type), cfg.data.ingress_intf.intf_id,  \
+        GET_FLOW_INTERFACE_TYPE(cfg.data.egress_intf.intf_type), cfg.data.egress_intf.intf_id); \
+    OPENOLT_LOG(level, openolt_log_id, "classifier(o_vid %d, o_pbits %d, i_vid %d, i_pbits %d, ether type 0x%x)\n", \
+        c_val.o_vid, c_val.o_pbits, c_val.i_vid, c_val.i_pbits,  classifier.eth_type()); \
+    OPENOLT_LOG(level, openolt_log_id, "classifier(ip_proto 0x%x, gemport_id %d, src_port %d, dst_port %d, pkt_tag_type %s)\n", \
+        c_val.ip_proto, gemport_id, c_val.src_port,  c_val.dst_port, GET_PKT_TAG_TYPE(c_val.pkt_tag_type)); \
+    OPENOLT_LOG(level, openolt_log_id, "action(cmds_bitmask %s, o_vid %d, o_pbits %d, i_vid %d, i_pbits %d)\n\n", \
+        get_flow_acton_command(a_val.cmds_bitmask), a_val.o_vid, a_val.o_pbits, a_val.i_vid, a_val.i_pbits); \
+    } while(0) 
+
+#define FLOW_PARAM_LOG() \
+    do { \
+    OPENOLT_LOG(INFO, openolt_log_id, "--------> flow comparison (now before) <--------\n"); \
+    OPENOLT_LOG(INFO, openolt_log_id, "flow_id (%d %d)\n", \
+        key.flow_id, flow_index); \
+    OPENOLT_LOG(INFO, openolt_log_id, "onu_id (%d %lu)\n", \
+        cfg.data.onu_id , get_flow_status(flow_index, flow_id_data[flowid][1], ONU_ID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "type (%d %lu)\n", \
+        key.flow_type, get_flow_status(flow_index, flow_id_data[flowid][1], FLOW_TYPE)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "svc_port_id (%d %lu)\n", \
+        cfg.data.svc_port_id, get_flow_status(flow_index, flow_id_data[flowid][1], SVC_PORT_ID));  \
+    OPENOLT_LOG(INFO, openolt_log_id, "priority (%d %lu)\n", \
+        cfg.data.priority, get_flow_status(flow_index, flow_id_data[flowid][1], PRIORITY)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "cookie (%lu %lu)\n", \
+        cfg.data.cookie, get_flow_status(flow_index, flow_id_data[flowid][1], COOKIE)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "ingress intf_type (%s %s)\n", \
+        GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type), \
+        GET_FLOW_INTERFACE_TYPE(get_flow_status(flow_index, flow_id_data[flowid][1], INGRESS_INTF_TYPE))); \
+    OPENOLT_LOG(INFO, openolt_log_id, "ingress intf id (%d %lu)\n", \
+        cfg.data.ingress_intf.intf_id , get_flow_status(flow_index, flow_id_data[flowid][1], INGRESS_INTF_ID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "egress intf_type (%d %lu)\n", \
+        cfg.data.egress_intf.intf_type , get_flow_status(flow_index, flow_id_data[flowid][1], EGRESS_INTF_TYPE)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "egress intf_id (%d %lu)\n", \
+        cfg.data.egress_intf.intf_id , get_flow_status(flow_index, flow_id_data[flowid][1], EGRESS_INTF_ID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier o_vid (%d %lu)\n", \
+        c_val.o_vid , get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_O_VID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier o_pbits (%d %lu)\n", \
+        c_val.o_pbits , get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_O_PBITS)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier i_vid (%d %lu)\n", \
+        c_val.i_vid , get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_I_VID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier i_pbits (%d %lu)\n", \
+        c_val.i_pbits , get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_I_PBITS)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier ether_type (0x%x 0x%lx)\n", \
+        c_val.ether_type , get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_ETHER_TYPE));  \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier ip_proto (%d %lu)\n", \
+        c_val.ip_proto , get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_IP_PROTO)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier src_port (%d %lu)\n", \
+        c_val.src_port , get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_SRC_PORT)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier dst_port (%d %lu)\n", \
+        c_val.dst_port , get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_DST_PORT)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier pkt_tag_type (%s %s)\n", \
+        GET_PKT_TAG_TYPE(c_val.pkt_tag_type), \
+        GET_PKT_TAG_TYPE(get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_PKT_TAG_TYPE))); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier egress_qos type (%d %lu)\n", \
+        cfg.data.egress_qos.type , get_flow_status(flow_index, flow_id_data[flowid][1], EGRESS_QOS_TYPE)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier egress_qos queue_id (%d %lu)\n", \
+        cfg.data.egress_qos.u.fixed_queue.queue_id, \
+        get_flow_status(flow_index, flow_id_data[flowid][1], EGRESS_QOS_QUEUE_ID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier egress_qos sched_id (%d %lu)\n", \
+        cfg.data.egress_qos.tm_sched.id, \
+        get_flow_status(flow_index, flow_id_data[flowid][1], EGRESS_QOS_TM_SCHED_ID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier cmds_bitmask (%s %s)\n", \
+        get_flow_acton_command(a_val.cmds_bitmask), \
+        get_flow_acton_command(get_flow_status(flow_index, flow_id_data[flowid][1], ACTION_CMDS_BITMASK))); \
+    OPENOLT_LOG(INFO, openolt_log_id, "action o_vid (%d %lu)\n", \
+        a_val.o_vid , get_flow_status(flow_index, flow_id_data[flowid][1], ACTION_O_VID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "action i_vid (%d %lu)\n", \
+        a_val.i_vid , get_flow_status(flow_index, flow_id_data[flowid][1], ACTION_I_VID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "action o_pbits (%d %lu)\n", \
+        a_val.o_pbits , get_flow_status(flow_index, flow_id_data[flowid][1], ACTION_O_PBITS)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "action i_pbits (%d %lu)\n\n", \
+        a_val.i_pbits, get_flow_status(flow_index, flow_id_data[flowid][1], ACTION_I_PBITS)); \
+    } while(0)
+
+#define FLOW_CHECKER
+//#define SHOW_FLOW_PARAM
+
 Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t port_no,
                 uint32_t flow_id, const std::string flow_type,
                 int32_t alloc_id, int32_t network_intf_id,
@@ -1279,10 +1610,11 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
     int32_t o_vid = -1;
     bool single_tag = false;
     uint32_t ether_type = 0;
-
-    BCM_LOG(INFO, openolt_log_id, "flow add - intf_id %d, onu_id %d, uni_id %d, port_no %u, flow_id %d, flow_type %s, \
-gemport_id %d, network_intf_id %d, cookie %"PRIu64"\n", \
-            access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type.c_str(), gemport_id, network_intf_id, cookie);
+    bcmolt_classifier c_val = { };
+    bcmolt_action a_val = { };
+    bcmolt_tm_queue_ref tm_val = { };
+    //Pre-defined Fixed Queue, It decides the type by caller, TODO
+    bcmolt_egress_qos_type qos_type = BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
 
     key.flow_id = flow_id;
     if (flow_type.compare(upstream) == 0 ) {
@@ -1290,32 +1622,35 @@ gemport_id %d, network_intf_id %d, cookie %"PRIu64"\n", \
     } else if (flow_type.compare(downstream) == 0) {
         key.flow_type = BCMOLT_FLOW_TYPE_DOWNSTREAM;
     } else {
-        BCM_LOG(WARNING, openolt_log_id, "Invalid flow type %s\n", flow_type.c_str());
+        OPENOLT_LOG(ERROR, openolt_log_id, "Invalid flow type %s\n", flow_type.c_str());
         return bcm_to_grpc_err(BCM_ERR_PARM, "Invalid flow type");
     }
 
     BCMOLT_CFG_INIT(&cfg, flow, key);
     BCMOLT_MSG_FIELD_SET(&cfg, cookie, cookie);
 
-    if (access_intf_id >= 0) {
-        if (key.flow_type == BCMOLT_FLOW_TYPE_UPSTREAM) {
+    if (access_intf_id >= 0 && network_intf_id >= 0) {
+        if (key.flow_type == BCMOLT_FLOW_TYPE_UPSTREAM) { //upstream
             BCMOLT_MSG_FIELD_SET(&cfg, ingress_intf.intf_type, BCMOLT_FLOW_INTERFACE_TYPE_PON);
             BCMOLT_MSG_FIELD_SET(&cfg, ingress_intf.intf_id, access_intf_id);
-        } else if (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM) {
+            if (classifier.eth_type() == EAP_ETHER_TYPE || //EAPOL packet
+               (classifier.ip_proto() == 17 && classifier.src_port() == 68 && classifier.dst_port() == 67)) { //DHCP packet
+                BCMOLT_MSG_FIELD_SET(&cfg, egress_intf.intf_type, BCMOLT_FLOW_INTERFACE_TYPE_HOST);
+            } else {
+                BCMOLT_MSG_FIELD_SET(&cfg, egress_intf.intf_type, BCMOLT_FLOW_INTERFACE_TYPE_NNI);
+                BCMOLT_MSG_FIELD_SET(&cfg, egress_intf.intf_id, network_intf_id);
+            }
+        } else if (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM) { //downstream
+            BCMOLT_MSG_FIELD_SET(&cfg, ingress_intf.intf_type, BCMOLT_FLOW_INTERFACE_TYPE_NNI);
+            BCMOLT_MSG_FIELD_SET(&cfg, ingress_intf.intf_id, network_intf_id);
             BCMOLT_MSG_FIELD_SET(&cfg, egress_intf.intf_type, BCMOLT_FLOW_INTERFACE_TYPE_PON);
             BCMOLT_MSG_FIELD_SET(&cfg, egress_intf.intf_id, access_intf_id);
         }
+    } else {
+        OPENOLT_LOG(ERROR, openolt_log_id, "flow network setting invalid\n");
+        return bcm_to_grpc_err(BCM_ERR_PARM, "flow network setting invalid");
     }
-    if (network_intf_id >= 0) {
-        if (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM) {
-            //TODO: The ingress type is NNI condition
-            //BCMOLT_MSG_FIELD_SET(&cfg, ingress_intf.access_int_id.intf_type, BCMOLT_FLOW_INTERFACE_TYPE_NNI);
-            //BCMOLT_MSG_FIELD_SET(&cfg, ingress_intf.access_int_id.intf_id, network_intf_id);
-            //The egress type is PON condition
-            BCMOLT_MSG_FIELD_SET(&cfg, egress_intf.intf_type, BCMOLT_FLOW_INTERFACE_TYPE_PON);
-            BCMOLT_MSG_FIELD_SET(&cfg, egress_intf.intf_id, access_intf_id);
-        }
-    }
+
     if (onu_id >= 0) {
         BCMOLT_MSG_FIELD_SET(&cfg, onu_id, onu_id);
     }
@@ -1339,32 +1674,31 @@ gemport_id %d, network_intf_id %d, cookie %"PRIu64"\n", \
     }
 
     {
-        bcmolt_classifier val = { };
         /* removed by BAL v3.0
         if (classifier.o_tpid()) {
-            BCM_LOG(DEBUG, openolt_log_id, "classify o_tpid 0x%04x\n", classifier.o_tpid());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_tpid 0x%04x\n", classifier.o_tpid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, o_tpid, classifier.o_tpid());
         }
         */
         if (classifier.o_vid()) {
-            BCM_LOG(DEBUG, openolt_log_id, "classify o_vid %d\n", classifier.o_vid());
-            BCMOLT_FIELD_SET(&val, classifier, o_vid, classifier.o_vid());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_vid %d\n", classifier.o_vid());
+            BCMOLT_FIELD_SET(&c_val, classifier, o_vid, classifier.o_vid());
         }
         /* removed by BAL v3.0
         if (classifier.i_tpid()) {
-            BCM_LOG(DEBUG, openolt_log_id, "classify i_tpid 0x%04x\n", classifier.i_tpid());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify i_tpid 0x%04x\n", classifier.i_tpid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, i_tpid, classifier.i_tpid());
         }
         */
         if (classifier.i_vid()) {
-            BCM_LOG(DEBUG, openolt_log_id, "classify i_vid %d\n", classifier.i_vid());
-            BCMOLT_FIELD_SET(&val, classifier, i_vid, classifier.i_vid());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify i_vid %d\n", classifier.i_vid());
+            BCMOLT_FIELD_SET(&c_val, classifier, i_vid, classifier.i_vid());
         }
 
         if (classifier.eth_type()) {
             ether_type = classifier.eth_type();
-            BCM_LOG(DEBUG, openolt_log_id, "classify ether_type 0x%04x\n", classifier.eth_type());
-            BCMOLT_FIELD_SET(&val, classifier, ether_type, classifier.eth_type());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify ether_type 0x%04x\n", classifier.eth_type());
+            BCMOLT_FIELD_SET(&c_val, classifier, ether_type, classifier.eth_type());
         }
 
         /*
@@ -1378,8 +1712,8 @@ gemport_id %d, network_intf_id %d, cookie %"PRIu64"\n", \
         */
 
         if (classifier.ip_proto()) {
-            BCM_LOG(DEBUG, openolt_log_id, "classify ip_proto %d\n", classifier.ip_proto());
-            BCMOLT_FIELD_SET(&val, classifier, ip_proto, classifier.ip_proto());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify ip_proto %d\n", classifier.ip_proto());
+            BCMOLT_FIELD_SET(&c_val, classifier, ip_proto, classifier.ip_proto());
         }
 
         /*
@@ -1393,128 +1727,176 @@ gemport_id %d, network_intf_id %d, cookie %"PRIu64"\n", \
         */
 
         if (classifier.src_port()) {
-            BCM_LOG(DEBUG, openolt_log_id, "classify src_port %d\n", classifier.src_port());
-            BCMOLT_FIELD_SET(&val, classifier, src_port, classifier.src_port());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify src_port %d\n", classifier.src_port());
+            BCMOLT_FIELD_SET(&c_val, classifier, src_port, classifier.src_port());
         }
 
         if (classifier.dst_port()) {
-            BCM_LOG(DEBUG, openolt_log_id, "classify dst_port %d\n", classifier.dst_port());
-            BCMOLT_FIELD_SET(&val, classifier, dst_port, classifier.dst_port());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify dst_port %d\n", classifier.dst_port());
+            BCMOLT_FIELD_SET(&c_val, classifier, dst_port, classifier.dst_port());
         }
 
         if (!classifier.pkt_tag_type().empty()) {
-            BCM_LOG(DEBUG, openolt_log_id, "classify tag_type %s\n", classifier.pkt_tag_type().c_str());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify tag_type %s\n", classifier.pkt_tag_type().c_str());
             if (classifier.pkt_tag_type().compare("untagged") == 0) {
-				    BCMOLT_FIELD_SET(&val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_UNTAGGED);
+                BCMOLT_FIELD_SET(&c_val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_UNTAGGED);
             } else if (classifier.pkt_tag_type().compare("single_tag") == 0) {
-                BCMOLT_FIELD_SET(&val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_SINGLE_TAG);
+                BCMOLT_FIELD_SET(&c_val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_SINGLE_TAG);
                 single_tag = true;
 
-                BCM_LOG(DEBUG, openolt_log_id, "classify o_pbits 0x%x\n", classifier.o_pbits());
-                BCMOLT_FIELD_SET(&val, classifier, o_pbits, classifier.o_pbits());
+                OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_pbits 0x%x\n", classifier.o_pbits());
+                BCMOLT_FIELD_SET(&c_val, classifier, o_pbits, classifier.o_pbits());
             } else if (classifier.pkt_tag_type().compare("double_tag") == 0) {
-                BCMOLT_FIELD_SET(&val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_DOUBLE_TAG);
+                BCMOLT_FIELD_SET(&c_val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_DOUBLE_TAG);
 
-                BCM_LOG(DEBUG, openolt_log_id, "classify o_pbits 0x%x\n", classifier.o_pbits());
-                BCMOLT_FIELD_SET(&val, classifier, o_pbits, classifier.o_pbits());
+                OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_pbits 0x%x\n", classifier.o_pbits());
+                BCMOLT_FIELD_SET(&c_val, classifier, o_pbits, classifier.o_pbits());
             }
         }
-        BCMOLT_MSG_FIELD_SET(&cfg, classifier, val);
+        BCMOLT_MSG_FIELD_SET(&cfg, classifier, c_val);
     }
 
-    {
-        bcmolt_action val = { };
-        bcmolt_api_prop_path path;
-
+    if (cfg.data.egress_intf.intf_type != BCMOLT_FLOW_INTERFACE_TYPE_HOST) {
         const ::openolt::ActionCmd& cmd = action.cmd();
 
         if (cmd.add_outer_tag()) {
-            BCM_LOG(INFO, openolt_log_id, "action add o_tag\n");
-            BCMOLT_FIELD_SET(&val, action, cmds_bitmask, BCMOLT_ACTION_CMD_ID_ADD_OUTER_TAG);
+            OPENOLT_LOG(DEBUG, openolt_log_id, "action add o_tag\n");
+            BCMOLT_FIELD_SET(&a_val, action, cmds_bitmask, BCMOLT_ACTION_CMD_ID_ADD_OUTER_TAG);
         }
 
         if (cmd.remove_outer_tag()) {
-            BCM_LOG(INFO, openolt_log_id, "action pop o_tag\n");
-            BCMOLT_FIELD_SET(&val, action, cmds_bitmask, BCMOLT_ACTION_CMD_ID_REMOVE_OUTER_TAG);
+            OPENOLT_LOG(DEBUG, openolt_log_id, "action pop o_tag\n");
+            BCMOLT_FIELD_SET(&a_val, action, cmds_bitmask, BCMOLT_ACTION_CMD_ID_REMOVE_OUTER_TAG);
         }
         /* removed by BAL v3.0
         if (cmd.trap_to_host()) {
-            BCM_LOG(INFO, openolt_log_id, "action trap-to-host\n");
+            OPENOLT_LOG(INFO, openolt_log_id, "action trap-to-host\n");
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, cmds_bitmask, BCMBAL_ACTION_CMD_ID_TRAP_TO_HOST);
         }
         */
         if (action.o_vid()) {
-            BCM_LOG(INFO, openolt_log_id, "action o_vid=%d\n", action.o_vid());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "action o_vid=%d\n", action.o_vid());
             o_vid = action.o_vid();
-            BCMOLT_FIELD_SET(&val, action, o_vid, action.o_vid());
+            BCMOLT_FIELD_SET(&a_val, action, o_vid, action.o_vid());
         }
 
         if (action.o_pbits()) {
-            BCM_LOG(INFO, openolt_log_id, "action o_pbits=0x%x\n", action.o_pbits());
-            BCMOLT_FIELD_SET(&val, action, o_pbits, action.o_pbits());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "action o_pbits=0x%x\n", action.o_pbits());
+            BCMOLT_FIELD_SET(&a_val, action, o_pbits, action.o_pbits());
         }
         /* removed by BAL v3.0
         if (action.o_tpid()) {
-            BCM_LOG(INFO, openolt_log_id, "action o_tpid=0x%04x\n", action.o_tpid());
+            OPENOLT_LOG(INFO, openolt_log_id, "action o_tpid=0x%04x\n", action.o_tpid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, o_tpid, action.o_tpid());
         }
         */
         if (action.i_vid()) {
-            BCM_LOG(INFO, openolt_log_id, "action i_vid=%d\n", action.i_vid());
-            BCMOLT_FIELD_SET(&val, action, i_vid, action.i_vid());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "action i_vid=%d\n", action.i_vid());
+            BCMOLT_FIELD_SET(&a_val, action, i_vid, action.i_vid());
         }
 
         if (action.i_pbits()) {
-            BCM_LOG(DEBUG, openolt_log_id, "action i_pbits=0x%x\n", action.i_pbits());
-            BCMOLT_FIELD_SET(&val, action, i_pbits, action.i_pbits());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "action i_pbits=0x%x\n", action.i_pbits());
+            BCMOLT_FIELD_SET(&a_val, action, i_pbits, action.i_pbits());
         }
         /* removed by BAL v3.0
         if (action.i_tpid()) {
-            BCM_LOG(DEBUG, openolt_log_id, "action i_tpid=0x%04x\n", action.i_tpid());
+            OPENOLT_LOG(DEBUG, openolt_log_id, "action i_tpid=0x%04x\n", action.i_tpid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, action, i_tpid, action.i_tpid());
         }
         */
-        BCMOLT_MSG_FIELD_SET(&cfg, action, val);
+        BCMOLT_MSG_FIELD_SET(&cfg, action, a_val);
     }
 
     if ((access_intf_id >= 0) && (onu_id >= 0)) {
-        bcmolt_tm_queue_ref val = { };
-
         if (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM) {
             if (single_tag && ether_type == EAP_ETHER_TYPE) {
-                val.sched_id = get_default_tm_sched_id(access_intf_id, downstream);
-                val.queue_id = 0;
+                tm_val.sched_id = get_default_tm_sched_id(access_intf_id, downstream);
+                tm_val.queue_id = 0;
             } else {
-                val.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, downstream); // Subscriber Scheduler
-                val.queue_id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, downstream);
+                tm_val.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, downstream); // Subscriber Scheduler
+                tm_val.queue_id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, downstream);
             }
-            BCM_LOG(INFO, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d\n", \
-                    downstream.c_str(), val.queue_id, val.sched_id);
+            OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d, intf_type %s\n", \
+                downstream.c_str(), tm_val.queue_id, tm_val.sched_id, GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
 
-            BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE);
-            BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.tm_sched.id, val.sched_id);
-            BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.fixed_queue.queue_id, val.queue_id);
+            BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, qos_type);
+            BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.tm_sched.id, tm_val.sched_id);
+            BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.fixed_queue.queue_id, tm_val.queue_id);
         } else if (key.flow_type == BCMOLT_FLOW_TYPE_UPSTREAM) {
             /* removed by BAL v3.0. N/A - Alloc ID is out of the scope of BAL. Used for OMCI only.
-            bcmbal_tm_sched_id val1;
-            val1 = get_tm_sched_id(access_intf_id, onu_id, uni_id, upstream); // DBA Scheduler ID
-            BCMBAL_CFG_PROP_SET(&cfg, flow, dba_tm_sched_id, val1);
-            */
-            val.sched_id = get_default_tm_sched_id(network_intf_id, upstream); // NNI Scheduler ID
-            val.queue_id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, upstream); // Queue on NNI
-            BCM_LOG(INFO, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d\n", \
-                    upstream.c_str(), val.queue_id, val.sched_id);
+               bcmbal_tm_sched_id val1;
+               val1 = get_tm_sched_id(access_intf_id, onu_id, uni_id, upstream); // DBA Scheduler ID
+               BCMBAL_CFG_PROP_SET(&cfg, flow, dba_tm_sched_id, val1);
+             */
+             tm_val.sched_id = get_default_tm_sched_id(network_intf_id, upstream); // NNI Scheduler ID
+             tm_val.queue_id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, upstream); // Queue on NNI
+             OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d, intf_type %s\n", \
+             upstream.c_str(), tm_val.queue_id, tm_val.sched_id, GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
+             BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, qos_type);
+             BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.tm_sched.id, tm_val.sched_id);
+             BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.fixed_queue.queue_id, tm_val.queue_id);
         }
-        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE);
-        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.tm_sched.id, val.sched_id);
-        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.fixed_queue.queue_id, val.queue_id);
     }
 
     BCMOLT_MSG_FIELD_SET(&cfg, state, BCMOLT_FLOW_STATE_ENABLE);
+#ifdef FLOW_CHECKER
+    //Flow Checker, To avoid duplicate flow. 
+    if (flow_id_counters != 0) {
+        bool b_duplicate_flow = false;
+        for (int flowid=0; flowid < flow_id_counters; flowid++) {
+            int flow_index = flow_id_data[flowid][0];
+            b_duplicate_flow = (cfg.data.onu_id == get_flow_status(flow_index, flow_id_data[flowid][1], ONU_ID)) && \
+                (key.flow_type == flow_id_data[flowid][1]) && \
+                (cfg.data.svc_port_id == get_flow_status(flow_index, flow_id_data[flowid][1], SVC_PORT_ID)) && \
+                (cfg.data.priority == get_flow_status(flow_index, flow_id_data[flowid][1], PRIORITY)) && \
+                (cfg.data.cookie == get_flow_status(flow_index, flow_id_data[flowid][1], COOKIE)) && \
+                (cfg.data.ingress_intf.intf_type == get_flow_status(flow_index, flow_id_data[flowid][1], INGRESS_INTF_TYPE)) && \
+                (cfg.data.ingress_intf.intf_id == get_flow_status(flow_index, flow_id_data[flowid][1], INGRESS_INTF_ID)) && \
+                (cfg.data.egress_intf.intf_type == get_flow_status(flow_index, flow_id_data[flowid][1], EGRESS_INTF_TYPE)) && \
+                (cfg.data.egress_intf.intf_id == get_flow_status(flow_index, flow_id_data[flowid][1], EGRESS_INTF_ID)) && \
+                (c_val.o_vid == get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_O_VID)) && \
+                (c_val.o_pbits == get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_O_PBITS)) && \
+                (c_val.i_vid == get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_I_VID)) && \
+                (c_val.i_pbits == get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_I_PBITS)) && \
+                (c_val.ether_type == get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_ETHER_TYPE)) && \
+                (c_val.ip_proto == get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_IP_PROTO)) && \
+                (c_val.src_port == get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_SRC_PORT)) && \
+                (c_val.dst_port == get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_DST_PORT)) && \
+                (c_val.pkt_tag_type == get_flow_status(flow_index, flow_id_data[flowid][1], CLASSIFIER_PKT_TAG_TYPE)) && \
+                (cfg.data.egress_qos.type == get_flow_status(flow_index, flow_id_data[flowid][1], EGRESS_QOS_TYPE)) && \
+                (cfg.data.egress_qos.u.fixed_queue.queue_id == get_flow_status(flow_index, flow_id_data[flowid][1], EGRESS_QOS_QUEUE_ID)) && \
+                (cfg.data.egress_qos.tm_sched.id == get_flow_status(flow_index, flow_id_data[flowid][1], EGRESS_QOS_TM_SCHED_ID)) && \
+                (a_val.cmds_bitmask == get_flow_status(flowid, flow_id_data[flowid][1], ACTION_CMDS_BITMASK)) && \
+                (a_val.o_vid == get_flow_status(flow_index, flow_id_data[flowid][1], ACTION_O_VID)) && \
+                (a_val.i_vid == get_flow_status(flow_index, flow_id_data[flowid][1], ACTION_I_VID)) && \
+                (a_val.o_pbits == get_flow_status(flow_index, flow_id_data[flowid][1], ACTION_O_PBITS)) && \
+                (a_val.i_pbits == get_flow_status(flow_index, flow_id_data[flowid][1], ACTION_I_PBITS)) && \
+                (cfg.data.state == get_flow_status(flowid, flow_id_data[flowid][1], STATE)); 
+#ifdef SHOW_FLOW_PARAM
+            // Flow Parameter
+            FLOW_PARAM_LOG();
+#endif
+
+            if (b_duplicate_flow) {
+                FLOW_LOG(WARNING, "Flow duplicate", 0);
+                return bcm_to_grpc_err(BCM_ERR_ALREADY, "flow exists");
+            }
+        }
+    }
+#endif
+
     bcmos_errno err = bcmolt_cfg_set(dev_id, &cfg.hdr);
     if (err) {
-        BCM_LOG(ERROR, openolt_log_id,  "Flow add failed\n");
+        FLOW_LOG(ERROR, "Flow add failed", err);
         return bcm_to_grpc_err(err, "flow add failed");
+    } else {
+        FLOW_LOG(INFO, "Flow add ok", err);
+        bcmos_fastlock_lock(&data_lock);
+        flow_id_data[flow_id_counters][0] = key.flow_id;
+        flow_id_data[flow_id_counters][1] = key.flow_type;
+        flow_id_counters += 1;
+        bcmos_fastlock_unlock(&data_lock, 0);
     }
 
     return Status::OK;
@@ -1532,7 +1914,7 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
     } else if (flow_type.compare(downstream) == 0) {
         key.flow_type = BCMOLT_FLOW_TYPE_DOWNSTREAM;
     } else {
-        BCM_LOG(WARNING, openolt_log_id, "Invalid flow type %s\n", flow_type.c_str());
+        OPENOLT_LOG(WARNING, openolt_log_id, "Invalid flow type %s\n", flow_type.c_str());
         return bcm_to_grpc_err(BCM_ERR_PARM, "Invalid flow type");
     }
 
@@ -1553,12 +1935,25 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
 
     bcmos_errno err = bcmolt_cfg_clear(dev_id, &cfg.hdr);
     if (err) {
-        BCM_LOG(ERROR, openolt_log_id, "Error %d while removing flow %d, %s\n",
+        OPENOLT_LOG(ERROR, openolt_log_id, "Error %d while removing flow %d, %s\n",
             err, flow_id, flow_type.c_str());
         return Status(grpc::StatusCode::INTERNAL, "Failed to remove flow");
     }
 
-    BCM_LOG(INFO, openolt_log_id, "Flow %d, %s removed\n", flow_id, flow_type.c_str());
+    bcmos_fastlock_lock(&data_lock);
+    for (int flowid=0; flowid < flow_id_counters; flowid++) {
+        if (flow_id_data[flowid][0] == flow_id && flow_id_data[flowid][1] == key.flow_type) {
+            flow_id_counters -= 1;
+            for (int i=flowid; i < flow_id_counters; i++) {
+                flow_id_data[i][0] = flow_id_data[i + 1][0]; 
+                flow_id_data[i][1] = flow_id_data[i + 1][1]; 
+            }
+            break;
+        }
+    }
+    bcmos_fastlock_unlock(&data_lock, 0);
+
+    OPENOLT_LOG(INFO, openolt_log_id, "Flow %d, %s removed\n", flow_id, flow_type.c_str());
     return Status::OK;
 }
 
@@ -1589,13 +1984,13 @@ Status CreateDefaultSchedQueue_(uint32_t intf_id, const std::string direction) {
     BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, sched_type, BCMOLT_TM_SCHED_TYPE_SP);
 
     // num_priorities: Max number of strict priority scheduling elements
-    BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, num_priorities, 4);
+    BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, num_priorities, 8);
 
     // bcmbal_tm_shaping
     uint32_t cir = 1000000;
     uint32_t pir = 1000000;
     uint32_t burst = 65536;
-    BCM_LOG(INFO, openolt_log_id, "applying traffic shaping in %s pir=%u, burst=%u\n",
+    OPENOLT_LOG(INFO, openolt_log_id, "applying traffic shaping in %s pir=%u, burst=%u\n",
        direction.c_str(), pir, burst);
     BCMOLT_FIELD_SET_PRESENT(&tm_sched_cfg.data.rate, tm_shaping, pir);
     BCMOLT_FIELD_SET_PRESENT(&tm_sched_cfg.data.rate, tm_shaping, burst);
@@ -1606,10 +2001,10 @@ Status CreateDefaultSchedQueue_(uint32_t intf_id, const std::string direction) {
 
     err = bcmolt_cfg_set(dev_id, &tm_sched_cfg.hdr);
     if (err) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to create %s scheduler, id %d, intf_id %d\n", direction.c_str(), tm_sched_key.id, intf_id);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create %s scheduler, id %d, intf_id %d, err %d\n", direction.c_str(), tm_sched_key.id, intf_id, err);
         return Status(grpc::StatusCode::INTERNAL, "Failed to create %s scheduler", direction.c_str());
     }
-    BCM_LOG(INFO, openolt_log_id, "Create %s scheduler success, id %d, intf_id %d\n", direction.c_str(), tm_sched_key.id, intf_id);
+    OPENOLT_LOG(INFO, openolt_log_id, "Create %s scheduler success, id %d, intf_id %d\n", direction.c_str(), tm_sched_key.id, intf_id);
 
     // Create 4 Queues for each default PON scheduler
     for (int queue_id = 0; queue_id < 4; queue_id++) {
@@ -1624,12 +2019,12 @@ Status CreateDefaultSchedQueue_(uint32_t intf_id, const std::string direction) {
 
         err = bcmolt_cfg_set(dev_id, &tm_queue_cfg.hdr);
         if (err) {
-            BCM_LOG(ERROR, openolt_log_id, "Failed to create %s tm queue, id %d, sched_id %d\n", \
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create %s tm queue, id %d, sched_id %d\n", \
                     direction.c_str(), tm_queue_key.id, tm_queue_key.sched_id);
             return Status(grpc::StatusCode::INTERNAL, "Failed to create %s tm queue", direction.c_str());
         }
 
-        BCM_LOG(INFO, openolt_log_id, "Create %s tm_queue success, id %d, sched_id %d\n", \
+        OPENOLT_LOG(INFO, openolt_log_id, "Create %s tm_queue success, id %d, sched_id %d\n", \
                 direction.c_str(), tm_queue_key.id, tm_queue_key.sched_id);
     }
     return Status::OK;
@@ -1675,7 +2070,7 @@ bcmos_errno CreateSched(std::string direction, uint32_t intf_id, uint32_t onu_id
             uint32_t cir = tf_sh_info.cir();
             uint32_t pir = tf_sh_info.pir();
             uint32_t burst = tf_sh_info.pbs();
-            BCM_LOG(INFO, openolt_log_id, "applying traffic shaping in DL cir=%u, pir=%u, burst=%u\n",
+            OPENOLT_LOG(INFO, openolt_log_id, "applying traffic shaping in DL cir=%u, pir=%u, burst=%u\n",
                cir, pir, burst);
             BCMOLT_FIELD_SET_PRESENT(&tm_sched_cfg.data.rate, tm_shaping, pir);
             BCMOLT_FIELD_SET_PRESENT(&tm_sched_cfg.data.rate, tm_shaping, burst);
@@ -1687,37 +2082,103 @@ bcmos_errno CreateSched(std::string direction, uint32_t intf_id, uint32_t onu_id
 
         err = bcmolt_cfg_set(dev_id, &tm_sched_cfg.hdr);
         if (err) {
-            BCM_LOG(ERROR, openolt_log_id, "Failed to create downstream subscriber scheduler, id %d, \
-                    intf_id %d, onu_id %d, uni_id %d, port_no %u\n", tm_sched_key.id, intf_id, onu_id, \
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create downstream subscriber scheduler, id %d, \
+intf_id %d, onu_id %d, uni_id %d, port_no %u\n", tm_sched_key.id, intf_id, onu_id, \
                     uni_id, port_no);
             return err;
         }
-        BCM_LOG(INFO, openolt_log_id, "Create downstream subscriber sched, id %d, intf_id %d, onu_id %d, \
-                uni_id %d, port_no %u\n", tm_sched_key.id, intf_id, onu_id, uni_id, port_no);
+        OPENOLT_LOG(INFO, openolt_log_id, "Create downstream subscriber sched, id %d, intf_id %d, onu_id %d, \
+uni_id %d, port_no %u\n", tm_sched_key.id, intf_id, onu_id, uni_id, port_no);
 
     } else { //upstream
         bcmolt_itupon_alloc_cfg cfg;
         bcmolt_itupon_alloc_key key = { };
         key.pon_ni = intf_id;
         key.alloc_id = alloc_id;
+        int bw_granularity = (board_technology == "XGS-PON")?XGS_BANDWIDTH_GRANULARITY:GPON_BANDWIDTH_GRANULARITY;
+        int pir_bw = tf_sh_info.pir();
+        int cir_bw = tf_sh_info.cir();
+        //offset to match bandwidth granularity
+        int offset_pir_bw = pir_bw%bw_granularity;
+        int offset_cir_bw = cir_bw%bw_granularity;
 
-        BCMOLT_CFG_INIT(&cfg, itupon_alloc, key); 
-        BCMOLT_MSG_FIELD_SET(&cfg, onu_id, onu_id);
-        if (additional_bw == 2) //AdditionalBW_BestEffort
-            BCMOLT_MSG_FIELD_SET(&cfg, sla.additional_bw_eligibility, 
-                BCMOLT_ADDITIONAL_BW_ELIGIBILITY_BEST_EFFORT);
-        else if (additional_bw == 3) //AdditionalBW_Auto
-            BCMOLT_MSG_FIELD_SET(&cfg, sla.additional_bw_eligibility, 
-                BCMOLT_ADDITIONAL_BW_ELIGIBILITY_NON_ASSURED);
-        /* CBR Real Time Bandwidth which require shaping of the bandwidth allocations 
+        pir_bw = pir_bw - offset_pir_bw;
+        cir_bw = cir_bw - offset_cir_bw;
+
+        BCMOLT_CFG_INIT(&cfg, itupon_alloc, key);
+
+        switch (additional_bw) {
+            case 2: //AdditionalBW_BestEffort
+                if (pir_bw == 0) {
+                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth was set to 0, must be at least \
+%d bytes/sec\n", (board_technology == "XGS-PON")?XGS_BANDWIDTH_GRANULARITY:GPON_BANDWIDTH_GRANULARITY);
+                } else if (pir_bw < cir_bw) {
+                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth (%d) can't be less than Guaranteed \
+bandwidth (%d)\n", pir_bw, cir_bw);
+                   return BCM_ERR_PARM;
+                } else if (pir_bw == cir_bw) {
+                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth must be greater than Guaranteed \
+bandwidth for additional bandwidth eligibility of type best_effort\n");
+                   return BCM_ERR_PARM;
+                }
+                BCMOLT_MSG_FIELD_SET(&cfg, sla.additional_bw_eligibility, BCMOLT_ADDITIONAL_BW_ELIGIBILITY_BEST_EFFORT);
+                break;
+            case 1: //AdditionalBW_NA
+                if (pir_bw == 0) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth was set to 0, must be at least \
+%d bytes/sec\n", (board_technology == "XGS-PON")?XGS_BANDWIDTH_GRANULARITY:GPON_BANDWIDTH_GRANULARITY);
+                    return BCM_ERR_PARM;
+                } else if (cir_bw == 0) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Guaranteed bandwidth must be greater than zero for \
+additional bandwidth eligibility of type Non-Assured (NA)\n");
+                    return BCM_ERR_PARM;
+                } else if (pir_bw < cir_bw) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth (%d) can't be less than Guaranteed \
+bandwidth (%d)\n", pir_bw, cir_bw);
+                    return BCM_ERR_PARM;
+                } else if (pir_bw == cir_bw) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth must be greater than Guaranteed \
+bandwidth for additional bandwidth eligibility of type non_assured\n");
+                    return BCM_ERR_PARM;
+                }
+                BCMOLT_MSG_FIELD_SET(&cfg, sla.additional_bw_eligibility, BCMOLT_ADDITIONAL_BW_ELIGIBILITY_NON_ASSURED);
+                break;
+            case 0: //AdditionalBW_None
+                if (pir_bw == 0) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth was set to 0, must be at least \
+16000 bytes/sec\n");
+                    return BCM_ERR_PARM;
+                } else if (cir_bw == 0) {
+                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth must be equal to Guaranteed bandwidth \
+for additional bandwidth eligibility of type None\n");
+                    return BCM_ERR_PARM;
+                } else if (pir_bw > cir_bw) {
+                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth must be equal to Guaranteed bandwidth \
+for additional bandwidth eligibility of type None\n");
+                   OPENOLT_LOG(ERROR, openolt_log_id, "set Maximum bandwidth (%d) to Guaranteed \
+bandwidth in None eligibility\n", pir_bw);
+                   cir_bw = pir_bw;
+                } else if (pir_bw < cir_bw) {
+                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth (%d) can't be less than Guaranteed \
+bandwidth (%d)\n", pir_bw, cir_bw);
+                   OPENOLT_LOG(ERROR, openolt_log_id, "set Maximum bandwidth (%d) to Guaranteed \
+bandwidth in None eligibility\n", pir_bw);
+                   cir_bw = pir_bw;
+                }
+                BCMOLT_MSG_FIELD_SET(&cfg, sla.additional_bw_eligibility, BCMOLT_ADDITIONAL_BW_ELIGIBILITY_NONE);
+                break;
+            default:
+                return BCM_ERR_PARM;
+        }
+        /* CBR Real Time Bandwidth which require shaping of the bandwidth allocations
            in a fine granularity. */
         BCMOLT_MSG_FIELD_SET(&cfg, sla.cbr_rt_bw, 0);
         /* Fixed Bandwidth with no critical requirement of shaping */
         BCMOLT_MSG_FIELD_SET(&cfg, sla.cbr_nrt_bw, 0);
         /* Dynamic bandwidth which the OLT is committed to allocate upon demand */
-        BCMOLT_MSG_FIELD_SET(&cfg, sla.guaranteed_bw, 0);
+        BCMOLT_MSG_FIELD_SET(&cfg, sla.guaranteed_bw, cir_bw);
         /* Maximum allocated bandwidth allowed for this alloc ID */
-        BCMOLT_MSG_FIELD_SET(&cfg, sla.maximum_bw, tf_sh_info.pir());
+        BCMOLT_MSG_FIELD_SET(&cfg, sla.maximum_bw, pir_bw);
         BCMOLT_MSG_FIELD_SET(&cfg, sla.alloc_type, BCMOLT_ALLOC_TYPE_NSR);
         /* Set to True for AllocID with CBR RT Bandwidth that requires compensation 
            for skipped allocations during quiet window */
@@ -1730,15 +2191,16 @@ bcmos_errno CreateSched(std::string direction, uint32_t intf_id, uint32_t onu_id
         BCMOLT_MSG_FIELD_SET(&cfg, sla.weight, 0);
         /**< Alloc ID Priority used in case of Extended DBA mode */
         BCMOLT_MSG_FIELD_SET(&cfg, sla.priority, 0);
+        BCMOLT_MSG_FIELD_SET(&cfg, onu_id, onu_id);
 
-        err = bcmolt_cfg_set(dev_id, &(cfg.hdr));
+        err = bcmolt_cfg_set(dev_id, &cfg.hdr);
         if (err) {
-            BCM_LOG(ERROR, openolt_log_id, "Failed to create upstream DBA sched, intf_id %d, onu_id %d, uni_id %d,\
-                    port_no %u, alloc_id %d\n", intf_id, onu_id,uni_id,port_no,alloc_id);
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d,\
+port_no %u, alloc_id %d, err %d\n", intf_id, onu_id,uni_id,port_no,alloc_id, err);
             return err;
         }
-        BCM_LOG(INFO, openolt_log_id, "Create upstream DBA sched, intf_id %d, onu_id %d, uni_id %d, port_no %u, \
-                alloc_id %d\n", intf_id,onu_id,uni_id,port_no,alloc_id);
+        OPENOLT_LOG(INFO, openolt_log_id, "Create upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d, port_no %u, \
+alloc_id %d\n", intf_id,onu_id,uni_id,port_no,alloc_id);
     }
 
     return BCM_ERR_OK;
@@ -1767,7 +2229,7 @@ Status CreateTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
             direction = downstream;
         }
         else {
-            BCM_LOG(ERROR, openolt_log_id, "direction-not-supported %d", traffic_sched.direction());
+            OPENOLT_LOG(ERROR, openolt_log_id, "direction-not-supported %d\n", traffic_sched.direction());
             return Status::CANCELLED;
         }
         alloc_id = traffic_sched.alloc_id();
@@ -1786,26 +2248,25 @@ Status CreateTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
     return Status::OK;
 }
 
-bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, std::string direction) {
+bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::string direction) {
 
     bcmos_errno err;
-    
+
     if (direction == upstream) {
         bcmolt_itupon_alloc_cfg cfg;
         bcmolt_itupon_alloc_key key = { };
         key.pon_ni = intf_id;
+        key.alloc_id = alloc_id;
 
         BCMOLT_CFG_INIT(&cfg, itupon_alloc, key); 
-        BCMOLT_MSG_FIELD_SET(&cfg, onu_id, onu_id);
-        BCMOLT_CFG_INIT(&cfg, itupon_alloc, key); 
-        err = bcmolt_cfg_clear(dev_id, &(cfg.hdr));
+        err = bcmolt_cfg_clear(dev_id, &cfg.hdr);
         if (err) {
-            BCM_LOG(ERROR, openolt_log_id, "Failed to remove scheduler sched, direction = %s, intf_id %d, onu_id %d\n", \
-                    direction.c_str(), intf_id, onu_id);
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler sched, direction = %s, intf_id %d, alloc_id %d, err %d\n", \
+                    direction.c_str(), intf_id, alloc_id, err);
             return err;
         }
-        BCM_LOG(INFO, openolt_log_id, "Removed sched, direction = %s, intf_id %d, onu_id %d\n", \
-                direction.c_str(), intf_id, onu_id);
+        OPENOLT_LOG(INFO, openolt_log_id, "Removed sched, direction = %s, intf_id %d, alloc_id %d\n", \
+                direction.c_str(), intf_id, alloc_id);
     } else if (direction == downstream) {
         bcmolt_tm_sched_cfg cfg;
         bcmolt_tm_sched_key key = { };
@@ -1813,17 +2274,17 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, std::string directi
         if (is_tm_sched_id_present(intf_id, onu_id, uni_id, direction)) {
             key.id = get_tm_sched_id(intf_id, onu_id, uni_id, direction);
         } else {
-            BCM_LOG(INFO, openolt_log_id, "schduler not present in %s\n", direction.c_str());
+            OPENOLT_LOG(INFO, openolt_log_id, "schduler not present in %s, err %d\n", direction.c_str(), err);
             return BCM_ERR_OK;
         }
         BCMOLT_CFG_INIT(&cfg, tm_sched, key);
         err = bcmolt_cfg_clear(dev_id, &(cfg.hdr));
         if (err) {
-            BCM_LOG(ERROR, openolt_log_id, "Failed to remove scheduler sched, direction = %s, id %d, intf_id %d, onu_id %d\n", \
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler sched, direction = %s, id %d, intf_id %d, onu_id %d\n", \
                     direction.c_str(), key.id, intf_id, onu_id);
             return err;
         }
-        BCM_LOG(INFO, openolt_log_id, "Removed sched, direction = %s, id %d, intf_id %d, onu_id %d\n", \
+        OPENOLT_LOG(INFO, openolt_log_id, "Removed sched, direction = %s, id %d, intf_id %d, onu_id %d\n", \
                 direction.c_str(), key.id, intf_id, onu_id);
     }
 
@@ -1846,10 +2307,11 @@ Status RemoveTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
             direction = downstream;
         }
         else {
-            BCM_LOG(ERROR, openolt_log_id, "direction-not-supported %d", traffic_sched.direction());
+            OPENOLT_LOG(ERROR, openolt_log_id, "direction-not-supported %d\n", traffic_sched.direction());
             return Status::CANCELLED;
         }
-        err = RemoveSched(intf_id, onu_id, uni_id, direction);
+        int alloc_id = traffic_sched.alloc_id();
+        err = RemoveSched(intf_id, onu_id, uni_id, alloc_id, direction);
         if (err) {
             return bcm_to_grpc_err(err, "error-removing-traffic-scheduler");
         }
@@ -1862,8 +2324,8 @@ bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t
     bcmos_errno err;
     bcmolt_tm_queue_cfg cfg;
     bcmolt_tm_queue_key key = { };
-    BCM_LOG(INFO, openolt_log_id, "creating queue. access_intf_id = %d, onu_id = %d, uni_id = %d \
-            gemport_id = %d, direction = %s\n", access_intf_id, onu_id, uni_id, gemport_id, direction.c_str());
+    OPENOLT_LOG(INFO, openolt_log_id, "creating queue. access_intf_id = %d, onu_id = %d, uni_id = %d \
+gemport_id = %d, direction = %s\n", access_intf_id, onu_id, uni_id, gemport_id, direction.c_str());
     if (direction == downstream) {
         // There is one queue per gem port
         key.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, direction);
@@ -1872,7 +2334,7 @@ bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t
     } else {
         queue_map_key_tuple map_key(access_intf_id, onu_id, uni_id, gemport_id, direction);
         if (queue_map.count(map_key) > 0) {
-            BCM_LOG(INFO, openolt_log_id, "upstream queue exists for intf_id %d, onu_id %d, uni_id %d\n. Not re-creating", \
+            OPENOLT_LOG(INFO, openolt_log_id, "upstream queue exists for intf_id %d, onu_id %d, uni_id %d\n. Not re-creating", \
                     access_intf_id, onu_id, uni_id); 
             return BCM_ERR_OK;
         }
@@ -1889,20 +2351,20 @@ bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t
         // Also, these queues should be present until the last subscriber exits the system.
         // One solution is to have these queues always, i.e., create it as soon as OLT is enabled.
     }
-    BCM_LOG(INFO, openolt_log_id, "queue assigned queue_id = %d\n", key.id);
+    OPENOLT_LOG(INFO, openolt_log_id, "queue assigned queue_id = %d\n", key.id);
 
     BCMOLT_CFG_INIT(&cfg, tm_queue, key);
     BCMOLT_MSG_FIELD_SET(&cfg, tm_sched_param.u.priority.priority, priority);
 
     err = bcmolt_cfg_set(dev_id, &cfg.hdr);
     if (err) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to create subscriber tm queue, direction = %s, id %d, sched_id %d, \
-                intf_id %d, onu_id %d, uni_id %d\n", \
-                direction.c_str(), key.id, key.sched_id, access_intf_id, onu_id, uni_id);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create subscriber tm queue, direction = %s, id %d, sched_id %d, \
+intf_id %d, onu_id %d, uni_id %d, err %d\n", \
+                direction.c_str(), key.id, key.sched_id, access_intf_id, onu_id, uni_id, err);
         return err;
     }
 
-    BCM_LOG(INFO, openolt_log_id, "Created tm_queue, direction %s, id %d, intf_id %d, onu_id %d, uni_id %d", \
+    OPENOLT_LOG(INFO, openolt_log_id, "Created tm_queue, direction %s, id %d, intf_id %d, onu_id %d, uni_id %d\n", \
             direction.c_str(), key.id, access_intf_id, onu_id, uni_id);
 
     return BCM_ERR_OK;
@@ -1914,7 +2376,6 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
     uint32_t onu_id = traffic_queues->onu_id();
     uint32_t uni_id = traffic_queues->uni_id();
     std::string direction;
-    unsigned int alloc_id;
     bcmos_errno err;
 
     for (int i = 0; i < traffic_queues->traffic_queues_size(); i++) {
@@ -1925,7 +2386,7 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
             direction = downstream;
         }
         else {
-            BCM_LOG(ERROR, openolt_log_id, "direction-not-supported %d", traffic_queue.direction());
+            OPENOLT_LOG(ERROR, openolt_log_id, "direction-not-supported %d\n", traffic_queue.direction());
             return Status::CANCELLED;
         }
         err = CreateQueue(direction, intf_id, onu_id, uni_id, traffic_queue.priority(), traffic_queue.gemport_id());
@@ -1949,7 +2410,7 @@ bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t
             key.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, direction);
             key.id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, direction);
         } else {
-            BCM_LOG(INFO, openolt_log_id, "queue not present in DS. Not clearing");
+            OPENOLT_LOG(INFO, openolt_log_id, "queue not present in DS. Not clearing, access_intf_id %d, onu_id %d, uni_id %d, gemport_id %d, direction %s\n", access_intf_id, onu_id, uni_id, gemport_id, direction.c_str());
             return BCM_ERR_OK;
         }
     } else {
@@ -1964,7 +2425,7 @@ bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t
     err = bcmolt_cfg_clear(dev_id, &(cfg.hdr));
 
     if (err) {
-        BCM_LOG(ERROR, openolt_log_id, "Failed to remove queue, direction = %s, id %d, sched_id %d, intf_id %d, onu_id %d, uni_id %d\n",
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove queue, direction = %s, id %d, sched_id %d, intf_id %d, onu_id %d, uni_id %d\n",
                 direction.c_str(), key.id, key.sched_id, access_intf_id, onu_id, uni_id);
         return err;
     }
@@ -1980,7 +2441,6 @@ Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
     uint32_t uni_id = traffic_queues->uni_id();
     uint32_t port_no = traffic_queues->port_no();
     std::string direction;
-    unsigned int alloc_id;
     bcmos_errno err;
 
     for (int i = 0; i < traffic_queues->traffic_queues_size(); i++) {
@@ -1990,7 +2450,7 @@ Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
         } else if (traffic_queue.direction() == tech_profile::Direction::DOWNSTREAM) {
             direction = downstream;
         } else {
-            BCM_LOG(ERROR, openolt_log_id, "direction-not-supported %d", traffic_queue.direction());
+            OPENOLT_LOG(ERROR, openolt_log_id, "direction-not-supported %d\n", traffic_queue.direction());
             return Status::CANCELLED;
         }
         err = RemoveQueue(direction, intf_id, onu_id, uni_id, traffic_queue.priority(), traffic_queue.gemport_id());

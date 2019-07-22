@@ -44,8 +44,6 @@ int main(int argc, char** argv) {
 
     ProbeDeviceCapabilities_();
     sleep(2);
-    ProbePonIfTechnology_();
-    sleep(2);
     // Enable all PON interfaces. 
     for (int i = 0; i < NumPonIf_(); i++) {
         status = EnablePonIf_(i);
@@ -58,6 +56,7 @@ int main(int argc, char** argv) {
     }
     sleep(2);
     // Enable all NNI interfaces.
+#if 0
     for (int i = 0; i < NumNniIf_(); i++) {
         status = EnableUplinkIf_(i);
         if (!status.ok()) {
@@ -67,7 +66,15 @@ int main(int argc, char** argv) {
         else
             pushOltOperInd(i, "nni", "up");
     }
-
+#endif
+    //only for nni-65536 mapping to intf_id 0
+    status = SetStateUplinkIf_(0, true);
+    if (!status.ok()) {
+        // raise alarm to report error in enabling NNI
+        pushOltOperInd(0, "nni", "down");
+    }
+    else
+        pushOltOperInd(0, "nni", "up");
     RunServer();
 
     return 0;

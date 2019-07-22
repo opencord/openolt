@@ -126,14 +126,14 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
                 port_stats->set_tx_error_packets(nni_stats.data.tx_error_packets);
             
             } else {
-                BCM_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d\n",
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d\n",
                     (int)intf_ref.intf_id, (int)intf_ref.intf_type);
             }
             break;
         }
         case BCMOLT_INTERFACE_TYPE_PON:
         {
-				bcmolt_pon_interface_key key;
+            bcmolt_pon_interface_key key;
             key.pon_ni = (bcmolt_interface)intf_ref.intf_id;
             BCMOLT_STAT_INIT(&itu_pon_stats, pon_interface, itu_pon_stats, key);
             BCMOLT_MSG_FIELD_GET(&itu_pon_stats, tx_packets);
@@ -147,8 +147,8 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
                 port_stats->set_bip_errors(itu_pon_stats.data.bip_errors);
                 port_stats->set_rx_crc_errors(itu_pon_stats.data.rx_crc_error);
             } else {
-                BCM_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d\n",
-                    (int)intf_ref.intf_id, (int)intf_ref.intf_type);
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d, err %d\n",
+                    (int)intf_ref.intf_id, (int)intf_ref.intf_type, err);
             }
             {
                 bcmolt_onu_key key;
@@ -165,8 +165,8 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
                     port_stats->set_rx_packets(pon_stats.data.rx_packets);
                     port_stats->set_tx_bytes(pon_stats.data.tx_bytes);
                 } else {
-                    BCM_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d\n",
-                        (int)intf_ref.intf_id, (int)intf_ref.intf_type);
+                    OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d, err %d\n",
+                        (int)intf_ref.intf_id, (int)intf_ref.intf_type, err);
                 }
             }
             break;
@@ -226,16 +226,16 @@ openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_fl
 void stats_collection() {
 
     if (!state.is_connected()) {
-        BCM_LOG(INFO, openolt_log_id, "Voltha is not connected, do not collect stats\n");
+        OPENOLT_LOG(INFO, openolt_log_id, "Voltha is not connected, do not collect stats\n");
         return;
     }
     if (!state.is_activated()) {
-        BCM_LOG(INFO, openolt_log_id, "The OLT is not up, do not collect stats\n");
+        OPENOLT_LOG(INFO, openolt_log_id, "The OLT is not up, do not collect stats\n");
         return;
     }
 
 
-    BCM_LOG(DEBUG, openolt_log_id, "Collecting statistics\n");
+    OPENOLT_LOG(DEBUG, openolt_log_id, "Collecting statistics\n");
 
     //Ports statistics
 
