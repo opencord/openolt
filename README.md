@@ -55,7 +55,7 @@ OpenNetworkingLinux
 (ONL)](https://github.com/opencord/OpenNetworkLinux/releases/download/20180124-olt-kernel-3.7.10/ONL-2.0.0_ONL-OS_2018-01-24.0118-1303f20_AMD64_INSTALLED_INSTALLER).
 
 More info on how to install ONL can be found on the official [ONL
-website](https://opennetlinux.org/docs/deploy).
+website](https://opennetlinux.org/).
 
 ## Install OpenOLT
 
