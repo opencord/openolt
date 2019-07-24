@@ -336,6 +336,12 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
     BCM_LOG(INFO, openolt_log_id, "Fetched device serial number %s\n", serial_number);
     device_info->set_device_serial_number(serial_number);
 
+    char device_id[OPENOLT_FIELD_LEN];
+    memset(device_id, '\0', OPENOLT_FIELD_LEN);
+    openolt_read_sysinfo("MAC", device_id);
+    BCM_LOG(INFO, openolt_log_id, "Fetched device mac address %s\n", device_id);
+    device_info->set_device_id(device_id);
+
     // Legacy, device-wide ranges. To be deprecated when adapter
     // is upgraded to support per-interface ranges
     if (board_technology == "xgspon") {
