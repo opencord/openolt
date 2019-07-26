@@ -54,13 +54,25 @@ USER := $(shell echo $(USER))
 HOST_SYSTEM = $(shell uname | cut -f 1 -d_)
 SYSTEM ?= $(HOST_SYSTEM)
 
+VERSION                 ?= $(shell cat ../VERSION)
+
+#set ref and commit date only if committed
+LABEL_VCS_URL       ?= $(shell git remote get-url $(shell git remote))
+LABEL_VCS_REF       = $(shell git rev-parse HEAD)
+LABEL_BUILD_DATE    ?= $(shell date -u "+%Y-%m-%dT%H:%M:%SZ")
+LABEL_COMMIT_DATE   = $(shell git show -s --format=%cd --date=iso-strict HEAD)
+
 LIBGRPC_PATH=$(shell pkg-config --libs-only-L grpc | sed s/-L// | sed s/\ //g)
 LIBPROTOBUF_PATH=$(shell PKG_CONFIG_ALLOW_SYSTEM_LIBS=true pkg-config --libs-only-L protobuf | sed s/-L// | sed s/\ //g)
 
 CXX = @CXX@
 CXXFLAGS += @CXXFLAGS@
 CXXFLAGS += $(shell pkg-config --cflags-only-I grpc++)
+CPPFLAGS += @CPPFLAGS@
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
+CPPFLAGS += -DVERSION=\"$(VERSION)\" -DBAL_VER=\"$(BAL_VER)\" -DLABEL_VCS_URL=\"$(LABEL_VCS_URL)\" \
+            -DLABEL_VCS_REF=\"$(LABEL_VCS_REF)\" -DLABEL_BUILD_DATE=\"$(LABEL_BUILD_DATE)\" \
+            -DLABEL_COMMIT_DATE=\"$(LABEL_COMMIT_DATE)\"
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
 LDFLAGS += @LDFLAGS@
 LDFLAGS += `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
@@ -69,8 +81,9 @@ CXXFLAGSDEVICE = -I./device -I./device/$(OPENOLTDEVICE) -I./device/generic
 export CXX CXXFLAGS
 
 prereq:
-	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
+	sudo apt-get -q -y install pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
 	sudo apt-get install -y build-essential autoconf libssl-dev gawk debhelper dh-systemd init-system-helpers
+	sudo add-apt-repository -y ppa:git-core/ppa && apt-get -y update && apt-get -y install git
 
 	# Install GRPC, libprotobuf and protoc
 	rm -rf $(GRPC_DST)
@@ -198,7 +211,7 @@ protos-clean:
 ##
 ##
 common/%.o: common/%.cc
-	$(CXX) $(CXXFLAGS) -I./common -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I./common -c $< -o $@
 
 ########################################################################
 ##
@@ -248,7 +261,7 @@ $(BUILD_DIR)/openolt: sdk protos $(OBJS)
 	ln -sf $(LIBGRPC_PATH)/libgrpc.so.6 $(BUILD_DIR)/libgrpc.so.6
 	ln -sf $(LIBGRPC_PATH)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++.so.1
 src/%.o: src/%.cc
-	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I./common -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) $(CPPFLAGS) -I./common -c $< -o $@
 
 deb:
 	cp $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz mkdebian/debian
