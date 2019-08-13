@@ -24,7 +24,7 @@ echo "kill running time application"
 [ -n "`pidof example_user_appl`" ] && killall example_user_appl 
 [ -n "`pidof openolt`" ] && killall openolt
 rm -f /tmp/root_dev_mgmt_pid /tmp/root_dev_mgmt_init_done
-
+sleep 3
 # unload drivers
 echo "unload kernel drivers"
 [ -n "`lsmod | grep i2c_devs`" ] && rmmod i2c_devs && sleep 1

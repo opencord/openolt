@@ -28,13 +28,13 @@ OPENOLTDEVICE ?= generic
 # sdk-all-<SDK_VER>.tar.gz - Broadcom Qumran SDK.
 # ACCTON_BAL_<BAL_VER>-<DEV_VER>.patch - Accton/Edgecore's patch.
 BAL_MAJOR_VER = 3
-BAL_MINOR_VER = 0
-BAL_REV_A_VER = 3
-BAL_REV_B_VER = 3
-BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER)
+BAL_MINOR_VER = 1
+BAL_REV_A_VER = 1
+BAL_REV_B_VER = 1
+BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER)
 BAL_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
 SDK_VER = 6.5.13
-DEV_VER ?= 201904171432
+DEV_VER ?= 201908010203
 #
 # Version of Open Network Linux (ONL).
 ONL_KERN_VER_MAJOR = 4.14
@@ -101,15 +101,15 @@ endif
 ##        ONL
 ##
 ##
-ONL_REPO = $(OPENOLTDEVICE)-onl
+ONL_REPO = onl
 ONL_DIR = $(BUILD_DIR)/$(ONL_REPO)
 onl:
 	if [ ! -d "$(ONL_DIR)/OpenNetworkLinux" ]; then \
 		mkdir -p $(ONL_DIR); \
 		git clone https://github.com/opencomputeproject/OpenNetworkLinux.git $(ONL_DIR)/OpenNetworkLinux; \
 		cp download/Makefile.onl $(ONL_DIR)/Makefile; \
-		install -m 755 download/build-$(OPENOLTDEVICE).sh $(ONL_DIR)/OpenNetworkLinux; \
-		make -C $(ONL_DIR) $(OPENOLTDEVICE)-$(ONL_KERN_VER_MAJOR); \
+		install -m 755 download/build-onl.sh $(ONL_DIR)/OpenNetworkLinux; \
+		make -C $(ONL_DIR) onl-$(ONL_KERN_VER_MAJOR); \
 	fi;
 onl-force:
 	make -C $(ONL_DIR) $(OPENOLTDEVICE)-$(ONL_KERN_VER_MAJOR)
@@ -127,7 +127,7 @@ BAL_API_DIR = $(BUILD_DIR)/bal-api-$(BAL_API_VER)
 bal-api-$(BAL_API_VER):
 	if [ ! -d "$(BAL_API_DIR)" ]; then \
 		mkdir -p $(BAL_API_DIR); \
-		git clone https://github.com/balapi/bal-api-3.0.git $(BAL_API_DIR); \
+		git clone https://github.com/balapi/bal-api-$(BAL_API_VER).git $(BAL_API_DIR); \
 	fi;
 bal-api-clean:
 	rm $(BAL_API_DIR)
@@ -169,10 +169,6 @@ ifeq ("$(wildcard $(BAL_DIR))","")
 	cp download/$(SDK_ZIP) $(BCM_SDK)
 	chmod -R 744 $(BAL_DIR)
 	cat download/$(ACCTON_PATCH) | patch -p1 -d $(BAL_DIR)
-	# For fixed Broadcom bug, The patch file have provided temporary change in BAL v3.0
-	# Broadcom CS8250563: Getting the wrong state using NNI interface?
-	# Broadcom CS8341292: I got error message "Failed to allocate message for NNI state change!"
-	cat download/ACCTON_BAL_$(BAL_VER)-V$(DEV_VER)_r1-bug-fixed.patch | patch -p1 -d $(BAL_DIR)
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) ONL_DIR=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux OPEN_SOURCE=y
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
 endif
@@ -181,7 +177,7 @@ bal-release: sdk
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
 
 bal-clean:
-	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) clean
+	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) clean_all
 
 ########################################################################
 ##
@@ -259,44 +255,51 @@ src/%.o: src/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I./common -c $< -o $@
 
 deb:
-	cp $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz mkdebian/debian
-	cp $(BUILD_DIR)/openolt mkdebian/debian
-	cp $(BUILD_DIR)/libgrpc.so.6 mkdebian/debian
-	cp $(BUILD_DIR)/libgrpc++.so.1 mkdebian/debian
-	cp $(BUILD_DIR)/libstdc++.so.6 mkdebian/debian
-	cp $(BUILD_DIR)/libbal_host_api.so mkdebian/debian
-	cp -a scripts/init.d mkdebian/debian
-	cd mkdebian && ./build_$(OPENOLTDEVICE)_deb.sh
-	mv *.deb $(BUILD_DIR)/openolt.deb
+	cp $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/openolt device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/libgrpc.so.6 device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/libgrpc++.so.1 device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/libstdc++.so.6 device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/libbal_host_api.so device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp -a scripts/init.d device/$(OPENOLTDEVICE)/mkdebian/debian
+	cd device/$(OPENOLTDEVICE)/mkdebian && ./build_$(OPENOLTDEVICE)_deb.sh
+	mv device/$(OPENOLTDEVICE)/*.deb $(BUILD_DIR)/openolt_$(OPENOLTDEVICE).deb
 	make deb-cleanup
 
 src/%.o: %.cpp
 	$(CXX) -MMD -c $< -o $@
 
 deb-cleanup:
-	rm -f mkdebian/debian/$(OPENOLTDEVICE).debhelper.log
-	rm -f mkdebian/debian/$(OPENOLTDEVICE).postinst.debhelper
-	rm -f mkdebian/debian/$(OPENOLTDEVICE).postrm.debhelper
-	rm -f mkdebian/debian/$(OPENOLTDEVICE).substvars
-	rm -rf mkdebian/debian/$(OPENOLTDEVICE)/
-	rm -f mkdebian/debian/libgrpc++.so.1
-	rm -f mkdebian/debian/libgrpc.so.6
-	rm -f mkdebian/debian/openolt
-	rm -f mkdebian/debian/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz
-	rm -rf mkdebian/debian/tmp/
-	rm -f $(OPENOLTDEVICE)_$(BAL_VER)+edgecore-V$(DEV_VER)_amd64.changes
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).debhelper.log
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).postinst.debhelper
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).postrm.debhelper
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).substvars
+	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE)/
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/debhelper-build-stamp
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libgrpc++.so.1
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libgrpc.so.6
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libstdc++.so.6
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libbal_host_api.so
+	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/init.d/
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/openolt
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz
+	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/tmp/
+	@rm -f device/$(OPENOLTDEVICE)/$(OPENOLTDEVICE)_$(BAL_VER)+edgecore-V$(DEV_VER)_amd64.changes
 
 clean: protos-clean deb-cleanup
-	rm -f $(OBJS) $(DEPS)
-	rm -rf $(OPENOLT_PROTOS_DIR)/googleapis
-	rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1
-	rm -f $(BUILD_DIR)/libbal_api_dist.so
-	rm -f $(BUILD_DIR)/openolt
-	rm -f $(BUILD_DIR)/bal_core_dist
-	rm -f $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz
-	rm -f $(BUILD_DIR)/openolt.deb
+	@rm -f $(OBJS) $(DEPS)
+	@rm -rf $(OPENOLT_PROTOS_DIR)/googleapis
+	@rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1
+	@rm -f $(BUILD_DIR)/libbal_api_dist.so
+	@rm -f $(BUILD_DIR)/openolt
+	@rm -f $(BUILD_DIR)/bal_core_dist
+	@rm -f $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz
+	@rm -f $(BUILD_DIR)/openolt.deb
 
-distclean:
-	rm -rf $(BUILD_DIR)
+clean-src: protos-clean
+	@rm -f $(OBJS) $(DEPS)
+
+distclean: clean-src clean
+	@rm -rf $(BUILD_DIR)
 
 .PHONY: onl sdk bal protos prereq sim

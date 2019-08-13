@@ -20,7 +20,6 @@
 #include <string>
 
 #include "Queue.h"
-#include <iostream>
 #include <sstream>
 #include <chrono>
 #include <thread>
@@ -55,14 +54,17 @@ extern "C"
 dev_log_id openolt_log_id = bcm_dev_log_id_register("OPENOLT", DEV_LOG_LEVEL_INFO, DEV_LOG_ID_TYPE_BOTH);
 dev_log_id omci_log_id = bcm_dev_log_id_register("OMCI", DEV_LOG_LEVEL_INFO, DEV_LOG_ID_TYPE_BOTH);
 
-#define MAX_SUPPORTED_INTF 16
 #define BAL_RSC_MANAGER_BASE_TM_SCHED_ID 16384
 #define MAX_TM_QUEUE_ID 8192
-#define MAX_TM_SCHED_ID 4075
+#define MAX_TM_QMP_ID 16
+#define TMQ_MAP_PROFILE_SIZE 8
+#define MAX_TM_SCHED_ID 1023
+#define MAX_SUBS_TM_SCHED_ID (MAX_SUPPORTED_PON == 16 ? MAX_TM_SCHED_ID-4-16 : MAX_TM_SCHED_ID-10-64)
 #define EAP_ETHER_TYPE 34958
 #define XGS_BANDWIDTH_GRANULARITY 16000
 #define GPON_BANDWIDTH_GRANULARITY 32000
 #define FILL_ARRAY(ARRAY,START,END,VALUE) for(int i=START;i<END;ARRAY[i++]=VALUE);
+#define COUNT_OF(array) (sizeof(array) / sizeof(array[0]))
 
 #define GET_FLOW_INTERFACE_TYPE(type) \
        (type == BCMOLT_FLOW_INTERFACE_TYPE_PON) ? "PON" : \
@@ -75,7 +77,7 @@ dev_log_id omci_log_id = bcm_dev_log_id_register("OMCI", DEV_LOG_LEVEL_INFO, DEV
 
 static unsigned int num_of_nni_ports = 0;
 static unsigned int num_of_pon_ports = 0;
-static std::string intf_technologies[MAX_SUPPORTED_INTF];
+static std::string intf_technologies[MAX_SUPPORTED_PON];
 static const std::string UNKNOWN_TECH("unknown");
 static const std::string MIXED_TECH("mixed");
 static std::string board_technology(UNKNOWN_TECH);
@@ -83,15 +85,20 @@ static std::string chip_family(UNKNOWN_TECH);
 static unsigned int OPENOLT_FIELD_LEN = 200;
 static std::string firmware_version = "Openolt.2019.07.01";
 
-const uint32_t tm_upstream_sched_id_start = 4092;
-const uint32_t tm_downstream_sched_id_start = 4076;
-//0 to 3 are default queues. Lets not use them.
-const uint32_t tm_queue_id_start = 4;
-// Upto 8 fixed Upstream. Queue id 0 to 3 are pre-created, lets not use them.
-const uint32_t us_fixed_queue_id_list[8] = {4, 5, 6, 7, 8, 9, 10, 11};
+const uint32_t tm_upstream_sched_id_start = (MAX_SUPPORTED_PON == 16 ? \
+    MAX_TM_SCHED_ID-3 : MAX_TM_SCHED_ID-9);
+const uint32_t tm_downstream_sched_id_start = (MAX_SUPPORTED_PON == 16 ? \
+    tm_upstream_sched_id_start-16 : tm_upstream_sched_id_start-64);
+
+/* Max Queue ID supported is 7 so based on priority_q configured for GEMPORTS
+in TECH PROFILE respective Queue ID from this list will be used for both
+US and DS Queues*/
+const uint32_t queue_id_list[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+
 const std::string upstream = "upstream";
 const std::string downstream = "downstream";
 bcmolt_oltid dev_id = 0;
+
 /* Current session */
 static bcmcli_session *current_session;
 static bcmcli_entry *api_parent_dir;
@@ -101,29 +108,34 @@ const char *bal_cli_thread_name = "bal_cli_thread";
 uint16_t flow_id_counters = 0;
 int flow_id_data[16384][2];
 
+/* QOS Type has been pre-defined as Fixed Queue but it will be updated based on number of GEMPORTS
+   associated for a given subscriber. If GEM count = 1 for a given subscriber, qos_type will be Fixed Queue
+   else Priority to Queue */
+bcmolt_egress_qos_type qos_type = BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
+
 State state;
 
 static std::map<uint32_t, uint32_t> flowid_to_port; // For mapping upstream flows to logical ports
 static std::map<uint32_t, uint32_t> flowid_to_gemport; // For mapping downstream flows into gemports
 static std::map<uint32_t, std::set<uint32_t> > port_to_flows; // For mapping logical ports to downstream flows
 
-// This represents the Key to 'queue_map' map.
-// Represents (pon_intf_id, onu_id, uni_id, gemport_id, direction)
-typedef std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, std::string> queue_map_key_tuple;
-// 'queue_map' maps queue_map_key_tuple to downstream queue id present
-// on the Subscriber Scheduler
-static std::map<queue_map_key_tuple, int> queue_map;
-// This represents the Key to 'sched_map' map.
-// Represents (pon_intf_id, onu_id, uni_id, direction)
-
+/* This represents the Key to 'sched_map' map.
+ Represents (pon_intf_id, onu_id, uni_id, direction) */
 typedef std::tuple<uint32_t, uint32_t, uint32_t, std::string> sched_map_key_tuple;
-// 'sched_map' maps sched_map_key_tuple to DBA (Upstream) or
-// Subscriber (Downstream) Scheduler ID
+/* 'sched_map' maps sched_map_key_tuple to DBA (Upstream) or
+ Subscriber (Downstream) Scheduler ID */
 static std::map<sched_map_key_tuple, int> sched_map;
 
+/* This represents the Key to 'sched_qmp_id_map' map.
+Represents (sched_id, pon_intf_id, onu_id, uni_id) */
+typedef std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> sched_qmp_id_map_key_tuple;
+/* 'sched_qmp_id_map' maps sched_qmp_id_map_key_tuple to TM Queue Mapping Profile ID */
+static std::map<sched_qmp_id_map_key_tuple, int> sched_qmp_id_map;
+/* 'qmp_id_to_qmp_map' maps TM Queue Mapping Profile ID to TM Queue Mapping Profile */
+static std::map<int, std::vector < uint32_t > > qmp_id_to_qmp_map;
 
-std::bitset<MAX_TM_QUEUE_ID> tm_queue_bitset;
 std::bitset<MAX_TM_SCHED_ID> tm_sched_bitset;
+std::bitset<MAX_TM_QMP_ID> tm_qmp_bitset;
 
 static bcmos_fastlock data_lock;
 
@@ -138,6 +150,8 @@ static bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id
 static bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, \
                                uint32_t priority, uint32_t gemport_id);
 static bcmos_errno RemoveQueue(std::string direction, int intf_id, int onu_id, int uni_id, uint32_t port_no, int alloc_id);
+static bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction);
+static bcmos_errno CreateDefaultQueue(uint32_t intf_id, const std::string direction);
 
 uint16_t get_dev_id(void) {
     return dev_id;
@@ -164,90 +178,6 @@ static inline int get_default_tm_sched_id(int intf_id, std::string direction) {
         OPENOLT_LOG(ERROR, openolt_log_id, "invalid direction - %s\n", direction.c_str());
         return 0;
     }
-}
-
-/**
-* Gets a unique tm_queue_id for a given intf_id, onu_id, uni_id, gemport_id, direction
-* The tm_queue_id is locally cached in a map, so that it can rendered when necessary.
-* VOLTHA replays whole configuration on OLT reboot, so caching locally is not a problem
-*
-* @param intf_id NNI or PON intf ID
-* @param onu_id ONU ID
-* @param uni_id UNI ID
-* @param gemport_id GEM Port ID
-* @param direction Upstream or downstream
-*
-* @return tm_queue_id
-*/
-int get_tm_queue_id(int intf_id, int onu_id, int uni_id, int gemport_id, std::string direction) {
-    queue_map_key_tuple key(intf_id, onu_id, uni_id, gemport_id, direction);
-    int queue_id = -1;
-
-    std::map<queue_map_key_tuple, int>::const_iterator it = queue_map.find(key);
-    if (it != queue_map.end()) {
-        queue_id = it->second;
-    }
-    if (queue_id != -1) {
-        return queue_id;
-    }
-
-    bcmos_fastlock_lock(&data_lock);
-    // Complexity of O(n). Is there better way that can avoid linear search?
-    for (queue_id = 0; queue_id < MAX_TM_QUEUE_ID; queue_id++) {
-        if (tm_queue_bitset[queue_id] == 0) {
-            tm_queue_bitset[queue_id] = 1;
-            break;
-        }
-    }
-    bcmos_fastlock_unlock(&data_lock, 0);
-
-    if (queue_id < MAX_TM_QUEUE_ID) {
-        bcmos_fastlock_lock(&data_lock);
-        queue_map[key] = queue_id;
-        bcmos_fastlock_unlock(&data_lock, 0);
-        return queue_id;
-    } else {
-        return -1;
-    }
-}
-
-/**
-* Update tm_queue_id for a given intf_id, onu_id, uni_id, gemport_id, direction
-*
-* @param intf_id NNI or PON intf ID
-* @param onu_id ONU ID
-* @param uni_id UNI ID
-* @param gemport_id GEM Port ID
-* @param direction Upstream or downstream
-* @param tm_queue_id tm_queue_id
-*/
-void update_tm_queue_id(int pon_intf_id, int onu_id, int uni_id, int gemport_id, std::string direction,
-                                  uint32_t queue_id) {
-    queue_map_key_tuple key(pon_intf_id, onu_id, uni_id, gemport_id, direction);
-    bcmos_fastlock_lock(&data_lock);
-    queue_map[key] = queue_id;
-    bcmos_fastlock_unlock(&data_lock, 0);
-}
-
-/**
-* Free tm_queue_id for a given intf_id, onu_id, uni_id, gemport_id, direction
-*
-* @param intf_id NNI or PON intf ID
-* @param onu_id ONU ID
-* @param uni_id UNI ID
-* @param gemport_id GEM Port ID
-* @param direction Upstream or downstream
-*/
-void free_tm_queue_id(int pon_intf_id, int onu_id, int uni_id, int gemport_id, std::string direction) {
-    queue_map_key_tuple key(pon_intf_id, onu_id, uni_id, gemport_id, direction);
-    std::map<queue_map_key_tuple, int>::const_iterator it;
-    bcmos_fastlock_lock(&data_lock);
-    it = queue_map.find(key);
-    if (it != queue_map.end()) {
-        tm_queue_bitset[it->second] = 0;
-        queue_map.erase(it);
-    }
-    bcmos_fastlock_unlock(&data_lock, 0);
 }
 
 /**
@@ -318,12 +248,231 @@ void free_tm_sched_id(int pon_intf_id, int onu_id, int uni_id, std::string direc
 
 bool is_tm_sched_id_present(int pon_intf_id, int onu_id, int uni_id, std::string direction) {
     sched_map_key_tuple key(pon_intf_id, onu_id, uni_id, direction);
-    return sched_map.count(key) > 0 ? true: false;
+    std::map<sched_map_key_tuple, int>::const_iterator it = sched_map.find(key);
+    if (it != sched_map.end()) {
+        return true;
+    }
+    return false;
 }
 
-bool is_tm_queue_id_present(int pon_intf_id, int onu_id, int uni_id, int gemport_id, std::string direction) {
-    queue_map_key_tuple key(pon_intf_id, onu_id, uni_id, gemport_id, direction);
-    return queue_map.count(key) > 0 ? true: false;
+/**
+* Check whether given two tm qmp profiles are equal or not
+*
+* @param tmq_map_profileA <vector> TM QUEUE MAPPING PROFILE
+* @param tmq_map_profileB <vector> TM QUEUE MAPPING PROFILE
+*
+* @return boolean, true if given tmq_map_profiles are equal else false
+*/
+
+bool check_tm_qmp_equality(std::vector<uint32_t> tmq_map_profileA, std::vector<uint32_t> tmq_map_profileB) {
+    for (uint32_t i = 0; i < TMQ_MAP_PROFILE_SIZE; i++) {
+        if (tmq_map_profileA[i] != tmq_map_profileB[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+* Modifies given queues_pbit_map to parsable format
+* e.g: Modifes "0b00000101" to "10100000"
+*
+* @param queues_pbit_map PBIT MAP configured for each GEM in TECH PROFILE
+* @param size Queue count
+*
+* @return string queues_pbit_map
+*/
+std::string* get_valid_queues_pbit_map(std::string *queues_pbit_map, uint32_t size) {
+    for(uint32_t i=0; i < size; i++) {
+        /* Deletes 2 characters from index number 0 */
+        queues_pbit_map[i].erase(0, 2);
+        std::reverse(queues_pbit_map[i].begin(), queues_pbit_map[i].end());
+    }
+    return queues_pbit_map;
+}
+
+/**
+* Creates TM QUEUE MAPPING PROFILE for given queues_pbit_map and queues_priority_q
+*
+* @param queues_pbit_map PBIT MAP configured for each GEM in TECH PROFILE
+* @param queues_priority_q PRIORITY_Q configured for each GEM in TECH PROFILE
+* @param size Queue count
+*
+* @return <vector> TM QUEUE MAPPING PROFILE
+*/
+std::vector<uint32_t> get_tmq_map_profile(std::string *queues_pbit_map, uint32_t *queues_priority_q, uint32_t size) {
+    std::vector<uint32_t> tmq_map_profile(8,0);
+
+    for(uint32_t i=0; i < size; i++) {
+        for (uint32_t j = 0; j < queues_pbit_map[i].size(); j++) {
+            if (queues_pbit_map[i][j]=='1') {
+                tmq_map_profile.at(j) = queue_id_list[queues_priority_q[i]];
+            }
+        }
+    }
+    return tmq_map_profile;
+}
+
+/**
+* Gets corresponding tm_qmp_id for a given tmq_map_profile
+*
+* @param <vector> TM QUEUE MAPPING PROFILE
+*
+* @return tm_qmp_id
+*/
+int get_tm_qmp_id(std::vector<uint32_t> tmq_map_profile) {
+    int tm_qmp_id = -1;
+
+    std::map<int, std::vector < uint32_t > >::const_iterator it = qmp_id_to_qmp_map.begin();
+    while(it != qmp_id_to_qmp_map.end()) {
+        if(check_tm_qmp_equality(tmq_map_profile, it->second)) {
+            tm_qmp_id = it->first;
+            break;
+        }
+        it++;
+    }
+    return tm_qmp_id;
+}
+
+/**
+* Updates sched_qmp_id_map with given sched_id, pon_intf_id, onu_id, uni_id, tm_qmp_id
+*
+* @param upstream/downstream sched_id
+* @param PON intf ID
+* @param onu_id ONU ID
+* @param uni_id UNI ID
+* @param tm_qmp_id TM QUEUE MAPPING PROFILE ID
+*/
+void update_sched_qmp_id_map(uint32_t sched_id,uint32_t pon_intf_id, uint32_t onu_id, \
+                             uint32_t uni_id, int tm_qmp_id) {
+   bcmos_fastlock_lock(&data_lock);
+   sched_qmp_id_map_key_tuple key(sched_id, pon_intf_id, onu_id, uni_id);
+   sched_qmp_id_map.insert(make_pair(key, tm_qmp_id));
+   bcmos_fastlock_unlock(&data_lock, 0);
+}
+
+/**
+* Gets corresponding tm_qmp_id for a given sched_id, pon_intf_id, onu_id, uni_id
+*
+* @param upstream/downstream sched_id
+* @param PON intf ID
+* @param onu_id ONU ID
+* @param uni_id UNI ID
+*
+* @return tm_qmp_id
+*/
+int get_tm_qmp_id(uint32_t sched_id,uint32_t pon_intf_id, uint32_t onu_id, uint32_t uni_id) {
+    sched_qmp_id_map_key_tuple key(sched_id, pon_intf_id, onu_id, uni_id);
+    int tm_qmp_id = -1;
+
+    std::map<sched_qmp_id_map_key_tuple, int>::const_iterator it = sched_qmp_id_map.find(key);
+    if (it != sched_qmp_id_map.end()) {
+        tm_qmp_id = it->second;
+    }
+    return tm_qmp_id;
+}
+
+/**
+* Gets a unique tm_qmp_id for a given tmq_map_profile
+* The tm_qmp_id is locally cached in a map, so that it can be rendered when necessary.
+* VOLTHA replays whole configuration on OLT reboot, so caching locally is not a problem
+*
+* @param upstream/downstream sched_id
+* @param PON intf ID
+* @param onu_id ONU ID
+* @param uni_id UNI ID
+* @param <vector> TM QUEUE MAPPING PROFILE
+*
+* @return tm_qmp_id
+*/
+int get_tm_qmp_id(uint32_t sched_id,uint32_t pon_intf_id, uint32_t onu_id, uint32_t uni_id, \
+                  std::vector<uint32_t> tmq_map_profile) {
+    int tm_qmp_id;
+
+    bcmos_fastlock_lock(&data_lock);
+    /* Complexity of O(n). Is there better way that can avoid linear search? */
+    for (tm_qmp_id = 0; tm_qmp_id < MAX_TM_QMP_ID; tm_qmp_id++) {
+        if (tm_qmp_bitset[tm_qmp_id] == 0) {
+            tm_qmp_bitset[tm_qmp_id] = 1;
+            break;
+        }
+    }
+    bcmos_fastlock_unlock(&data_lock, 0);
+
+    if (tm_qmp_id < MAX_TM_QMP_ID) {
+        bcmos_fastlock_lock(&data_lock);
+        qmp_id_to_qmp_map.insert(make_pair(tm_qmp_id, tmq_map_profile));
+        bcmos_fastlock_unlock(&data_lock, 0);
+        update_sched_qmp_id_map(sched_id, pon_intf_id, onu_id, uni_id, tm_qmp_id);
+        return tm_qmp_id;
+    } else {
+        return -1;
+    }
+}
+
+/**
+* Free tm_qmp_id for a given sched_id, pon_intf_id, onu_id, uni_id
+*
+* @param upstream/downstream sched_id
+* @param PON intf ID
+* @param onu_id ONU ID
+* @param uni_id UNI ID
+* @param tm_qmp_id TM QUEUE MAPPING PROFILE ID
+*
+* @return boolean, true if no more reference for TM QMP else false
+*/
+bool free_tm_qmp_id(uint32_t sched_id,uint32_t pon_intf_id, uint32_t onu_id, \
+                    uint32_t uni_id, int tm_qmp_id) {
+    bool result;
+    sched_qmp_id_map_key_tuple key(sched_id, pon_intf_id, onu_id, uni_id);
+    std::map<sched_qmp_id_map_key_tuple, int>::const_iterator it = sched_qmp_id_map.find(key);
+    bcmos_fastlock_lock(&data_lock);
+    if (it != sched_qmp_id_map.end()) {
+        sched_qmp_id_map.erase(it);
+    }
+    bcmos_fastlock_unlock(&data_lock, 0);
+
+    uint32_t tm_qmp_ref_count = 0;
+    std::map<sched_qmp_id_map_key_tuple, int>::const_iterator it2 = sched_qmp_id_map.begin();
+    while(it2 != sched_qmp_id_map.end()) {
+        if(it2->second == tm_qmp_id) {
+            tm_qmp_ref_count++;
+        }
+        it2++;
+    }
+
+    if (tm_qmp_ref_count == 0) {
+        std::map<int, std::vector < uint32_t > >::const_iterator it3 = qmp_id_to_qmp_map.find(tm_qmp_id);
+        if (it3 != qmp_id_to_qmp_map.end()) {
+            bcmos_fastlock_lock(&data_lock);
+            tm_qmp_bitset[tm_qmp_id] = 0;
+            qmp_id_to_qmp_map.erase(it3);
+            bcmos_fastlock_unlock(&data_lock, 0);
+            OPENOLT_LOG(INFO, openolt_log_id, "Reference count for tm qmp profile id %d is : %d. So clearing it\n", \
+                        tm_qmp_id, tm_qmp_ref_count);
+            result = true;
+        }
+    } else {
+        OPENOLT_LOG(INFO, openolt_log_id, "Reference count for tm qmp profile id %d is : %d. So not clearing it\n", \
+                    tm_qmp_id, tm_qmp_ref_count);
+        result = false;
+    }
+    return result;
+}
+
+/**
+* Returns Scheduler/Queue direction as string
+*
+* @param direction as specified in tech_profile.proto
+*/
+std::string GetDirection(int direction) {
+    switch (direction)
+    {
+        case tech_profile::Direction::UPSTREAM: return upstream;
+        case tech_profile::Direction::DOWNSTREAM: return downstream;
+        default: OPENOLT_LOG(ERROR, openolt_log_id, "direction-not-supported %d\n", direction);
+                 return "direction-not-supported";
+    }
 }
 
 inline const char *get_flow_acton_command(uint32_t command) {
@@ -645,8 +794,14 @@ Status Enable_(int argc, char *argv[]) {
                     bcmolt_device_key key = {.device_id = dev};
                     bcmolt_device_connect oper;
                     BCMOLT_OPER_INIT(&oper, device, connect, key);
-                    BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
-                    BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_XGS__2_X);
+                    if (MODEL_ID == "asfvolt16") {
+                        BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
+                        BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_XGS__2_X);
+                    } else if (MODEL_ID == "asgvolt64") {
+                        BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
+                        BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_FOUR_TO_ONE);
+                        BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_GPON__16_X);
+                    }
                     err = bcmolt_oper_submit(dev_id, &oper.hdr);
                     if (err) 
                         OPENOLT_LOG(ERROR, openolt_log_id, "Enable PON deivce %d failed\n", dev);
@@ -897,6 +1052,8 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
                     return flow_cfg.data.egress_qos.u.tc_to_queue.tc_to_queue_id;
                 case BCMOLT_EGRESS_QOS_TYPE_PBIT_TO_TC:
                     return flow_cfg.data.egress_qos.u.pbit_to_tc.tc_to_queue_id;
+                case BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE:
+                    return flow_cfg.data.egress_qos.u.priority_to_queue.tm_q_set_id;
                 case BCMOLT_EGRESS_QOS_TYPE_NONE:
                 default:
                     return -1;
@@ -1006,7 +1163,8 @@ Status EnablePonIf_(uint32_t intf_id) {
     else {
         OPENOLT_LOG(INFO, openolt_log_id, "Successfully enabled PON interface: %d\n", intf_id);
         OPENOLT_LOG(INFO, openolt_log_id, "Initializing tm sched creation for PON interface: %d\n", intf_id);
-        CreateDefaultSchedQueue_(intf_id, downstream);
+        CreateDefaultSched(intf_id, downstream);
+        CreateDefaultQueue(intf_id, downstream);
     }
 
     return Status::OK;
@@ -1174,7 +1332,8 @@ Status SetStateUplinkIf_(uint32_t intf_id, bool set_state) {
         if (set_state && state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
             OPENOLT_LOG(INFO, openolt_log_id, "NNI interface: %d already enabled\n", intf_id);
             OPENOLT_LOG(INFO, openolt_log_id, "Initializing tm sched creation for NNI interface: %d\n", intf_id);
-            CreateDefaultSchedQueue_(intf_id, upstream);
+            CreateDefaultSched(intf_id, upstream);
+            CreateDefaultQueue(intf_id, upstream);
             return Status::OK;
         } else if (!set_state && state == BCMOLT_INTERFACE_STATE_INACTIVE) {
             OPENOLT_LOG(INFO, openolt_log_id, "NNI interface: %d already disabled\n", intf_id);
@@ -1200,7 +1359,8 @@ Status SetStateUplinkIf_(uint32_t intf_id, bool set_state) {
         OPENOLT_LOG(INFO, openolt_log_id, "Successfully %s NNI interface: %d\n", (set_state)?"enable":"disable", intf_id);
         if (set_state) {
             OPENOLT_LOG(INFO, openolt_log_id, "Initializing tm sched creation for NNI interface: %d\n", intf_id);
-            CreateDefaultSchedQueue_(intf_id, upstream);
+            CreateDefaultSched(intf_id, upstream);
+            CreateDefaultQueue(intf_id, upstream);
         }
     }
 
@@ -1251,12 +1411,16 @@ vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id,
     memcpy(serial_number.vendor_id.arr, vendor_id, 4);
     memcpy(serial_number.vendor_specific.arr, vendor_specific, 4);
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    BCMOLT_MSG_FIELD_SET(&onu_cfg, onu_rate, BCMOLT_ONU_RATE_RATE_10G_DS_10G_US);
     BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.serial_number, serial_number);
     BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.auto_learning, BCMOS_TRUE);
     /*set burst and data profiles to fec disabled*/
-    BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.ranging_burst_profile, 0);
-    BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.data_burst_profile, 1);
+    if (board_technology == "XGS-PON") {
+        BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.ranging_burst_profile, 2);
+        BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.data_burst_profile, 1);
+    } else if (board_technology == "GPON") {
+        BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.gpon.ds_ber_reporting_interval, 1000000);
+        BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.gpon.omci_port_id, onu_id);
+    }
     err = bcmolt_cfg_set(dev_id, &onu_cfg.hdr);
     if (err != BCM_ERR_OK) {
         OPENOLT_LOG(ERROR, openolt_log_id, "Failed to set activate ONU %d on PON %d, err %d\n", onu_id, intf_id, err);
@@ -1613,8 +1777,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
     bcmolt_classifier c_val = { };
     bcmolt_action a_val = { };
     bcmolt_tm_queue_ref tm_val = { };
-    //Pre-defined Fixed Queue, It decides the type by caller, TODO
-    bcmolt_egress_qos_type qos_type = BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
+    int tm_qmp_id, tm_q_set_id;
 
     key.flow_id = flow_id;
     if (flow_type.compare(upstream) == 0 ) {
@@ -1809,37 +1972,80 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
     }
 
     if ((access_intf_id >= 0) && (onu_id >= 0)) {
-        if (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM) {
-            if (single_tag && ether_type == EAP_ETHER_TYPE) {
-                tm_val.sched_id = get_default_tm_sched_id(access_intf_id, downstream);
-                tm_val.queue_id = 0;
-            } else {
-                tm_val.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, downstream); // Subscriber Scheduler
-                tm_val.queue_id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, downstream);
-            }
-            OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d, intf_type %s\n", \
-                downstream.c_str(), tm_val.queue_id, tm_val.sched_id, GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
+        if(single_tag && ether_type == EAP_ETHER_TYPE) {
+            tm_val.sched_id = (flow_type.compare(upstream) == 0) ? \
+                get_default_tm_sched_id(network_intf_id, upstream) : \
+                get_default_tm_sched_id(access_intf_id, downstream);
+            tm_val.queue_id = 0;
 
-            BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, qos_type);
+            BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE);
             BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.tm_sched.id, tm_val.sched_id);
             BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.fixed_queue.queue_id, tm_val.queue_id);
-        } else if (key.flow_type == BCMOLT_FLOW_TYPE_UPSTREAM) {
-            /* removed by BAL v3.0. N/A - Alloc ID is out of the scope of BAL. Used for OMCI only.
-               bcmbal_tm_sched_id val1;
-               val1 = get_tm_sched_id(access_intf_id, onu_id, uni_id, upstream); // DBA Scheduler ID
-               BCMBAL_CFG_PROP_SET(&cfg, flow, dba_tm_sched_id, val1);
-             */
-             tm_val.sched_id = get_default_tm_sched_id(network_intf_id, upstream); // NNI Scheduler ID
-             tm_val.queue_id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, upstream); // Queue on NNI
-             OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d, intf_type %s\n", \
-             upstream.c_str(), tm_val.queue_id, tm_val.sched_id, GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
-             BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, qos_type);
-             BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.tm_sched.id, tm_val.sched_id);
-             BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.fixed_queue.queue_id, tm_val.queue_id);
+
+            OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d, intf_type %s\n", \
+                flow_type.c_str(), tm_val.queue_id, tm_val.sched_id, \
+                GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
+        } else {
+            if (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM) {
+                tm_val.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, downstream);
+
+                    if (qos_type == BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE) {
+                        // Queue 0 on DS subscriber scheduler
+                        tm_val.queue_id = 0;
+
+                        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, qos_type);
+                        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.tm_sched.id, tm_val.sched_id);
+                        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.fixed_queue.queue_id, tm_val.queue_id);
+
+                        OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d, intf_type %s\n", \
+                            downstream.c_str(), tm_val.queue_id, tm_val.sched_id, \
+                            GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
+
+                    } else if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE) {
+                        /* Fetch TM QMP ID mapped to DS subscriber scheduler */
+                        tm_qmp_id = tm_q_set_id = get_tm_qmp_id(tm_val.sched_id, access_intf_id, onu_id, uni_id);
+
+                        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, qos_type);
+                        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.tm_sched.id, tm_val.sched_id);
+                        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.priority_to_queue.tm_qmp_id, tm_qmp_id);
+                        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.priority_to_queue.tm_q_set_id, tm_q_set_id);
+
+                        OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, q_set_id = %d, sched_id = %d, intf_type %s\n", \
+                            downstream.c_str(), tm_q_set_id, tm_val.sched_id, \
+                            GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
+                    }
+            } else if (key.flow_type == BCMOLT_FLOW_TYPE_UPSTREAM) {
+                // NNI Scheduler ID
+                tm_val.sched_id = get_default_tm_sched_id(network_intf_id, upstream);
+                if (qos_type == BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE) {
+                    // Queue 0 on NNI scheduler
+                    tm_val.queue_id = 0;
+                    BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, qos_type);
+                    BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.tm_sched.id, tm_val.sched_id);
+                    BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.fixed_queue.queue_id, tm_val.queue_id);
+
+                    OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d, intf_type %s\n", \
+                        upstream.c_str(), tm_val.queue_id, tm_val.sched_id, \
+                        GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
+
+                } else if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE) {
+                    /* Fetch TM QMP ID mapped to US NNI scheduler */
+                    tm_qmp_id = tm_q_set_id = get_tm_qmp_id(tm_val.sched_id, access_intf_id, onu_id, uni_id);
+                    BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, qos_type);
+                    BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.tm_sched.id, tm_val.sched_id);
+                    BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.priority_to_queue.tm_qmp_id, tm_qmp_id);
+                    BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.priority_to_queue.tm_q_set_id, tm_q_set_id);
+
+                    OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, q_set_id = %d, sched_id = %d, intf_type %s\n", \
+                        upstream.c_str(), tm_q_set_id, tm_val.sched_id, \
+                        GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
+                }
+            }
         }
     }
 
     BCMOLT_MSG_FIELD_SET(&cfg, state, BCMOLT_FLOW_STATE_ENABLE);
+    BCMOLT_MSG_FIELD_SET(&cfg, statistics, BCMOLT_CONTROL_STATE_ENABLE);
 #ifdef FLOW_CHECKER
     //Flow Checker, To avoid duplicate flow. 
     if (flow_id_counters != 0) {
@@ -1957,7 +2163,7 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
     return Status::OK;
 }
 
-Status CreateDefaultSchedQueue_(uint32_t intf_id, const std::string direction) {
+bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction) {
     bcmos_errno err;
     bcmolt_tm_sched_cfg tm_sched_cfg;
     bcmolt_tm_sched_key tm_sched_key = {.id = 1};
@@ -2001,33 +2207,14 @@ Status CreateDefaultSchedQueue_(uint32_t intf_id, const std::string direction) {
 
     err = bcmolt_cfg_set(dev_id, &tm_sched_cfg.hdr);
     if (err) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create %s scheduler, id %d, intf_id %d, err %d\n", direction.c_str(), tm_sched_key.id, intf_id, err);
-        return Status(grpc::StatusCode::INTERNAL, "Failed to create %s scheduler", direction.c_str());
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create %s scheduler, id %d, intf_id %d, err %d\n", \
+            direction.c_str(), tm_sched_key.id, intf_id, err);
+        return err;
     }
-    OPENOLT_LOG(INFO, openolt_log_id, "Create %s scheduler success, id %d, intf_id %d\n", direction.c_str(), tm_sched_key.id, intf_id);
 
-    // Create 4 Queues for each default PON scheduler
-    for (int queue_id = 0; queue_id < 4; queue_id++) {
-        bcmolt_tm_queue_cfg tm_queue_cfg;
-        bcmolt_tm_queue_key tm_queue_key = {};
-        tm_queue_key.sched_id = get_default_tm_sched_id(intf_id, direction);
-        tm_queue_key.id = queue_id;
-
-        BCMOLT_CFG_INIT(&tm_queue_cfg, tm_queue, tm_queue_key);
-        BCMOLT_MSG_FIELD_SET(&tm_queue_cfg, tm_sched_param.type, BCMOLT_TM_SCHED_PARAM_TYPE_PRIORITY);
-        BCMOLT_MSG_FIELD_SET(&tm_queue_cfg, tm_sched_param.u.priority.priority, queue_id);
-
-        err = bcmolt_cfg_set(dev_id, &tm_queue_cfg.hdr);
-        if (err) {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create %s tm queue, id %d, sched_id %d\n", \
-                    direction.c_str(), tm_queue_key.id, tm_queue_key.sched_id);
-            return Status(grpc::StatusCode::INTERNAL, "Failed to create %s tm queue", direction.c_str());
-        }
-
-        OPENOLT_LOG(INFO, openolt_log_id, "Create %s tm_queue success, id %d, sched_id %d\n", \
-                direction.c_str(), tm_queue_key.id, tm_queue_key.sched_id);
-    }
-    return Status::OK;
+    OPENOLT_LOG(INFO, openolt_log_id, "Create %s scheduler success, id %d, intf_id %d\n", \
+        direction.c_str(), tm_sched_key.id, intf_id);
+    return BCM_ERR_OK;
 }
 
 bcmos_errno CreateSched(std::string direction, uint32_t intf_id, uint32_t onu_id, uint32_t uni_id, uint32_t port_no,
@@ -2223,15 +2410,11 @@ Status CreateTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
 
     for (int i = 0; i < traffic_scheds->traffic_scheds_size(); i++) {
         tech_profile::TrafficScheduler traffic_sched = traffic_scheds->traffic_scheds(i);
-        if (traffic_sched.direction() == tech_profile::Direction::UPSTREAM) {
-            direction = upstream;
-        } else if (traffic_sched.direction() == tech_profile::Direction::DOWNSTREAM) {
-            direction = downstream;
-        }
-        else {
-            OPENOLT_LOG(ERROR, openolt_log_id, "direction-not-supported %d\n", traffic_sched.direction());
-            return Status::CANCELLED;
-        }
+
+        direction = GetDirection(traffic_sched.direction());
+        if (direction.compare("direction-not-supported") == 0)
+            return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
+
         alloc_id = traffic_sched.alloc_id();
         sched_config = traffic_sched.scheduler();
         additional_bw = sched_config.additional_bw();
@@ -2262,11 +2445,11 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
         err = bcmolt_cfg_clear(dev_id, &cfg.hdr);
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler sched, direction = %s, intf_id %d, alloc_id %d, err %d\n", \
-                    direction.c_str(), intf_id, alloc_id, err);
+                direction.c_str(), intf_id, alloc_id, err);
             return err;
         }
         OPENOLT_LOG(INFO, openolt_log_id, "Removed sched, direction = %s, intf_id %d, alloc_id %d\n", \
-                direction.c_str(), intf_id, alloc_id);
+            direction.c_str(), intf_id, alloc_id);
     } else if (direction == downstream) {
         bcmolt_tm_sched_cfg cfg;
         bcmolt_tm_sched_key key = { };
@@ -2280,12 +2463,12 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
         BCMOLT_CFG_INIT(&cfg, tm_sched, key);
         err = bcmolt_cfg_clear(dev_id, &(cfg.hdr));
         if (err) {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler sched, direction = %s, id %d, intf_id %d, onu_id %d\n", \
-                    direction.c_str(), key.id, intf_id, onu_id);
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler, direction = %s, id %d, intf_id %d, onu_id %d\n", \
+                direction.c_str(), key.id, intf_id, onu_id);
             return err;
         }
         OPENOLT_LOG(INFO, openolt_log_id, "Removed sched, direction = %s, id %d, intf_id %d, onu_id %d\n", \
-                direction.c_str(), key.id, intf_id, onu_id);
+            direction.c_str(), key.id, intf_id, onu_id);
     }
 
     free_tm_sched_id(intf_id, onu_id, uni_id, direction);
@@ -2301,15 +2484,11 @@ Status RemoveTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
 
     for (int i = 0; i < traffic_scheds->traffic_scheds_size(); i++) {
         tech_profile::TrafficScheduler traffic_sched = traffic_scheds->traffic_scheds(i);
-        if (traffic_sched.direction() == tech_profile::Direction::UPSTREAM) {
-            direction = upstream;
-        } else if (traffic_sched.direction() == tech_profile::Direction::DOWNSTREAM) {
-            direction = downstream;
-        }
-        else {
-            OPENOLT_LOG(ERROR, openolt_log_id, "direction-not-supported %d\n", traffic_sched.direction());
-            return Status::CANCELLED;
-        }
+
+        direction = GetDirection(traffic_sched.direction());
+        if (direction.compare("direction-not-supported") == 0)
+            return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
+
         int alloc_id = traffic_sched.alloc_id();
         err = RemoveSched(intf_id, onu_id, uni_id, alloc_id, direction);
         if (err) {
@@ -2319,77 +2498,190 @@ Status RemoveTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
     return Status::OK;
 }
 
+bcmos_errno CreateTrafficQueueMappingProfile(uint32_t sched_id, uint32_t intf_id, uint32_t onu_id, uint32_t uni_id, \
+                                             std::string direction, std::vector<uint32_t> tmq_map_profile) {
+    bcmos_errno err;
+    bcmolt_tm_qmp_cfg tm_qmp_cfg;
+    bcmolt_tm_qmp_key tm_qmp_key;
+    bcmolt_arr_u8_8 pbits_to_tmq_id = {0};
+
+    int tm_qmp_id = get_tm_qmp_id(sched_id, intf_id, onu_id, uni_id, tmq_map_profile);
+    if (tm_qmp_id == -1) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create tm queue mapping profile. Max allowed profile count is 16.\n");
+    }
+
+    tm_qmp_key.id = tm_qmp_id;
+    for (uint32_t priority=0; priority<tmq_map_profile.size(); priority++) {
+        pbits_to_tmq_id.arr[priority] = tmq_map_profile[priority];
+    }
+
+    BCMOLT_CFG_INIT(&tm_qmp_cfg, tm_qmp, tm_qmp_key);
+    BCMOLT_MSG_FIELD_SET(&tm_qmp_cfg, type, BCMOLT_TM_QMP_TYPE_PBITS);
+    BCMOLT_MSG_FIELD_SET(&tm_qmp_cfg, pbits_to_tmq_id, pbits_to_tmq_id);
+    BCMOLT_MSG_FIELD_SET(&tm_qmp_cfg, ref_count, 0);
+    BCMOLT_MSG_FIELD_SET(&tm_qmp_cfg, state, BCMOLT_CONFIG_STATE_CONFIGURED);
+
+    err = bcmolt_cfg_set(dev_id, &tm_qmp_cfg.hdr);
+    if (err) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create tm queue mapping profile, id %d\n", \
+            tm_qmp_key.id);
+        return err;
+    }
+
+    OPENOLT_LOG(INFO, openolt_log_id, "Create tm queue mapping profile success, id %d\n", \
+        tm_qmp_key.id);
+    return BCM_ERR_OK;
+}
+
+bcmos_errno RemoveTrafficQueueMappingProfile(uint32_t tm_qmp_id) {
+    bcmos_errno err;
+    bcmolt_tm_qmp_cfg tm_qmp_cfg;
+    bcmolt_tm_qmp_key tm_qmp_key;
+    tm_qmp_key.id = tm_qmp_id;
+
+    BCMOLT_CFG_INIT(&tm_qmp_cfg, tm_qmp, tm_qmp_key);
+    err = bcmolt_cfg_clear(dev_id, &tm_qmp_cfg.hdr);
+    if (err) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove tm queue mapping profile, id %d\n", \
+            tm_qmp_key.id);
+        return err;
+    }
+
+    OPENOLT_LOG(INFO, openolt_log_id, "Remove tm queue mapping profile success, id %d\n", \
+        tm_qmp_key.id);
+    return BCM_ERR_OK;
+}
+
+bcmos_errno CreateDefaultQueue(uint32_t intf_id, const std::string direction) {
+    bcmos_errno err;
+
+    /* Create 4 Queues on given PON/NNI scheduler */
+    for (int queue_id = 0; queue_id < 4; queue_id++) {
+        bcmolt_tm_queue_cfg tm_queue_cfg;
+        bcmolt_tm_queue_key tm_queue_key = {};
+        tm_queue_key.sched_id = get_default_tm_sched_id(intf_id, direction);
+        tm_queue_key.id = queue_id;
+        if (qos_type == BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE)
+            tm_queue_key.tm_q_set_id = BCMOLT_TM_QUEUE_SET_ID_QSET_NOT_USE;
+        else
+            tm_queue_key.tm_q_set_id = BCMOLT_TM_QUEUE_KEY_TM_Q_SET_ID_DEFAULT;
+
+        BCMOLT_CFG_INIT(&tm_queue_cfg, tm_queue, tm_queue_key);
+        BCMOLT_MSG_FIELD_SET(&tm_queue_cfg, tm_sched_param.type, BCMOLT_TM_SCHED_PARAM_TYPE_PRIORITY);
+        BCMOLT_MSG_FIELD_SET(&tm_queue_cfg, tm_sched_param.u.priority.priority, queue_id);
+
+        err = bcmolt_cfg_set(dev_id, &tm_queue_cfg.hdr);
+        if (err) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create %s tm queue, id %d, sched_id %d, tm_q_set_id %d\n", \
+                    direction.c_str(), tm_queue_key.id, tm_queue_key.sched_id, tm_queue_key.tm_q_set_id);
+            return err;
+        }
+
+        OPENOLT_LOG(INFO, openolt_log_id, "Create %s tm_queue success, id %d, sched_id %d, tm_q_set_id %d\n", \
+                direction.c_str(), tm_queue_key.id, tm_queue_key.sched_id, tm_queue_key.tm_q_set_id);
+    }
+    return BCM_ERR_OK;
+}
+
 bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, uint32_t priority,
                         uint32_t gemport_id) {
     bcmos_errno err;
     bcmolt_tm_queue_cfg cfg;
     bcmolt_tm_queue_key key = { };
-    OPENOLT_LOG(INFO, openolt_log_id, "creating queue. access_intf_id = %d, onu_id = %d, uni_id = %d \
-gemport_id = %d, direction = %s\n", access_intf_id, onu_id, uni_id, gemport_id, direction.c_str());
-    if (direction == downstream) {
-        // There is one queue per gem port
-        key.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, direction);
-        key.id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, direction);
+    OPENOLT_LOG(INFO, openolt_log_id, "creating %s queue. access_intf_id = %d, onu_id = %d, uni_id = %d \
+gemport_id = %d\n", direction.c_str(), access_intf_id, onu_id, uni_id, gemport_id);
 
-    } else {
-        queue_map_key_tuple map_key(access_intf_id, onu_id, uni_id, gemport_id, direction);
-        if (queue_map.count(map_key) > 0) {
-            OPENOLT_LOG(INFO, openolt_log_id, "upstream queue exists for intf_id %d, onu_id %d, uni_id %d\n. Not re-creating", \
-                    access_intf_id, onu_id, uni_id); 
-            return BCM_ERR_OK;
-        }
-        key.sched_id = get_default_tm_sched_id(nni_intf_id, direction);
-        if (priority > 7) {
-            return BCM_ERR_RANGE;
-        }
-        // There are 8 queues (one per p-bit)
-        key.id = us_fixed_queue_id_list[priority];
-        update_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, direction, key.id);
-        // FIXME: The upstream queues have to be created once only.
-        // The upstream queues on the NNI scheduler are shared by all subscribers.
-        // When the first scheduler comes in, the queues get created, and are re-used by all others.
-        // Also, these queues should be present until the last subscriber exits the system.
-        // One solution is to have these queues always, i.e., create it as soon as OLT is enabled.
+    key.sched_id = (direction.compare(upstream) == 0) ? get_default_tm_sched_id(nni_intf_id, direction) : \
+        get_tm_sched_id(access_intf_id, onu_id, uni_id, direction);
+
+    if (priority > 7) {
+        return BCM_ERR_RANGE;
     }
+
+    /* FIXME: The upstream queues have to be created once only.
+    The upstream queues on the NNI scheduler are shared by all subscribers.
+    When the first scheduler comes in, the queues get created, and are re-used by all others.
+    Also, these queues should be present until the last subscriber exits the system.
+    One solution is to have these queues always, i.e., create it as soon as OLT is enabled.
+
+    There is one queue per gem port and Queue ID is fetched based on priority_q configuration
+    for each GEM in TECH PROFILE */
+    key.id = queue_id_list[priority];
+
     OPENOLT_LOG(INFO, openolt_log_id, "queue assigned queue_id = %d\n", key.id);
+
+    if (qos_type == BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE)
+        key.tm_q_set_id = BCMOLT_TM_QUEUE_SET_ID_QSET_NOT_USE;
+    else if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE)
+        key.tm_q_set_id = get_tm_qmp_id(key.sched_id, access_intf_id, onu_id, uni_id);
+    else
+        key.tm_q_set_id = BCMOLT_TM_QUEUE_KEY_TM_Q_SET_ID_DEFAULT;
 
     BCMOLT_CFG_INIT(&cfg, tm_queue, key);
     BCMOLT_MSG_FIELD_SET(&cfg, tm_sched_param.u.priority.priority, priority);
 
     err = bcmolt_cfg_set(dev_id, &cfg.hdr);
     if (err) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create subscriber tm queue, direction = %s, id %d, sched_id %d, \
-intf_id %d, onu_id %d, uni_id %d, err %d\n", \
-                direction.c_str(), key.id, key.sched_id, access_intf_id, onu_id, uni_id, err);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create subscriber tm queue, direction = %s, id %d, \
+sched_id %d, tm_q_set_id %d, intf_id %d, onu_id %d, uni_id %d, err %d\n", \
+            direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id, err);
         return err;
     }
 
-    OPENOLT_LOG(INFO, openolt_log_id, "Created tm_queue, direction %s, id %d, intf_id %d, onu_id %d, uni_id %d\n", \
-            direction.c_str(), key.id, access_intf_id, onu_id, uni_id);
-
+    OPENOLT_LOG(INFO, openolt_log_id, "Created tm_queue, direction %s, id %d, sched_id %d, tm_q_set_id %d, \
+intf_id %d, onu_id %d, uni_id %d\n", direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id);
     return BCM_ERR_OK;
-
 }
 
 Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
     uint32_t intf_id = traffic_queues->intf_id();
     uint32_t onu_id = traffic_queues->onu_id();
     uint32_t uni_id = traffic_queues->uni_id();
+    uint32_t sched_id;
     std::string direction;
     bcmos_errno err;
 
+    qos_type = (traffic_queues->traffic_queues_size() > 1) ? \
+        BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE : BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
+
+    if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE) {
+        uint32_t queues_priority_q[traffic_queues->traffic_queues_size()] = {0};
+        std::string queues_pbit_map[traffic_queues->traffic_queues_size()];
+        for (int i = 0; i < traffic_queues->traffic_queues_size(); i++) {
+            tech_profile::TrafficQueue traffic_queue = traffic_queues->traffic_queues(i);
+
+            direction = GetDirection(traffic_queue.direction());
+            if (direction.compare("direction-not-supported") == 0)
+                return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
+
+            queues_priority_q[i] = traffic_queue.priority();
+            queues_pbit_map[i] = traffic_queue.pbit_map();
+        }
+
+        std::vector<uint32_t> tmq_map_profile(8, 0);
+        tmq_map_profile = get_tmq_map_profile(get_valid_queues_pbit_map(queues_pbit_map, COUNT_OF(queues_pbit_map)), \
+                                              queues_priority_q, COUNT_OF(queues_priority_q));
+        sched_id = (direction.compare(upstream) == 0) ? get_default_tm_sched_id(nni_intf_id, direction) : \
+            get_tm_sched_id(intf_id, onu_id, uni_id, direction);
+
+        int tm_qmp_id = get_tm_qmp_id(tmq_map_profile);
+        if (tm_qmp_id == -1) {
+            CreateTrafficQueueMappingProfile(sched_id, intf_id, onu_id, uni_id, direction, tmq_map_profile);
+        } else if (tm_qmp_id != -1 && get_tm_qmp_id(sched_id, intf_id, onu_id, uni_id) == -1) {
+            OPENOLT_LOG(INFO, openolt_log_id, "tm queue mapping profile present already with id %d\n", tm_qmp_id);
+            update_sched_qmp_id_map(sched_id, intf_id, onu_id, uni_id, tm_qmp_id);
+        }
+    }
+
     for (int i = 0; i < traffic_queues->traffic_queues_size(); i++) {
         tech_profile::TrafficQueue traffic_queue = traffic_queues->traffic_queues(i);
-        if (traffic_queue.direction() == tech_profile::Direction::UPSTREAM) {
-            direction = upstream;
-        } else if (traffic_queue.direction() == tech_profile::Direction::DOWNSTREAM) {
-            direction = downstream;
-        }
-        else {
-            OPENOLT_LOG(ERROR, openolt_log_id, "direction-not-supported %d\n", traffic_queue.direction());
-            return Status::CANCELLED;
-        }
+
+        direction = GetDirection(traffic_queue.direction());
+        if (direction.compare("direction-not-supported") == 0)
+            return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
+
         err = CreateQueue(direction, intf_id, onu_id, uni_id, traffic_queue.priority(), traffic_queue.gemport_id());
+
         // If the queue exists already, lets not return failure and break the loop.
         if (err && err != BCM_ERR_ALREADY) {
             return bcm_to_grpc_err(err, "Failed to create queue");
@@ -2405,32 +2697,37 @@ bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t
     bcmos_errno err;
 
     if (direction == downstream) {
-        if (is_tm_queue_id_present(access_intf_id, onu_id, uni_id, gemport_id, direction) && \
-            is_tm_sched_id_present(access_intf_id, onu_id, uni_id, direction)) {
+        if (is_tm_sched_id_present(access_intf_id, onu_id, uni_id, direction)) {
             key.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, direction);
-            key.id = get_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, direction);
+            key.id = queue_id_list[priority];
         } else {
             OPENOLT_LOG(INFO, openolt_log_id, "queue not present in DS. Not clearing, access_intf_id %d, onu_id %d, uni_id %d, gemport_id %d, direction %s\n", access_intf_id, onu_id, uni_id, gemport_id, direction.c_str());
             return BCM_ERR_OK;
         }
     } else {
-        free_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, direction);
-        // In the upstream we use pre-created queues on the NNI scheduler that are used by all subscribers.
-        // They should not be removed. So, lets return OK.
+        /* In the upstream we use pre-created queues on the NNI scheduler that are used by all subscribers.
+        They should not be removed. So, lets return OK. */
         return BCM_ERR_OK;
     }
 
+    if (qos_type == BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE)
+        key.tm_q_set_id = BCMOLT_TM_QUEUE_SET_ID_QSET_NOT_USE;
+    else if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE)
+        key.tm_q_set_id = get_tm_qmp_id(key.sched_id, access_intf_id, onu_id, uni_id);
+    else
+        key.tm_q_set_id = BCMOLT_TM_QUEUE_KEY_TM_Q_SET_ID_DEFAULT;
+
     BCMOLT_CFG_INIT(&cfg, tm_queue, key);
-
     err = bcmolt_cfg_clear(dev_id, &(cfg.hdr));
-
     if (err) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove queue, direction = %s, id %d, sched_id %d, intf_id %d, onu_id %d, uni_id %d\n",
-                direction.c_str(), key.id, key.sched_id, access_intf_id, onu_id, uni_id);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove queue, direction = %s, id %d, sched_id %d, \
+tm_q_set_id %d, intf_id %d, onu_id %d, uni_id %d\n",
+                direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id);
         return err;
     }
 
-    free_tm_queue_id(access_intf_id, onu_id, uni_id, gemport_id, direction);
+    OPENOLT_LOG(INFO, openolt_log_id, "Removed tm_queue, direction %s, id %d, sched_id %d, tm_q_set_id %d, \
+intf_id %d, onu_id %d, uni_id %d\n", direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id);
 
     return BCM_ERR_OK;
 }
@@ -2440,24 +2737,34 @@ Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
     uint32_t onu_id = traffic_queues->onu_id();
     uint32_t uni_id = traffic_queues->uni_id();
     uint32_t port_no = traffic_queues->port_no();
+    uint32_t sched_id;
     std::string direction;
     bcmos_errno err;
 
+    qos_type = (traffic_queues->traffic_queues_size() > 1) ? \
+        BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE : BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
+
     for (int i = 0; i < traffic_queues->traffic_queues_size(); i++) {
         tech_profile::TrafficQueue traffic_queue = traffic_queues->traffic_queues(i);
-        if (traffic_queue.direction() == tech_profile::Direction::UPSTREAM) {
-            direction = upstream;
-        } else if (traffic_queue.direction() == tech_profile::Direction::DOWNSTREAM) {
-            direction = downstream;
-        } else {
-            OPENOLT_LOG(ERROR, openolt_log_id, "direction-not-supported %d\n", traffic_queue.direction());
-            return Status::CANCELLED;
-        }
+
+        direction = GetDirection(traffic_queue.direction());
+        if (direction.compare("direction-not-supported") == 0)
+            return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
+
         err = RemoveQueue(direction, intf_id, onu_id, uni_id, traffic_queue.priority(), traffic_queue.gemport_id());
         if (err) {
             return bcm_to_grpc_err(err, "Failed to remove queue");
         }
     }
 
+    if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE && (direction.compare(upstream) == 0 || direction.compare(downstream) == 0 && is_tm_sched_id_present(intf_id, onu_id, uni_id, direction))) {
+        sched_id = (direction.compare(upstream) == 0) ? get_default_tm_sched_id(nni_intf_id, direction) : \
+            get_tm_sched_id(intf_id, onu_id, uni_id, direction);
+
+        int tm_qmp_id = get_tm_qmp_id(sched_id, intf_id, onu_id, uni_id);
+        if (free_tm_qmp_id(sched_id, intf_id, onu_id, uni_id, tm_qmp_id)) {
+            RemoveTrafficQueueMappingProfile(tm_qmp_id);
+        }
+    }
     return Status::OK;
 }

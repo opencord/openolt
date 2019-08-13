@@ -1,0 +1,6 @@
+asfvolt16 (3.1.1.1+edgecore-V201908010203) stable; urgency=high
+
+    * Based on code from SW-BCM68620_3_1_1_1.tgz.
+    * Merged the Accton's fixed to ACCTON_BAL_3.1.1.1-V201908010203.patch.
+
+ -- Jason Huang <jasonsc_huang@edge-core.com>  Thu, 08 AUG 2019 01:02:03 +0800

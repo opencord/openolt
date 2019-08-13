@@ -100,7 +100,6 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type);
 Status Disable_();
 Status Reenable_();
 Status GetDeviceInfo_(openolt::DeviceInfo* device_info);
-Status CreateDefaultSchedQueue_(uint32_t intf_id, const std::string direction);
 Status CreateTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_scheds);
 Status RemoveTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_scheds);
 Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues);

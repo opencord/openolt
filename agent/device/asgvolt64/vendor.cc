@@ -15,10 +15,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef __VENDOR_H__
-#define __VENDOR_H__
-#define VENDOR_ID "EdgeCore"
-#define ASFVOLT16
-#define MODEL_ID  "asfvolt16"
-#define MAX_SUPPORTED_PON 16
-#endif
+#include "vendor.h"
+
+void vendor_init()
+{
+}
