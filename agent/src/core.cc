@@ -161,9 +161,11 @@ uint16_t get_dev_id(void) {
     return dev_id;
 }
 
-// Stubbed defntion of bcmolt_cfg_get required for unit-test
-extern bcmos_errno bcmolt_cfg_get_stub(bcmolt_oltid olt_id, void* ptr);
-
+// Stubbed defntions of bcmolt_cfg_get required for unit-test
+#ifdef TEST_MODE
+extern bcmos_errno bcmolt_cfg_get__bal_state_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__olt_topology_stub(bcmolt_oltid olt_id, void* ptr);
+#endif
 /**
 * Returns the default NNI (Upstream direction) or PON (Downstream direction) scheduler
 * Every NNI port and PON port have default scheduler.
@@ -809,7 +811,7 @@ Status Enable_(int argc, char *argv[]) {
             bcmolt_odid dev;
             OPENOLT_LOG(INFO, openolt_log_id, "Enabling PON %d Devices ... \n", BCM_MAX_DEVS_PER_LINE_CARD);
             for (dev = 0; dev < BCM_MAX_DEVS_PER_LINE_CARD; dev++) {
-                bcmolt_device_cfg dev_cfg = { }; 
+                bcmolt_device_cfg dev_cfg = { };
                 bcmolt_device_key dev_key = { };
                 dev_key.device_id = dev;
                 BCMOLT_CFG_INIT(&dev_cfg, device, dev_key);
@@ -854,43 +856,63 @@ Status Enable_(int argc, char *argv[]) {
 }
 
 Status Disable_() {
-    // bcmbal_access_terminal_cfg acc_term_obj;
-    // bcmbal_access_terminal_key key = { };
-    //
-    // if (state::is_activated) {
-    //     std::cout << "Disable OLT" << std::endl;
-    //     key.access_term_id = DEFAULT_ATERM_ID;
-    //     BCMBAL_CFG_INIT(&acc_term_obj, access_terminal, key);
-    //     BCMBAL_CFG_PROP_SET(&acc_term_obj, access_terminal, admin_state, BCMBAL_STATE_DOWN);
-    //     bcmos_errno err = bcmbal_cfg_set(DEFAULT_ATERM_ID, &(acc_term_obj.hdr));
-    //     if (err) {
-    //         std::cout << "ERROR: Failed to disable OLT" << std::endl;
-    //         return bcm_to_grpc_err(err, "Failed to disable OLT");
-    //     }
-    // }
-    // //If already disabled, generate an extra indication ????
-    // return Status::OK;
-    //This fails with Operation Not Supported, bug ???
+    //In the earlier implementation Disabling olt is done by disabling the NNI port associated with that.
+    //In inband scenario instead of using management interface to establish connection with adapter ,NNI interface will be used.
+    //Disabling NNI port on olt disable causes connection loss between adapter and agent.
+    //To overcome this disable is implemented by disabling all the PON ports
+    //associated with the device so as to support both in-band
+    //and out of band scenarios.
 
-    //TEMPORARY WORK AROUND
-    Status status = SetStateUplinkIf_(nni_intf_id, false);
-    if (status.ok()) {
-        state.deactivate();
-        OPENOLT_LOG(INFO, openolt_log_id, "Disable OLT, add an extra indication\n");
-        pushOltOperInd(nni_intf_id, "nni", "up");
+    Status status;
+    int failedCount = 0;
+    for (int i = 0; i < NumPonIf_(); i++) {
+        status = DisablePonIf_(i);
+        if (!status.ok()) {
+            failedCount+=1;
+            BCM_LOG(ERROR, openolt_log_id, "Failed to disable PON interface: %d\n", i);
+        }
     }
-    return status;
+    if (failedCount == 0) {
+        state.deactivate();
+        openolt::Indication ind;
+        openolt::OltIndication* olt_ind = new openolt::OltIndication;
+        olt_ind->set_oper_state("down");
+        ind.set_allocated_olt_ind(olt_ind);
+        BCM_LOG(INFO, openolt_log_id, "Disable OLT, add an extra indication\n");
+        oltIndQ.push(ind);
+        return Status::OK;
+    }
+    if (failedCount ==NumPonIf_()){
+        return grpc::Status(grpc::StatusCode::INTERNAL, "failed to disable olt ,all the PON ports are still in enabled state");
+    }
 
+    return grpc::Status(grpc::StatusCode::UNKNOWN, "failed to disable olt ,few PON ports are still in enabled state");
 }
 
 Status Reenable_() {
-    Status status = SetStateUplinkIf_(0, true);
-    if (status.ok()) {
-        state.activate();
-        OPENOLT_LOG(INFO, openolt_log_id, "Reenable OLT, add an extra indication\n");
-        pushOltOperInd(0, "nni", "up");
+    Status status;
+    int failedCount = 0;
+    for (int i = 0; i < NumPonIf_(); i++) {
+        status = EnablePonIf_(i);
+        if (!status.ok()) {
+            failedCount+=1;
+            BCM_LOG(ERROR, openolt_log_id, "Failed to enable PON interface: %d\n", i);
+        }
     }
-    return status;
+    if (failedCount == 0){
+        state.activate();
+        openolt::Indication ind;
+        openolt::OltIndication* olt_ind = new openolt::OltIndication;
+        olt_ind->set_oper_state("up");
+        ind.set_allocated_olt_ind(olt_ind);
+        BCM_LOG(INFO, openolt_log_id, "Reenable OLT, add an extra indication\n");
+        oltIndQ.push(ind);
+        return Status::OK;
+    }
+    if (failedCount ==NumPonIf_()){
+        return grpc::Status(grpc::StatusCode::INTERNAL, "failed to re-enable olt ,all the PON ports are still in disabled state");
+    }
+    return grpc::Status(grpc::StatusCode::UNKNOWN, "failed to re-enable olt ,few PON ports are still in disabled state");
 }
 
 bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_state *state) {
@@ -926,13 +948,13 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
                 return err;
             }
             return flow_cfg.data.onu_id;
-        case FLOW_TYPE: 
+        case FLOW_TYPE:
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to get flow_type\n");
                 return err;
             }
-            return flow_cfg.key.flow_type; 
+            return flow_cfg.key.flow_type;
         case SVC_PORT_ID: //svc_port_id
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, svc_port_id);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
@@ -941,7 +963,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
                 return err;
             }
             return flow_cfg.data.svc_port_id;
-        case PRIORITY:  
+        case PRIORITY:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, priority);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
@@ -949,7 +971,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
                 return err;
             }
             return flow_cfg.data.priority;
-        case COOKIE: //cookie 
+        case COOKIE: //cookie
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, cookie);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
@@ -1013,7 +1035,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
                 return err;
             }
             return flow_cfg.data.classifier.i_vid;
-        case CLASSIFIER_I_PBITS: 
+        case CLASSIFIER_I_PBITS:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
@@ -1029,7 +1051,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
                 return err;
             }
             return flow_cfg.data.classifier.ether_type;
-        case CLASSIFIER_IP_PROTO: 
+        case CLASSIFIER_IP_PROTO:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
@@ -1045,7 +1067,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
                 return err;
             }
             return flow_cfg.data.classifier.src_port;
-        case CLASSIFIER_DST_PORT: 
+        case CLASSIFIER_DST_PORT:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
@@ -1053,7 +1075,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
                 return err;
             }
             return flow_cfg.data.classifier.dst_port;
-        case CLASSIFIER_PKT_TAG_TYPE: 
+        case CLASSIFIER_PKT_TAG_TYPE:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
@@ -1113,7 +1135,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
                 return err;
             }
             return flow_cfg.data.action.o_vid;
-        case ACTION_O_PBITS: 
+        case ACTION_O_PBITS:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, action);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
@@ -1153,19 +1175,19 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
 }
 
 Status EnablePonIf_(uint32_t intf_id) {
-    bcmos_errno err = BCM_ERR_OK; 
+    bcmos_errno err = BCM_ERR_OK;
     bcmolt_pon_interface_cfg interface_obj;
     bcmolt_pon_interface_key intf_key = {.pon_ni = (bcmolt_interface)intf_id};
     bcmolt_pon_interface_set_pon_interface_state pon_interface_set_state;
     bcmolt_interface_state state;
 
-    err = get_pon_interface_status((bcmolt_interface)intf_id, &state); 
+    err = get_pon_interface_status((bcmolt_interface)intf_id, &state);
     if (err == BCM_ERR_OK) {
         if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
             OPENOLT_LOG(WARNING, openolt_log_id, "PON interface: %d already enabled\n", intf_id);
             return Status::OK;
         }
-    } 
+    }
     BCMOLT_CFG_INIT(&interface_obj, pon_interface, intf_key);
     BCMOLT_OPER_INIT(&pon_interface_set_state, pon_interface, set_pon_interface_state, intf_key);
     BCMOLT_MSG_FIELD_SET(&interface_obj, discovery.control, BCMOLT_CONTROL_STATE_ENABLE);
@@ -1203,7 +1225,7 @@ Status EnablePonIf_(uint32_t intf_id) {
 
 Status ProbeDeviceCapabilities_() {
     bcmos_errno err;
-    bcmolt_device_cfg dev_cfg = { }; 
+    bcmolt_device_cfg dev_cfg = { };
     bcmolt_device_key dev_key = { };
     bcmolt_olt_cfg olt_cfg = { };
     bcmolt_olt_key olt_key = { };
@@ -1215,10 +1237,19 @@ Status ProbeDeviceCapabilities_() {
     BCMOLT_CFG_INIT(&olt_cfg, olt, olt_key);
     BCMOLT_MSG_FIELD_GET(&olt_cfg, bal_state);
     BCMOLT_FIELD_SET_PRESENT(&olt_cfg.data, olt_cfg_data, topology);
-    BCMOLT_CFG_LIST_BUF_SET(&olt_cfg, olt, topo.topology_maps.arr, 
+    BCMOLT_CFG_LIST_BUF_SET(&olt_cfg, olt, topo.topology_maps.arr,
         sizeof(bcmolt_topology_map) * topo.topology_maps.len);
+    #ifdef TEST_MODE
+        // It is impossible to mock the setting of olt_cfg.data.bal_state because
+        // the actual bcmolt_cfg_get passes the address of olt_cfg.hdr and we cannot
+        // set the olt_cfg.data.topology. So a new stub function is created and address
+        // of olt_cfg is passed. This is one-of case where we need to test add specific
+        // code in production code.
+    err = bcmolt_cfg_get__olt_topology_stub(dev_id, &olt_cfg);
+    #else
     err = bcmolt_cfg_get(dev_id, &olt_cfg.hdr);
-    if (err) { 
+    #endif
+    if (err) {
         OPENOLT_LOG(ERROR, openolt_log_id, "cfg: Failed to query OLT\n");
         return bcm_to_grpc_err(err, "cfg: Failed to query OLT");
     }
@@ -1226,14 +1257,14 @@ Status ProbeDeviceCapabilities_() {
     num_of_nni_ports = olt_cfg.data.topology.num_switch_ports;
     num_of_pon_ports = olt_cfg.data.topology.topology_maps.len;
 
-    OPENOLT_LOG(INFO, openolt_log_id, "OLT capabilitites, oper_state: %s\n", 
-            olt_cfg.data.bal_state == BCMOLT_BAL_STATE_BAL_AND_SWITCH_READY 
+    OPENOLT_LOG(INFO, openolt_log_id, "OLT capabilitites, oper_state: %s\n",
+            olt_cfg.data.bal_state == BCMOLT_BAL_STATE_BAL_AND_SWITCH_READY
             ? "up" : "down");
 
     OPENOLT_LOG(INFO, openolt_log_id, "topology nni: %d pon: %d dev: %d\n",
             num_of_nni_ports,
             num_of_pon_ports,
-            BCM_MAX_DEVS_PER_LINE_CARD); 
+            BCM_MAX_DEVS_PER_LINE_CARD);
 
     for (int devid = 0; devid < BCM_MAX_DEVS_PER_LINE_CARD; devid++) {
         dev_key.device_id = devid;
@@ -1242,7 +1273,7 @@ Status ProbeDeviceCapabilities_() {
         BCMOLT_MSG_FIELD_GET(&dev_cfg, chip_family);
         BCMOLT_MSG_FIELD_GET(&dev_cfg, system_mode);
         err = bcmolt_cfg_get(dev_id, &dev_cfg.hdr);
-        if (err) { 
+        if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "device: Failed to query OLT\n");
             return bcm_to_grpc_err(err, "device: Failed to query OLT");
         }
@@ -1290,7 +1321,7 @@ Status ProbePonIfTechnology_() {
 
         interface_key.pon_ni = intf_id;
         BCMOLT_CFG_INIT(&interface_obj, pon_interface, interface_key);
-        if (board_technology == "XGS-PON") 
+        if (board_technology == "XGS-PON"
             BCMOLT_MSG_FIELD_GET(&interface_obj, xgs_ngpon2_trx);
         else if (board_technology == "GPON")
             BCMOLT_MSG_FIELD_GET(&interface_obj, gpon_trx);
@@ -1358,7 +1389,7 @@ Status SetStateUplinkIf_(uint32_t intf_id, bool set_state) {
     bcmolt_nni_interface_set_nni_state nni_interface_set_state;
     bcmolt_interface_state state;
 
-    err = get_nni_interface_status((bcmolt_interface)intf_id, &state); 
+    err = get_nni_interface_status((bcmolt_interface)intf_id, &state);
     if (err == BCM_ERR_OK) {
         if (set_state && state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
             OPENOLT_LOG(WARNING, openolt_log_id, "NNI interface: %d already enabled\n", intf_id);
@@ -1427,8 +1458,8 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
     BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
     err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
-    if (err == BCM_ERR_OK) { 
-        if ((onu_cfg.data.onu_state == BCMOLT_ONU_STATE_PROCESSING || 
+    if (err == BCM_ERR_OK) {
+        if ((onu_cfg.data.onu_state == BCMOLT_ONU_STATE_PROCESSING ||
              onu_cfg.data.onu_state == BCMOLT_ONU_STATE_ACTIVE) ||
            (onu_cfg.data.onu_state == BCMOLT_ONU_STATE_INACTIVE &&
              onu_cfg.data.onu_old_state == BCMOLT_ONU_STATE_NOT_CONFIGURED))
@@ -1436,7 +1467,7 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     }
 
     OPENOLT_LOG(INFO, openolt_log_id,  "Enabling ONU %d on PON %d : vendor id %s, \
-vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id, 
+vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id,
         vendor_specific_to_str(vendor_specific).c_str(), pir);
 
     memcpy(serial_number.vendor_id.arr, vendor_id, 4);
@@ -1474,11 +1505,11 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
     BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
     err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
-    if (err == BCM_ERR_OK) { 
+    if (err == BCM_ERR_OK) {
         switch (onu_state) {
             case BCMOLT_ONU_OPERATION_ACTIVE:
                 BCMOLT_OPER_INIT(&onu_oper, onu, set_onu_state, onu_key);
-                BCMOLT_FIELD_SET(&onu_oper.data, onu_set_onu_state_data, 
+                BCMOLT_FIELD_SET(&onu_oper.data, onu_set_onu_state_data,
                     onu_state, BCMOLT_ONU_OPERATION_INACTIVE);
                 err = bcmolt_oper_submit(dev_id, &onu_oper.hdr);
                 if (err != BCM_ERR_OK) {
@@ -1730,7 +1761,7 @@ uint32_t GetPortNum_(uint32_t flow_id) {
         c_val.ip_proto, gemport_id, c_val.src_port,  c_val.dst_port, GET_PKT_TAG_TYPE(c_val.pkt_tag_type)); \
     OPENOLT_LOG(level, openolt_log_id, "action(cmds_bitmask %s, o_vid %d, o_pbits %d, i_vid %d, i_pbits %d)\n\n", \
         get_flow_acton_command(a_val.cmds_bitmask), a_val.o_vid, a_val.o_pbits, a_val.i_vid, a_val.i_pbits); \
-    } while(0) 
+    } while(0)
 
 #define FLOW_PARAM_LOG() \
     do { \
@@ -2857,9 +2888,9 @@ Status check_bal_ready() {
         // It is impossible to mock the setting of olt_cfg.data.bal_state because
         // the actual bcmolt_cfg_get passes the address of olt_cfg.hdr and we cannot
         // set the olt_cfg.data.bal_state. So a new stub function is created and address
-        // of olt_cfg is passed. This is one-of case where we need to add specific
-        // code in product code.
-        if (bcmolt_cfg_get_stub(dev_id, &olt_cfg)) {
+        // of olt_cfg is passed. This is one-of case where we need to add test specific
+        // code in production code.
+        if (bcmolt_cfg_get__bal_state_stub(dev_id, &olt_cfg)) {
         #else
         if (bcmolt_cfg_get(dev_id, &olt_cfg.hdr)) {
         #endif

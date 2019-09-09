@@ -31,12 +31,12 @@ class TestOltEnable : public Test {
 };
 
 // This is used to set custom bcmolt_cfg value to bcmolt_cfg pointer coming in
-// bcmolt_cfg_get_stub.
+// bcmolt_cfg_get__bal_state_stub.
 ACTION_P(SetArg1ToBcmOltCfg, value) { *static_cast<bcmolt_olt_cfg*>(arg1) = value; };
 
 
-// Create a mock function for bcmolt_cfg_get_stub C++ function
-MOCK_GLOBAL_FUNC2(bcmolt_cfg_get_stub, bcmos_errno(bcmolt_oltid, void*));
+// Create a mock function for bcmolt_cfg_get__bal_state_stub C++ function
+MOCK_GLOBAL_FUNC2(bcmolt_cfg_get__bal_state_stub, bcmos_errno(bcmolt_oltid, void*));
 
 
 // Test Fixture for OltEnable
@@ -59,7 +59,7 @@ TEST_F(TestOltEnable, OltEnableSuccess){
     Status olt_enable_res;
 
     ON_CALL(balMock, bcmolt_host_init(_)).WillByDefault(Return(host_init_res));
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get_stub, bcmolt_cfg_get_stub(_, _))
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__bal_state_stub, bcmolt_cfg_get__bal_state_stub(_, _))
                      .WillOnce(DoAll(SetArg1ToBcmOltCfg(olt_cfg), Return(bal_cfg_get_stub_res)));
     EXPECT_CALL(balMock, bcmolt_cfg_get(_, _))
                          .Times(BCM_MAX_DEVS_PER_LINE_CARD)
@@ -110,7 +110,7 @@ TEST_F(TestOltEnable, OltEnableSuccess_PON_Device_Connected) {
     state.deactivate();
 
     ON_CALL(balMock, bcmolt_host_init(_)).WillByDefault(Return(host_init_res));
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get_stub, bcmolt_cfg_get_stub(_, _))
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__bal_state_stub, bcmolt_cfg_get__bal_state_stub(_, _))
                      .WillOnce(DoAll(SetArg1ToBcmOltCfg(olt_cfg), Return(bal_cfg_get_stub_res)));
     EXPECT_CALL(balMock, bcmolt_cfg_get(_, _))
                          .Times(BCM_MAX_DEVS_PER_LINE_CARD)
@@ -143,7 +143,7 @@ TEST_F(TestOltEnable, OltEnableFail_All_PON_Enable_Fail) {
     state.deactivate();
 
     ON_CALL(balMock, bcmolt_host_init(_)).WillByDefault(Return(host_init_res));
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get_stub, bcmolt_cfg_get_stub(_, _))
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__bal_state_stub, bcmolt_cfg_get__bal_state_stub(_, _))
                      .WillOnce(DoAll(SetArg1ToBcmOltCfg(olt_cfg), Return(bal_cfg_get_stub_res)));
     EXPECT_CALL(balMock, bcmolt_cfg_get(_, _))
                          .Times(BCM_MAX_DEVS_PER_LINE_CARD)
@@ -178,7 +178,7 @@ TEST_F(TestOltEnable, OltEnableSuccess_One_PON_Enable_Fail) {
     state.deactivate();
 
     ON_CALL(balMock, bcmolt_host_init(_)).WillByDefault(Return(host_init_res));
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get_stub, bcmolt_cfg_get_stub(_, _))
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__bal_state_stub, bcmolt_cfg_get__bal_state_stub(_, _))
                      .WillOnce(DoAll(SetArg1ToBcmOltCfg(olt_cfg), Return(bal_cfg_get_stub_res)));
     EXPECT_CALL(balMock, bcmolt_cfg_get(_, _))
                          .Times(BCM_MAX_DEVS_PER_LINE_CARD)

@@ -118,7 +118,7 @@ TEST_OPENOLT_LIB_DIR=./lib
 TEST_BIN=test_openolt
 # The below way of getting source files is not working
 #TEST_SRCS = $($(filter-out src/bal_stub.cc, $(wildcard src/*.cc)))
-TEST_SRCS = src/main_test.cc src/bal_mocker.cc src/test_enable_olt.cc
+TEST_SRCS = src/main_test.cc src/bal_mocker.cc src/test_enable_olt.cc src/test_disable_reenable_olt.cc
 TEST_OBJS = $(TEST_SRCS:.cc=.o)
 build: $(TEST_OBJS)
 	$(CXX) $(shell cmock-config --libs) -L$(TEST_OPENOLT_LIB_DIR) -L/usr/lib/ -I/usr/include -I./inc -o $(TEST_BIN) $(TEST_OBJS) -lgmock -lgtest -lopenolt -lopenoltapi  $(LDFLAGS)
@@ -128,7 +128,7 @@ src/%.o: src/%.cc
 
 # bcm_host_api_stubs
 BAL_API_DIR=bal-api-3.1.0
-bcm_host_api_stubs: 
+bcm_host_api_stubs:
 	# TODO: There is temporary hack below to introduce the definition of bcmos_mutex.
 	# This should ideally come as part of bal-api-3.1.0
 	if [ -d $(BAL_API_DIR) ]; then \
