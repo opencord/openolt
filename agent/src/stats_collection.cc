@@ -77,13 +77,14 @@ openolt::FlowStatistics* get_default_flow_statistics() {
 
 openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
 
+    openolt::PortStatistics* port_stats = get_default_port_statistics();
+#ifndef TEST_MODE
     bcmos_errno err;
     bcmolt_stat_flags clear_on_read = BCMOLT_STAT_FLAGS_NONE;
     bcmolt_nni_interface_stats nni_stats;
     bcmolt_onu_itu_pon_stats pon_stats;
     bcmolt_pon_interface_itu_pon_stats itu_pon_stats;
 
-    openolt::PortStatistics* port_stats = get_default_port_statistics();
 
     switch (intf_ref.intf_type) {
         case BCMOLT_INTERFACE_TYPE_NNI:
@@ -177,7 +178,7 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
     time_t now;
     time(&now);
     port_stats->set_timestamp((int)now);
-
+#endif
     return port_stats;
 
 }

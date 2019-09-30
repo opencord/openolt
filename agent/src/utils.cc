@@ -15,6 +15,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <string.h>
 #include "utils.h"
 
 std::string serial_number_to_str(bcmolt_serial_number* serial_number) {

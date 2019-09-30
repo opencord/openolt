@@ -14,30 +14,18 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+#ifndef __BCMOLT_CONN_MGR_H__
+#define __BCMOLT_CONN_MGR_H__
+// This is stub header file for unit tets case only
+//
+extern "C" {
+typedef char bcmolt_cm_addr[100];
 
-#include <string.h>
-#include "translation.h"
+typedef int bcmolt_goid;
 
-int interface_key_to_port_no(bcmolt_interface_id intf_id, 
-        bcmolt_interface_type intf_type) {
-    if (intf_type == BCMOLT_INTERFACE_TYPE_NNI) {
-        return (0x1 << 16) + intf_id;
-    }
-    if (intf_type == BCMOLT_INTERFACE_TYPE_PON) {
-        return (0x2 << 28) + intf_id;
-    }
-    return intf_id;
+typedef struct bcmos_fastlock {
+    pthread_mutex_t lock;
+} bcmos_fastlock;
+
 }
-
-std::string alarm_status_to_string(bcmolt_status status) {
-    switch (status) {
-        case BCMOLT_STATUS_OFF:
-            return "off";
-        case BCMOLT_STATUS_ON:
-            return "on";
-        case BCMOLT_STATUS_NO_CHANGE:
-            return "no_change";
-    }
-    return "unknown";
-}
-
+#endif

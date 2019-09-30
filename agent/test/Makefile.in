@@ -1,0 +1,163 @@
+# Copyright (C) 2018 Open Networking Foundation
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+########################################################################
+##
+##
+##        Config
+##
+##
+TOP_DIR=`pwd`
+OPENOLTDEVICE ?= asfvolt16
+
+
+# GRPC installation
+GRPC_ADDR = https://github.com/grpc/grpc
+GRPC_DST = /tmp/grpc
+GRPC_VER = v1.10.x
+
+USER := $(shell echo $(USER))
+#
+########################################################################
+##
+##
+##        Install prerequisites
+##
+##
+
+CXX = g++-4.9
+CXXFLAGS += -g -O2
+CXXFLAGS += $(shell pkg-config --cflags-only-I grpc++)
+CPPFLAGS += `pkg-config --cflags protobuf grpc`
+CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
+CXXFLAGS += -DTEST_MODE -DENABLE_LOG
+LDFLAGS +=
+LDFLAGS += `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
+CXXFLAGSDEVICE = -I../device -I../device/$(OPENOLTDEVICE) -I../device/generic
+
+export CXX CXXFLAGS
+
+BAL_API_DIR=bal-api-3.1.0
+BALLIBNAME=bcm_host_api_stubs
+BALLIBDIR=$(BAL_API_DIR)/stubs
+BAL_INC = -I$(BAL_API_DIR)/include \
+          -I$(BAL_API_DIR)/include/object_model
+CXXFLAGS += $(BAL_INC)
+
+
+
+prereq:
+	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
+	sudo apt-get install -y build-essential autoconf libssl-dev gawk debhelper dh-systemd init-system-helpers curl cmake ccache g++-4.9
+
+	# Install GRPC, libprotobuf and protoc
+	rm -rf $(GRPC_DST)
+	git clone -b $(GRPC_VER) $(GRPC_ADDR) $(GRPC_DST)
+	cd $(GRPC_DST) && git submodule update --init
+	cd $(GRPC_DST)/third_party/protobuf && ./autogen.sh && ./configure
+	make -C $(GRPC_DST)/third_party/protobuf
+	sudo make -C $(GRPC_DST)/third_party/protobuf install
+	sudo ldconfig
+	make -C $(GRPC_DST)
+	sudo make -C $(GRPC_DST) install
+	sudo ldconfig
+
+prereq-mock-lib: gtest cmock
+
+gtest:
+	# Install gtest and gmock
+	rm -rf /tmp/googletest && cd /tmp && git clone https://github.com/google/googletest.git
+	cd /tmp/googletest && git checkout release-1.8.0
+	cd /tmp/googletest && cmake CMakeLists.txt
+	make -C /tmp/googletest
+	sudo make -C /tmp/googletest install
+
+cmock:
+	# Install c-mock
+	rm -rf /tmp/C-Mock && cd /tmp && git clone https://github.com/hjagodzinski/C-Mock.git
+	cd /tmp/C-Mock && git checkout 0207b3026f04bbdf0bd9d9f8dfd00945a4318251
+	make -C /tmp/C-Mock
+	sudo make -C /tmp/C-Mock install
+
+########################################################################
+##
+##
+##        build
+##
+##
+
+.DEFAULT_GOAL := all
+
+.PHONY = bcm_host_api_stubs libopenoltapi.a libopenolt.a build clean
+
+all: bcm_host_api_stubs libopenoltapi.a libopenolt.a build
+
+# test
+TEST_OPENOLT_LIB_DIR=./lib
+TEST_BIN=test_openolt
+# The below way of getting source files is not working
+#TEST_SRCS = $($(filter-out src/bal_stub.cc, $(wildcard src/*.cc)))
+TEST_SRCS = src/main_test.cc src/bal_mocker.cc src/test_enable_olt.cc
+TEST_OBJS = $(TEST_SRCS:.cc=.o)
+build: $(TEST_OBJS)
+	$(CXX) $(shell cmock-config --libs) -L$(TEST_OPENOLT_LIB_DIR) -L/usr/lib/ -I/usr/include -I./inc -o $(TEST_BIN) $(TEST_OBJS) -lgmock -lgtest -lopenolt -lopenoltapi  $(LDFLAGS)
+src/%.o: src/%.cc
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I./inc -I../common -I/usr/include -c $< -o $@
+
+
+# bcm_host_api_stubs
+BAL_API_DIR=bal-api-3.1.0
+bcm_host_api_stubs: 
+	# TODO: There is temporary hack below to introduce the definition of bcmos_mutex.
+	# This should ideally come as part of bal-api-3.1.0
+	if [ -d $(BAL_API_DIR) ]; then \
+		echo "$(BAL_API_DIR) exists"; \
+	else \
+		git clone https://github.com/balapi/bal-api-3.1.0.git ;\
+        sed -i "\$$i struct bcmos_mutex \{ pthread_mutex_t m; };" ./bal-api-3.1.0/include/bcmos_system.h; \
+	fi
+
+# openoltapi
+OPENOLT_PROTOS_DIR = ../../protos
+OPENOLT_API_LIB = $(OPENOLT_PROTOS_DIR)/libopenoltapi.a
+CXXFLAGS += -I$(OPENOLT_PROTOS_DIR) -I$(OPENOLT_PROTOS_DIR)/googleapis/gens
+libopenoltapi.a:
+	make -C $(OPENOLT_PROTOS_DIR) all
+	mkdir -p lib
+	cp $(OPENOLT_PROTOS_DIR)/$@ lib/
+libproto-clean:
+	make -C $(OPENOLT_PROTOS_DIR) clean
+
+# openolt
+OPENOLT_SRCS = $(wildcard ../src/*.cc) ../common/server.cc $(wildcard ../device/$(OPENOLTDEVICE)/*.cc) src/bal_stub.cc
+OPENOLT_OBJS = $(OPENOLT_SRCS:.cc=.o)
+libopenolt.a: $(OPENOLT_OBJS)
+	mkdir -p lib
+	ar cr lib/$@ $^
+	ranlib lib/$@
+../common/%.o: ../common/%.cc
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I../common -I./inc -I./device/$(OPENOLTDEVICE) -c $< -o $@
+../src/%.o: ../src/%.cc
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I../common -I./inc -I./device/$(OPENOLTDEVICE) -c $< -o $@
+src/%.o: src/%.cc
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I../common -I./inc -I./device/$(OPENOLTDEVICE) -c $< -o $@
+../device/$(OPENOLTDEVICE)/%.o: ../device/$(OPENOLTDEVICE)/%.cc
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I../common -I./inc -I./device/$(OPENOLTDEVICE) -c $< -o $@
+
+test: all
+	./test_openolt --gtest_output="xml:./openolt_test_results.xml"
+
+clean:
+	rm -f src/*.o lib/*.a ../src/*.o ../common/*.o ./test_openolt  ./openolt_test_results.xml

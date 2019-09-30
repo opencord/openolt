@@ -39,18 +39,22 @@ extern "C"
 #include <bcmolt_api.h>
 #include <bcmolt_host_api.h>
 #include <bcmolt_api_model_supporting_enums.h>
+
 #include <bal_version.h>
 #include <bcmolt_api_conn_mgr.h>
 //CLI header files
 #include <bcmcli_session.h>
 #include <bcmcli.h>
 #include <bcm_api_cli.h>
+
 #include <bcmos_common.h>
 #include <bcm_config.h>
 // FIXME : dependency problem
 // #include <bcm_common_gpon.h>
 // #include <bcm_dev_log_task.h>
 }
+
+
 dev_log_id openolt_log_id = bcm_dev_log_id_register("OPENOLT", DEV_LOG_LEVEL_INFO, DEV_LOG_ID_TYPE_BOTH);
 dev_log_id omci_log_id = bcm_dev_log_id_register("OMCI", DEV_LOG_LEVEL_INFO, DEV_LOG_ID_TYPE_BOTH);
 
@@ -737,7 +741,6 @@ Status Enable_(int argc, char *argv[]) {
     bcmos_errno err;
     bcmolt_host_init_parms init_parms = {};
     init_parms.transport.type = BCM_HOST_API_CONN_LOCAL;
-    bcmcli_session_parm mon_session_parm;
 
     if (!state.is_activated()) {
 
@@ -749,6 +752,7 @@ Status Enable_(int argc, char *argv[]) {
             return bcm_to_grpc_err(err, "Failed to init OLT");
         }
 
+        bcmcli_session_parm mon_session_parm;
         /* Create CLI session */
         memset(&mon_session_parm, 0, sizeof(mon_session_parm));
         mon_session_parm.get_prompt = openolt_cli_get_prompt_cb;
@@ -803,8 +807,9 @@ Status Enable_(int argc, char *argv[]) {
                         BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_GPON__16_X);
                     }
                     err = bcmolt_oper_submit(dev_id, &oper.hdr);
-                    if (err) 
-                        OPENOLT_LOG(ERROR, openolt_log_id, "Enable PON deivce %d failed\n", dev);
+                    if (err) {
+                        OPENOLT_LOG(ERROR, openolt_log_id, "Enable PON device %d failed, err %d\n", dev, err);
+                    }
                     bcmos_usleep(200000);
                 }
                 else {

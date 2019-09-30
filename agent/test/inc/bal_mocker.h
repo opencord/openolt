@@ -15,29 +15,20 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <string.h>
-#include "translation.h"
+#ifndef __BAL_MOCKER_H__
+#define __BAL_MOCKER_H__
+#include <cmock/cmock.h>
+#include <cstdlib>
+#include "bcmos_errno.h"
+#include "bcmolt_host_api.h"
+#include "bcmolt_system_types_typedefs.h"
+#include "bcmolt_msg.h"
 
-int interface_key_to_port_no(bcmolt_interface_id intf_id, 
-        bcmolt_interface_type intf_type) {
-    if (intf_type == BCMOLT_INTERFACE_TYPE_NNI) {
-        return (0x1 << 16) + intf_id;
-    }
-    if (intf_type == BCMOLT_INTERFACE_TYPE_PON) {
-        return (0x2 << 28) + intf_id;
-    }
-    return intf_id;
-}
-
-std::string alarm_status_to_string(bcmolt_status status) {
-    switch (status) {
-        case BCMOLT_STATUS_OFF:
-            return "off";
-        case BCMOLT_STATUS_ON:
-            return "on";
-        case BCMOLT_STATUS_NO_CHANGE:
-            return "no_change";
-    }
-    return "unknown";
-}
-
+class BalMocker : public CMockMocker<BalMocker>
+{
+public:
+    MOCK_METHOD1(bcmolt_host_init, bcmos_errno(bcmolt_host_init_parms*));
+    MOCK_METHOD2(bcmolt_cfg_get, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
+    MOCK_METHOD2(bcmolt_oper_submit, bcmos_errno(bcmolt_oltid, bcmolt_oper*));
+};
+#endif

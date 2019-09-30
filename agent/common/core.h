@@ -39,7 +39,6 @@ using grpc::Status;
         BCM_LOG(level, id, "%s" fmt "%s", LIGHT_GREEN, ##__VA_ARGS__, NONE); \
     else \
         BCM_LOG(INFO, id, fmt, ##__VA_ARGS__);
-
 #define COLLECTION_PERIOD 15
 
 extern State state;

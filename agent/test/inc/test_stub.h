@@ -14,30 +14,27 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+#ifndef __TEST_STUB_H__
+#define __TEST_STUB_H__
 
-#include <string.h>
-#include "translation.h"
+#include <pthread.h>
+#include <unistd.h>
+#include <stdint.h>
 
-int interface_key_to_port_no(bcmolt_interface_id intf_id, 
-        bcmolt_interface_type intf_type) {
-    if (intf_type == BCMOLT_INTERFACE_TYPE_NNI) {
-        return (0x1 << 16) + intf_id;
-    }
-    if (intf_type == BCMOLT_INTERFACE_TYPE_PON) {
-        return (0x2 << 28) + intf_id;
-    }
-    return intf_id;
-}
+#include "bcmolt_conn_mgr.h"
+#include "bcmcli_session.h"
+#include "bcmos_errno.h"
 
-std::string alarm_status_to_string(bcmolt_status status) {
-    switch (status) {
-        case BCMOLT_STATUS_OFF:
-            return "off";
-        case BCMOLT_STATUS_ON:
-            return "on";
-        case BCMOLT_STATUS_NO_CHANGE:
-            return "no_change";
-    }
-    return "unknown";
-}
+// defines some stub definitions that are not available to openolt application
+// when compoling in TEST_MODE
+//#define BCMOLT_TM_QUEUE_KEY_TM_Q_SET_ID_DEFAULT 0
+#define MAX_SUPPORTED_PON 16
+
+
+void bcmos_usleep(uint32_t us);
+void bcmos_fastlock_init(bcmos_fastlock *lock, uint32_t flags);
+long bcmos_fastlock_lock(bcmos_fastlock *lock);
+void bcmos_fastlock_unlock(bcmos_fastlock *lock, long flags);
+
+#endif //__TEST_STUB_H__
 

@@ -15,29 +15,15 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <string.h>
-#include "translation.h"
+#ifndef _BAL_STUB_H_
+#define _BAl_STUB_H_
+extern "C" {
+#include <test_stub.h>
 
-int interface_key_to_port_no(bcmolt_interface_id intf_id, 
-        bcmolt_interface_type intf_type) {
-    if (intf_type == BCMOLT_INTERFACE_TYPE_NNI) {
-        return (0x1 << 16) + intf_id;
-    }
-    if (intf_type == BCMOLT_INTERFACE_TYPE_PON) {
-        return (0x2 << 28) + intf_id;
-    }
-    return intf_id;
+
+void bcmos_usleep(uint32_t us);
+void bcmos_fastlock_init(bcmos_fastlock *lock, uint32_t flags);
+long bcmos_fastlock_lock(bcmos_fastlock *lock);
+void bcmos_fastlock_unlock(bcmos_fastlock *lock, long flags);
 }
-
-std::string alarm_status_to_string(bcmolt_status status) {
-    switch (status) {
-        case BCMOLT_STATUS_OFF:
-            return "off";
-        case BCMOLT_STATUS_ON:
-            return "on";
-        case BCMOLT_STATUS_NO_CHANGE:
-            return "no_change";
-    }
-    return "unknown";
-}
-
+#endif
