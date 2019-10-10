@@ -126,6 +126,7 @@ bcm_host_api_stubs:
 		echo "$(BAL_API_DIR) exists"; \
 	else \
 		git clone https://github.com/balapi/bal-api-3.1.0.git ;\
+        sed -i "\$$i #define BCMOLT_TM_QUEUE_KEY_TM_Q_SET_ID_DEFAULT 0" ./bal-api-3.1.0/include/bcmos_system.h; \
         sed -i "\$$i struct bcmos_mutex \{ pthread_mutex_t m; };" ./bal-api-3.1.0/include/bcmos_system.h; \
 	fi
 
