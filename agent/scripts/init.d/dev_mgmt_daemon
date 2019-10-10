@@ -25,7 +25,7 @@ set -e
 
 start() {
   /opt/bcm68620/svk_init.sh
-  sleep 2
+  sleep 10
   printf "Starting '$NAME'... "
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$APPDIR
   start-stop-daemon --verbose --start --chuid "$USER:$GROUP" --background --no-close --chdir "$APPDIR" --exec "$APPBIN" -- $APPARGS 2>&1 || true
