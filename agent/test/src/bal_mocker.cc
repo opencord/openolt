@@ -18,7 +18,8 @@
 
 
 #include "bal_mocker.h"
-
+extern "C" {
 CMOCK_MOCK_FUNCTION1(BalMocker, bcmolt_host_init, bcmos_errno(bcmolt_host_init_parms*));
 CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_cfg_get, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
 CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_oper_submit, bcmos_errno(bcmolt_oltid, bcmolt_oper*));
+}

@@ -19,10 +19,21 @@
 #define __BAL_MOCKER_H__
 #include <cmock/cmock.h>
 #include <cstdlib>
+extern "C" {
+#include <bcmos_system.h>
+#include <bcmolt_api.h>
+#include <bcm_dev_log.h>
 #include "bcmos_errno.h"
-#include "bcmolt_host_api.h"
 #include "bcmolt_system_types_typedefs.h"
 #include "bcmolt_msg.h"
+
+/** Host subsystem initialization parameters */
+typedef struct bcmolt_host_init_parms
+{
+    int dummy;
+} bcmolt_host_init_parms;
+
+}
 
 class BalMocker : public CMockMocker<BalMocker>
 {

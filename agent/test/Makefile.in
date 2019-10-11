@@ -158,7 +158,7 @@ src/%.o: src/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I../common -I./inc -I./device/$(OPENOLTDEVICE) -c $< -o $@
 
 test: all
-	./test_openolt --gtest_output="xml:./openolt_test_results.xml"
+	./test_openolt --gtest_output="xml:./test_openolt_report.xml"
 
 clean:
-	rm -f src/*.o lib/*.a ../src/*.o ../common/*.o ./test_openolt  ./openolt_test_results.xml
+	rm -f src/*.o lib/*.a ../src/*.o ../common/*.o ./test_openolt  ./test_openolt_report.xml

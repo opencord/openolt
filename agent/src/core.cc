@@ -741,6 +741,7 @@ Status Enable_(int argc, char *argv[]) {
     bcmos_errno err;
     bcmolt_host_init_parms init_parms = {};
     init_parms.transport.type = BCM_HOST_API_CONN_LOCAL;
+    unsigned int failed_enable_device_cnt = 0;
 
     if (!state.is_activated()) {
 
@@ -808,7 +809,12 @@ Status Enable_(int argc, char *argv[]) {
                     }
                     err = bcmolt_oper_submit(dev_id, &oper.hdr);
                     if (err) {
+                        failed_enable_device_cnt ++;
                         OPENOLT_LOG(ERROR, openolt_log_id, "Enable PON device %d failed, err %d\n", dev, err);
+                        if (failed_enable_device_cnt == BCM_MAX_DEVS_PER_LINE_CARD) {
+                            OPENOLT_LOG(ERROR, openolt_log_id, "failed to enable all the pon ports\n");
+                            return Status(grpc::StatusCode::INTERNAL, "Failed to activate all PON ports");
+                        }
                     }
                     bcmos_usleep(200000);
                 }

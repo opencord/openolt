@@ -5,7 +5,7 @@ OpenOLT agent unit test framework is based on the following frameworks
   - Google Test: https://github.com/google/googletest
   - C-Mock: https://github.com/hjagodzinski/C-Mock
  
-The goal of the unit tests for OpenOLT agent is to test is to test the OpenOLT application by stubbing and mocking the external interfaces, especially the BAL API and GRPC.
+The goal of the unit tests for OpenOLT agent is to test the OpenOLT application by stubbing and mocking the external interfaces, especially the BAL API and GRPC.
 
 # Building and Running Unit Test
 Follow the below steps to build and run unit test
@@ -21,13 +21,13 @@ $ make prereq-mock-lib
 $ make test
 ```
 Once you have successfully built and run the unit-test, the test report will be available in `test_openolt_report.xml` file in `agent/test`.
-To clean all build artificats and test reports, do `make clean` in `agent/test`.
+To clean all build artifacts and test reports, do `make clean` in `agent/test`.
 
 # Adding new Unit Test Cases
 
 Before you add new test cases please read [GOOGLE TEST COOKBOOK](https://github.com/google/googletest/blob/master/googlemock/docs/cook_book.md) and [USING CMOCK](https://github.com/hjagodzinski/C-Mock/blob/master/README.md) to get acquainted with frameworks used for the unit-test cases.
 ## Create mocks, if needed
-Refer `agent/test/src/bal_mocker.cc` and `agent/test/src/bal_mocker.h` to see how mock functions are created (if needed by your test case). In the afore mentioned examples, mocks are created for certain BAL APIs.
+Refer `agent/test/src/bal_mocker.cc` and `agent/test/src/bal_mocker.h` to see how mock functions are created (if needed by your test case). In the aforementioned examples, mocks are created for certain BAL APIs.
 
 ## Create Unit Test Case
 Please refer example `agent/test/src/test_enable_olt.cc`.

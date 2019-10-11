@@ -26,7 +26,7 @@ build
 test_openolt
 
 # Test report
-**/openolt_test_results.xml
+**/test_openolt_report.xml
 
 # IntelliJ Files
 .idea

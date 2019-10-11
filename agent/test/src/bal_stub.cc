@@ -144,11 +144,6 @@ bcmos_errno bcmolt_multi_stat_get(
     return BCM_ERR_OK;
 }
 
-bcmos_errno bcmolt_host_init(const bcmolt_host_init_parms *init_parms)
-{
-    return BCM_ERR_OK;
-}
-
 /* Map error code to error string */
 const char *bcmos_strerror(bcmos_errno err)
 {
