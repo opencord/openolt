@@ -28,5 +28,8 @@ test_openolt
 # Test report
 **/test_openolt_report.xml
 
+# Downloaded voltha-protos file
+voltha_protos
+
 # IntelliJ Files
 .idea

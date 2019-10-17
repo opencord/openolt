@@ -14,18 +14,27 @@
 
 HOST_SYSTEM = $(shell uname | cut -f 1 -d_)
 SYSTEM ?= $(HOST_SYSTEM)
+
+# OpenOLT Proto version.
+# This specifies the GIT tag in https://github.com/opencord/voltha-protos
+# repo that we need to refer to, to pick the right version of
+# openolt.proto and tech_profile.proto
+OPENOLT_PROTO_VER ?= v1.0.3
+
 CXX ?= g++
 #powerpc64-fsl-linux-g++
-CPPFLAGS += `pkg-config --cflags protobuf grpc` -I googleapis/gens
+CPPFLAGS += `pkg-config --cflags protobuf grpc` -I googleapis/gens -I./
 CXXFLAGS += -std=c++11
 #LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc` -ldl
 PROTOC = protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
 
-OBJS = tech_profile.pb.o tech_profile.grpc.pb.o openolt.pb.o openolt.grpc.pb.o ./googleapis/gens/google/api/annotations.grpc.pb.o ./googleapis/gens/google/api/annotations.pb.o ./googleapis/gens/google/api/http.pb.o
+OBJS = voltha_protos/tech_profile.pb.o voltha_protos/tech_profile.grpc.pb.o voltha_protos/openolt.pb.o voltha_protos/openolt.grpc.pb.o ./googleapis/gens/google/api/annotations.grpc.pb.o ./googleapis/gens/google/api/annotations.pb.o ./googleapis/gens/google/api/http.pb.o
 
-all: googleapis libopenoltapi.a
+.DEFAULT_GOAL := all
+
+all: googleapis get_openolt_proto libopenoltapi.a
 
 libopenoltapi.a: $(OBJS)
 	ar cr $@ $^
@@ -40,16 +49,27 @@ googleapis:
 		make -C googleapis LANGUAGE=cpp GRPCPLUGIN=$(GRPC_CPP_PLUGIN_PATH) all; \
 	fi;
 
-.PRECIOUS: %.grpc.pb.cc
-%.grpc.pb.cc: %.proto
+get_openolt_proto:
+	if [ ! -e "voltha_protos" ]; then \
+		mkdir voltha_protos; \
+	fi;\
+	if [ ! -e "voltha_protos/openolt.proto" ]; then \
+		wget -O voltha_protos/openolt.proto https://raw.githubusercontent.com/opencord/voltha-protos/$(OPENOLT_PROTO_VER)/protos/voltha_protos/openolt.proto; \
+	fi; \
+	if [ ! -e "tech_profile.proto" ]; then \
+		wget -O voltha_protos/tech_profile.proto https://raw.githubusercontent.com/opencord/voltha-protos/$(OPENOLT_PROTO_VER)/protos/voltha_protos/tech_profile.proto; \
+	fi;
+
+.PRECIOUS: voltha_protos/%.grpc.pb.cc
+voltha_protos/%.grpc.pb.cc: voltha_protos/%.proto
 	$(PROTOC) --proto_path=. -I./googleapis --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) $<
 
-.PRECIOUS: %.pb.cc
-%.pb.cc: %.proto
-	$(PROTOC) --proto_path=. -I./googleapis --cpp_out=. $<
+.PRECIOUS: voltha_protos/%.pb.cc
+voltha_protos/%.pb.cc: voltha_protos/%.proto
+	$(PROTOC) --proto_path=. -I./googleapis -I./ --cpp_out=. $<
 
 clean:
-	rm -f *.o *.pb.cc *.pb.h *.a
+	rm *.a && cd voltha_protos/ && rm -f *.o *.pb.cc *.pb.h
 
 distclean: clean
 	rm -rf googleapis

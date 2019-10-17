@@ -198,6 +198,15 @@ build the OpenOLT agent source.
 make OPENOLTDEVICE=asfvolt16
 ```
 
+If you need to use a specific version of voltha-protos, then specify the git tag/branch corresponding to
+tht specific version as below. For ex:
+
+```shell
+make OPENOLTDEVICE=asfvolt16 OPENOLT_PROTO_VER=master
+```
+
+By default, the OPENOLT_PROTO_VER defaults to git tag *v1.0.3* of https://github.com/opencord/voltha-protos repo.
+
 If the build process succeeds, libraries and executables will be created in the
 *openolt/agent/build* directory.
 

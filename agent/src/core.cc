@@ -1629,10 +1629,13 @@ Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, uint32_t port_no, uint32
     return Status::OK;
 }
 
-Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt, bcmolt_flow_id flow_id) {
+Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt) {
     bcmolt_flow_key key = {}; /* declare key */
     bcmolt_bin_str buffer = {};
     bcmolt_flow_send_eth_packet oper; /* declare main API struct */
+
+    // TODO: flow_id is currently not passed in UplinkPacket message from voltha.
+    bcmolt_flow_id flow_id = 0;
 
     //validate flow_id and find flow_id/flow type: upstream/ingress type: PON/egress type: NNI
     if (get_flow_status(flow_id, BCMOLT_FLOW_TYPE_UPSTREAM, FLOW_TYPE) == BCMOLT_FLOW_TYPE_UPSTREAM && \
@@ -1651,8 +1654,9 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt, bcmolt_flow_id 
                 }
             }
         }
-        else
+        else {
             return grpc::Status(grpc::StatusCode::NOT_FOUND, "no flow id found");
+        }
     }
 
     key.flow_type = BCMOLT_FLOW_TYPE_UPSTREAM; /* send from uplink direction */
@@ -1664,16 +1668,16 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt, bcmolt_flow_id 
     buffer.arr = (uint8_t *)malloc((buffer.len)*sizeof(uint8_t));
     memcpy(buffer.arr, (uint8_t *)pkt.data(), buffer.len);
     if (buffer.arr == NULL) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "allocate pakcet buffer failed\n");
-        return bcm_to_grpc_err(BCM_ERR_PARM, "allocate pakcet buffer failed");
+        OPENOLT_LOG(ERROR, openolt_log_id, "allocate packet buffer failed\n");
+        return bcm_to_grpc_err(BCM_ERR_PARM, "allocate packet buffer failed");
     }
     BCMOLT_FIELD_SET(&oper.data, flow_send_eth_packet_data, buffer, buffer);
 
     bcmos_errno err = bcmolt_oper_submit(dev_id, &oper.hdr);
     if (err) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Error sending packets to port %d, flow_id %d, err %d\n", intf_id, key.flow_id, err);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Error sending packets via nni port %d, flow_id %d err %d\n", intf_id, key.flow_id, err);
     } else {
-        OPENOLT_LOG(INFO, openolt_log_id, "sent packets to port %d in upstream direction (flow_id %d)\n", intf_id, key.flow_id);
+        OPENOLT_LOG(INFO, openolt_log_id, "sent packets to port %d in upstream direction, flow_id %d \n", intf_id, key.flow_id);
     }
 
     return Status::OK;

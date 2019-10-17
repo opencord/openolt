@@ -19,7 +19,6 @@
 
 #include <unistd.h>
 
-#include <openolt.grpc.pb.h>
 #include "indications.h"
 #include "core.h"
 #include "translation.h"

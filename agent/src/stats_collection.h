@@ -18,7 +18,7 @@
 #ifndef OPENOLT_STATS_COLLECTION_H_
 #define OPENOLT_STATS_COLLECTION_H_
 
-#include <openolt.grpc.pb.h>
+#include <voltha_protos/openolt.grpc.pb.h>
 
 extern "C"
 {

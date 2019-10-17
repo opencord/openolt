@@ -718,7 +718,6 @@ static void OnuActivationFailureIndication(bcmolt_devid olt, bcmolt_msg *msg) {
 
                     activation_fail_ind->set_intf_id(key->pon_ni);
                     activation_fail_ind->set_onu_id(key->onu_id);
-                    activation_fail_ind->set_fail_reason(data->fail_reason);
                     alarm_ind->set_allocated_onu_activation_fail_ind(activation_fail_ind);
 
                     ind.set_allocated_alarm_ind(alarm_ind);

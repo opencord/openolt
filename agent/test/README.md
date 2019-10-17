@@ -20,6 +20,16 @@ $ make prereq-mock-lib
 # This will build and run the unit test cases
 $ make test
 ```
+
+If you need to use a specific version of voltha-protos, then specify the git tag/branch corresponding to
+tht specific version as below. For ex:
+
+```
+make OPENOLT_PROTO_VER=master test
+```
+
+By default, the OPENOLT_PROTO_VER defaults to git tag *v1.0.3* of https://github.com/opencord/voltha-protos repo.
+
 Once you have successfully built and run the unit-test, the test report will be available in `test_openolt_report.xml` file in `agent/test`.
 To clean all build artifacts and test reports, do `make clean` in `agent/test`.
 

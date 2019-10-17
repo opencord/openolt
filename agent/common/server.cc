@@ -30,8 +30,8 @@
 #include "state.h"
 
 #include <grpc++/grpc++.h>
-#include <openolt.grpc.pb.h>
-#include <tech_profile.grpc.pb.h>
+#include <voltha_protos/openolt.grpc.pb.h>
+#include <voltha_protos/tech_profile.grpc.pb.h>
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -121,8 +121,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             openolt::Empty* response) override {
         return UplinkPacketOut_(
             request->intf_id(),
-            request->pkt(),
-            request->flow_id());
+            request->pkt());
     }
 
     Status FlowAdd(
