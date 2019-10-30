@@ -145,7 +145,6 @@ std::string bcmolt_to_grpc_flow_intf_type(bcmolt_flow_interface_type intf_type)
 static void OltOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::OltIndication* olt_ind = new openolt::OltIndication;
-    Status status;
     std::string admin_state;
 
     switch (msg->subgroup) {

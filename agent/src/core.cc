@@ -25,6 +25,7 @@
 #include <thread>
 #include <bitset>
 #include <inttypes.h>
+#include <unistd.h>
 
 #include "device.h"
 #include "core.h"
@@ -160,6 +161,9 @@ static bcmos_errno CreateDefaultQueue(uint32_t intf_id, const std::string direct
 uint16_t get_dev_id(void) {
     return dev_id;
 }
+
+// Stubbed defntion of bcmolt_cfg_get required for unit-test
+extern bcmos_errno bcmolt_cfg_get_stub(bcmolt_oltid olt_id, void* ptr);
 
 /**
 * Returns the default NNI (Upstream direction) or PON (Downstream direction) scheduler
@@ -782,8 +786,11 @@ Status Enable_(int argc, char *argv[]) {
         bcmos_fastlock_init(&data_lock, 0);
         OPENOLT_LOG(INFO, openolt_log_id, "Enable OLT - %s-%s\n", VENDOR_ID, MODEL_ID);
 
-        if (bcmolt_api_conn_mgr_is_connected(dev_id))
-        {
+        //check BCM daemon is connected or not
+        Status status = check_connection();
+        if (!status.ok())
+            return status;
+        else {
             Status status = SubscribeIndication();
             if (!status.ok()) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "SubscribeIndication failed - %s : %s\n",
@@ -791,6 +798,14 @@ Status Enable_(int argc, char *argv[]) {
                     status.error_message().c_str());
                 return status;
             }
+
+            //check BAL state in initial stage
+            status = check_bal_ready();
+            if (!status.ok())
+                return status;
+        }
+
+        {
             bcmos_errno err;
             bcmolt_odid dev;
             OPENOLT_LOG(INFO, openolt_log_id, "Enabling PON %d Devices ... \n", BCM_MAX_DEVS_PER_LINE_CARD);
@@ -801,7 +816,7 @@ Status Enable_(int argc, char *argv[]) {
                 BCMOLT_CFG_INIT(&dev_cfg, device, dev_key);
                 BCMOLT_MSG_FIELD_GET(&dev_cfg, system_mode);
                 err = bcmolt_cfg_get(dev_id, &dev_cfg.hdr);
-                if (err == BCM_ERR_NOT_CONNECTED) { 
+                if (err == BCM_ERR_NOT_CONNECTED) {
                     bcmolt_device_key key = {.device_id = dev};
                     bcmolt_device_connect oper;
                     BCMOLT_OPER_INIT(&oper, device, connect, key);
@@ -1148,7 +1163,7 @@ Status EnablePonIf_(uint32_t intf_id) {
     err = get_pon_interface_status((bcmolt_interface)intf_id, &state); 
     if (err == BCM_ERR_OK) {
         if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
-            OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d already enabled\n", intf_id);
+            OPENOLT_LOG(WARNING, openolt_log_id, "PON interface: %d already enabled\n", intf_id);
             return Status::OK;
         }
     } 
@@ -1347,7 +1362,7 @@ Status SetStateUplinkIf_(uint32_t intf_id, bool set_state) {
     err = get_nni_interface_status((bcmolt_interface)intf_id, &state); 
     if (err == BCM_ERR_OK) {
         if (set_state && state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
-            OPENOLT_LOG(INFO, openolt_log_id, "NNI interface: %d already enabled\n", intf_id);
+            OPENOLT_LOG(WARNING, openolt_log_id, "NNI interface: %d already enabled\n", intf_id);
             OPENOLT_LOG(INFO, openolt_log_id, "Initializing tm sched creation for NNI interface: %d\n", intf_id);
             CreateDefaultSched(intf_id, upstream);
             CreateDefaultQueue(intf_id, upstream);
@@ -2190,6 +2205,19 @@ bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction) {
     bcmolt_tm_sched_key tm_sched_key = {.id = 1};
     tm_sched_key.id = get_default_tm_sched_id(intf_id, direction);
 
+    //check TM scheduler has configured or not
+    BCMOLT_CFG_INIT(&tm_sched_cfg, tm_sched, tm_sched_key);
+    BCMOLT_MSG_FIELD_GET(&tm_sched_cfg, state);
+    err = bcmolt_cfg_get(dev_id, &tm_sched_cfg.hdr);
+    if (err) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "cfg: Failed to query TM scheduler\n");
+        return err;
+    }
+    else if (tm_sched_cfg.data.state == BCMOLT_CONFIG_STATE_CONFIGURED) {
+        OPENOLT_LOG(WARNING, openolt_log_id, "tm scheduler default config has already with id %d\n", tm_sched_key.id);
+        return BCM_ERR_OK;
+    }
+
     // bcmbal_tm_sched_owner
     BCMOLT_CFG_INIT(&tm_sched_cfg, tm_sched, tm_sched_key);
 
@@ -2797,5 +2825,51 @@ Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
             RemoveTrafficQueueMappingProfile(tm_qmp_id);
         }
     }
+    return Status::OK;
+}
+
+Status check_connection() {
+    int maxTrials = 60;
+    while (!bcmolt_api_conn_mgr_is_connected(dev_id)) {
+        sleep(1);
+        if (--maxTrials == 0)
+            return grpc::Status(grpc::StatusCode::UNAVAILABLE, "check connection failed");
+        else
+            OPENOLT_LOG(INFO, openolt_log_id, "waiting for daemon connection ...\n");
+    }
+    OPENOLT_LOG(INFO, openolt_log_id, "daemon is connected\n");
+    return Status::OK;
+}
+
+Status check_bal_ready() {
+    bcmos_errno err;
+    int maxTrials = 30;
+    bcmolt_olt_cfg olt_cfg = { };
+    bcmolt_olt_key olt_key = { };
+
+    BCMOLT_CFG_INIT(&olt_cfg, olt, olt_key);
+    BCMOLT_MSG_FIELD_GET(&olt_cfg, bal_state);
+
+    while (olt_cfg.data.bal_state != BCMOLT_BAL_STATE_BAL_AND_SWITCH_READY) {
+        if (--maxTrials == 0)
+            return grpc::Status(grpc::StatusCode::UNAVAILABLE, "check bal ready failed");
+        sleep(5);
+        #ifdef TEST_MODE
+        // It is impossible to mock the setting of olt_cfg.data.bal_state because
+        // the actual bcmolt_cfg_get passes the address of olt_cfg.hdr and we cannot
+        // set the olt_cfg.data.bal_state. So a new stub function is created and address
+        // of olt_cfg is passed. This is one-of case where we need to add specific
+        // code in product code.
+        if (bcmolt_cfg_get_stub(dev_id, &olt_cfg)) {
+        #else
+        if (bcmolt_cfg_get(dev_id, &olt_cfg.hdr)) {
+        #endif
+            continue;
+        }
+        else
+            OPENOLT_LOG(INFO, openolt_log_id, "waiting for BAL ready ...\n");
+    }
+
+    OPENOLT_LOG(INFO, openolt_log_id, "BAL is ready\n");
     return Status::OK;
 }

@@ -79,7 +79,7 @@ prereq:
 	sudo make -C $(GRPC_DST) install
 	sudo ldconfig
 
-prereq-mock-lib: gtest cmock
+prereq-mock-lib: gtest cmock gmock-global
 
 gtest:
 	# Install gtest and gmock
@@ -96,6 +96,11 @@ cmock:
 	make -C /tmp/C-Mock
 	sudo make -C /tmp/C-Mock install
 
+gmock-global:
+	# Install gmock-global
+	rm -rf /tmp/gmock-global && cd /tmp && git clone https://github.com/apriorit/gmock-global.git
+	cd /tmp/gmock-global && git checkout 1.0.2
+	sudo cp -rf /tmp/gmock-global/include/gmock-global /usr/local/include/
 ########################################################################
 ##
 ##

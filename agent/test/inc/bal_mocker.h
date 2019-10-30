@@ -18,7 +18,10 @@
 #ifndef __BAL_MOCKER_H__
 #define __BAL_MOCKER_H__
 #include <cmock/cmock.h>
+#include <gmock-global/gmock-global.h>
 #include <cstdlib>
+#include <grpc++/grpc++.h>
+using grpc::Status;
 extern "C" {
 #include <bcmos_system.h>
 #include <bcmolt_api.h>
@@ -41,5 +44,7 @@ public:
     MOCK_METHOD1(bcmolt_host_init, bcmos_errno(bcmolt_host_init_parms*));
     MOCK_METHOD2(bcmolt_cfg_get, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
     MOCK_METHOD2(bcmolt_oper_submit, bcmos_errno(bcmolt_oltid, bcmolt_oper*));
+  // Add more here
 };
+
 #endif
