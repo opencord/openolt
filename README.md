@@ -42,17 +42,18 @@ OpenOLT agent uses Broadcom's BAL (Broadband Access Layer) software for Maple/Qu
 ## Hardware requirements
 
 A list of tested devices and optics can be found in the [CORD hardware
-requirements](https://github.com/opencord/docs/blob/master/prereqs/hardware.md#suggested-hardware)
+requirements](https://guide.opencord.org/prereqs/hardware.html#recommended-hardware)
 guide, in the *R-CORD access equipment and optics* section.
 
 ## Pre-built debian packages of OpenOLT agent for Accton/Edgecore ASFVOLT16
 
 Accton/Edgecore makes available pre-built debian packages of OpenOLT agent to their customers.
-Contact your Accton/Edgecore representative for more information.
-
-The pre-built debian packages have been tested on [this specific version of
-OpenNetworkingLinux
-(ONL)](https://github.com/opencord/OpenNetworkLinux/releases/download/20180124-olt-kernel-3.7.10/ONL-2.0.0_ONL-OS_2018-01-24.0118-1303f20_AMD64_INSTALLED_INSTALLER).
+Get access credentials for https://edgecore.quickconnect.to and then login and navigate to
+File_Station -> EdgecoreNAS, and then the folder /ASXvOLT16/OpenOLT_Agent/From_ONF_Distribution/
+and pick the right version of deb package required for your testing.
+voltha-2.2/openolt-2.2.0.deb is the latest version of package with support for BAL3.1.1.1.
+The pre-built debian packages have been tested on ONL-4.14. The ONL Installer required for
+voltha-2.2/openolt-2.2.0.deb is also available at in the same patch, i.e., voltha-2.2/.
 
 More info on how to install ONL can be found on the official [ONL
 website](https://opennetlinux.org/).
@@ -299,6 +300,7 @@ bs /b/e port/index=wan0
 ### How do I check packet counters on the OLT's PON interface?
 
 Following is an example of retrieving the interface description for PON intf_id 0 (TODO: document PON interface numbering for Edgecore OLT).
+**The BCM.0> shell is accessible when running openolt agent in the foreground**
 
 ```shell
 BCM.0> a/t clear=no object=pon_interface sub=itu_pon_stats pon_ni=0
@@ -353,6 +355,7 @@ data={
 #### How do I check packet counters on the OLT's NNI interface?
 
 Following command retrieves NNI intf_id 0:
+**The BCM.0> shell is accessible when running openolt agent in the foreground**
 
 ```shell
 BCM.0> a/t clear=no object=nni_interface sub=stats id=0
@@ -381,14 +384,37 @@ data={
 
 ### How do I list flows installed in the OLT?
 
-In the dev_mgmt_daemon CLI:
+Following command lists the flows installed on the OLT.
+**The BCM.0> shell is accessible when running openolt agent in the foreground**
 
 ```shell
-> ~, Debug/, Maple/, Board/, Cld/, Transport/, Logger/, Quit
-> Debug
-.../Debug> Rsc_mgr/, Mac_util/, Switch/, sLeep, sHow_config, os/
-> Mac_util
-.../Mac_util> Print_flows, pRint_flows_for_gem, prInt_flows_for_alloc_id, Epon_helper
-> Print_flow
+BCM.0> a/m max_msgs=100 filter_invert=no object=flow
 ```
 
+### How do I access device CLI when running dev_mgmt_daemon and openolt agent binary in background?
+
+Navigate to `/opt/bcm68620` and execute the command `/broadcom/dev_mgmt_attach` to access the QAX
+diag shell. Note that you will not be able to access the QAX diag shell, you need to recompile the
+BAL SDK with `SW_UTIL_SHELL=y` option.
+There is also a known issue where `/broadcom/dev_mgmt_attach` does not work when openolt processes
+restart, and this will be fixed in BAL3.2.
+
+### DBA Scheduler fail to create on the OLT with errors related to Bandwidth configuration
+
+Ensure that `additional_bw` indicator in the Technology Profile and the `bandwidthprofile` configured in ONOS netcfg for the subscriber are following the below guideline.
+
+* When `additional_bw` is configured as `AdditionalBW_BestEffort`, ensure `cir` + `eir`
+  values in ONOS netcfg BW profile for the subscriber are greater than or equal to *16000*
+  for XGSPON, and it is greater than equal to *32000* for GPON. Also ensure that `eir`
+  is a non-zero value.
+* When `additional_bw` is configured as `AdditionalBW_NA`, ensure that both `cir` and `eir`
+  are non-zero values, and `cir` + `eir` is greater than or equal to *16000* for XGSPON and
+  *32000* for GPON.
+* When `additional_bw` is configured as `AdditionalBW_None`, ensure that `eir` is 0 and `cir`
+  is non-zero and `cir` is greater than or equal to *16000* for XGSPON, and it is greater than
+  equal to *32000* for GPON.
+
+For more details about BW profile parameters, please refer below links.
+
+[MEF Whitepaper - Bandwidth-Profiles-for-Ethernet-Services](https://www.mef.net/Assets/White_Papers/Bandwidth-Profiles-for-Ethernet-Services.pdf)
+[Technology Profile Implementation Note](https://www.opennetworking.org/wp-content/uploads/2019/09/2pm-Shaun-Missett-Technology-Profile-and-Speed-Profile-Implementation.pdf)

@@ -218,6 +218,14 @@ protos-clean:
 ##        common
 ##
 ##
+
+# A hack to force a re-build of common/main.cc everytime.
+# This is needed to bake in the git VCS information in the openolt binary
+# at the time of building the openolt package.
+common/main.o: .FORCE
+.FORCE:
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I./common -c  common/main.cc -o common/main.o
+
 common/%.o: common/%.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I./common -c $< -o $@
 
@@ -321,4 +329,4 @@ clean-src: protos-clean
 distclean: clean-src clean
 	@rm -rf $(BUILD_DIR)
 
-.PHONY: onl sdk bal protos prereq sim
+.PHONY: onl sdk bal protos prereq sim .FORCE
