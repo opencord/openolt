@@ -25,11 +25,11 @@ build
 # Test binary
 test_openolt
 
+# proto files
+protos/voltha_protos/*.proto
+
 # Test report
 **/test_openolt_report.xml
-
-# Downloaded voltha-protos file
-voltha_protos
 
 # IntelliJ Files
 .idea

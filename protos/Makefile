@@ -50,13 +50,10 @@ googleapis:
 	fi;
 
 get_openolt_proto:
-	if [ ! -e "voltha_protos" ]; then \
-		mkdir voltha_protos; \
-	fi;\
 	if [ ! -e "voltha_protos/openolt.proto" ]; then \
 		wget -O voltha_protos/openolt.proto https://raw.githubusercontent.com/opencord/voltha-protos/$(OPENOLT_PROTO_VER)/protos/voltha_protos/openolt.proto; \
 	fi; \
-	if [ ! -e "tech_profile.proto" ]; then \
+	if [ ! -e "voltha_protos/tech_profile.proto" ]; then \
 		wget -O voltha_protos/tech_profile.proto https://raw.githubusercontent.com/opencord/voltha-protos/$(OPENOLT_PROTO_VER)/protos/voltha_protos/tech_profile.proto; \
 	fi;
 
@@ -69,7 +66,7 @@ voltha_protos/%.pb.cc: voltha_protos/%.proto
 	$(PROTOC) --proto_path=. -I./googleapis -I./ --cpp_out=. $<
 
 clean:
-	rm *.a && cd voltha_protos/ && rm -f *.o *.pb.cc *.pb.h
+	rm -f *.a && cd voltha_protos/ && rm -f *.o *.pb.cc *.pb.h
 
 distclean: clean
 	rm -rf googleapis
