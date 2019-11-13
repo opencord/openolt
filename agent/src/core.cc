@@ -111,12 +111,6 @@ bcmos_task bal_cli_thread;
 const char *bal_cli_thread_name = "bal_cli_thread";
 uint16_t flow_id_counters = 0;
 int flow_id_data[16384][2];
-
-/* QOS Type has been pre-defined as Fixed Queue but it will be updated based on number of GEMPORTS
-   associated for a given subscriber. If GEM count = 1 for a given subscriber, qos_type will be Fixed Queue
-   else Priority to Queue */
-bcmolt_egress_qos_type qos_type = BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
-
 State state;
 
 static std::map<uint32_t, uint32_t> flowid_to_port; // For mapping upstream flows to logical ports
@@ -129,6 +123,12 @@ typedef std::tuple<uint32_t, uint32_t, uint32_t, std::string> sched_map_key_tupl
 /* 'sched_map' maps sched_map_key_tuple to DBA (Upstream) or
  Subscriber (Downstream) Scheduler ID */
 static std::map<sched_map_key_tuple, int> sched_map;
+
+/* This represents the Key to 'qos_type_map' map.
+ Represents (pon_intf_id, onu_id, uni_id) */
+typedef std::tuple<uint32_t, uint32_t, uint32_t> qos_type_map_key_tuple;
+/* 'qos_type_map' maps qos_type_map_key_tuple to qos_type*/
+static std::map<qos_type_map_key_tuple, bcmolt_egress_qos_type> qos_type_map;
 
 /* This represents the Key to 'sched_qmp_id_map' map.
 Represents (sched_id, pon_intf_id, onu_id, uni_id) */
@@ -152,8 +152,9 @@ static bcmos_errno CreateSched(std::string direction, uint32_t access_intf_id, u
                           tech_profile::TrafficShapingInfo traffic_shaping_info);
 static bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::string direction);
 static bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, \
-                               uint32_t priority, uint32_t gemport_id);
-static bcmos_errno RemoveQueue(std::string direction, int intf_id, int onu_id, int uni_id, uint32_t port_no, int alloc_id);
+                               bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id);
+static bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, \
+                               bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id);
 static bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction);
 static bcmos_errno CreateDefaultQueue(uint32_t intf_id, const std::string direction);
 
@@ -467,6 +468,81 @@ bool free_tm_qmp_id(uint32_t sched_id,uint32_t pon_intf_id, uint32_t onu_id, \
         result = false;
     }
     return result;
+}
+
+/**
+* Returns qos type as string
+*
+* @param qos_type bcmolt_egress_qos_type enum
+*/
+std::string get_qos_type_as_string(bcmolt_egress_qos_type qos_type) {
+    switch (qos_type)
+    {
+        case BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE: return "FIXED_QUEUE";
+        case BCMOLT_EGRESS_QOS_TYPE_TC_TO_QUEUE: return "TC_TO_QUEUE";
+        case BCMOLT_EGRESS_QOS_TYPE_PBIT_TO_TC: return "PBIT_TO_TC";
+        case BCMOLT_EGRESS_QOS_TYPE_NONE: return "NONE";
+        case BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE: return "PRIORITY_TO_QUEUE";
+        default: OPENOLT_LOG(ERROR, openolt_log_id, "qos-type-not-supported %d\n", qos_type);
+                 return "qos-type-not-supported";
+    }
+}
+
+/**
+* Gets/Updates qos type for given pon_intf_id, onu_id, uni_id
+*
+* @param PON intf ID
+* @param onu_id ONU ID
+* @param uni_id UNI ID
+* @param queue_size TrafficQueues Size
+*
+* @return qos_type
+*/
+bcmolt_egress_qos_type get_qos_type(uint32_t pon_intf_id, uint32_t onu_id, uint32_t uni_id, uint32_t queue_size = 0) {
+    qos_type_map_key_tuple key(pon_intf_id, onu_id, uni_id);
+    bcmolt_egress_qos_type egress_qos_type = BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
+    std::string qos_string;
+
+    std::map<qos_type_map_key_tuple, bcmolt_egress_qos_type>::const_iterator it = qos_type_map.find(key);
+    if (it != qos_type_map.end()) {
+        egress_qos_type = it->second;
+        qos_string = get_qos_type_as_string(egress_qos_type);
+        OPENOLT_LOG(INFO, openolt_log_id, "Qos-type for subscriber connected to pon_intf_id %d, onu_id %d and uni_id %d is %s\n", \
+                    pon_intf_id, onu_id, uni_id, qos_string.c_str());
+    }
+    else {
+        /* QOS Type has been pre-defined as Fixed Queue but it will be updated based on number of GEMPORTS
+           associated for a given subscriber. If GEM count = 1 for a given subscriber, qos_type will be Fixed Queue
+           else Priority to Queue */
+        egress_qos_type = (queue_size > 1) ? \
+            BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE : BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
+        bcmos_fastlock_lock(&data_lock);
+        qos_type_map.insert(make_pair(key, egress_qos_type));
+        bcmos_fastlock_unlock(&data_lock, 0);
+        qos_string = get_qos_type_as_string(egress_qos_type);
+        OPENOLT_LOG(INFO, openolt_log_id, "Qos-type for subscriber connected to pon_intf_id %d, onu_id %d and uni_id %d is %s\n", \
+                    pon_intf_id, onu_id, uni_id, qos_string.c_str());
+    }
+    return egress_qos_type;
+}
+
+/**
+* Clears qos type for given pon_intf_id, onu_id, uni_id
+*
+* @param PON intf ID
+* @param onu_id ONU ID
+* @param uni_id UNI ID
+*/
+void clear_qos_type(uint32_t pon_intf_id, uint32_t onu_id, uint32_t uni_id) {
+    qos_type_map_key_tuple key(pon_intf_id, onu_id, uni_id);
+    std::map<qos_type_map_key_tuple, bcmolt_egress_qos_type>::const_iterator it = qos_type_map.find(key);
+    bcmos_fastlock_lock(&data_lock);
+    if (it != qos_type_map.end()) {
+        qos_type_map.erase(it);
+        OPENOLT_LOG(INFO, openolt_log_id, "Cleared Qos-type for subscriber connected to pon_intf_id %d, onu_id %d and uni_id %d\n", \
+                    pon_intf_id, onu_id, uni_id);
+    }
+    bcmos_fastlock_unlock(&data_lock, 0);
 }
 
 /**
@@ -1844,6 +1920,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
     bcmolt_action a_val = { };
     bcmolt_tm_queue_ref tm_val = { };
     int tm_qmp_id, tm_q_set_id;
+    bcmolt_egress_qos_type qos_type;
 
     key.flow_id = flow_id;
     if (flow_type.compare(upstream) == 0 ) {
@@ -2068,6 +2145,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
                 flow_type.c_str(), tm_val.queue_id, tm_val.sched_id, \
                 GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
         } else {
+            qos_type = get_qos_type(access_intf_id, onu_id, uni_id);
             if (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM) {
                 tm_val.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, downstream);
 
@@ -2667,10 +2745,9 @@ bcmos_errno CreateDefaultQueue(uint32_t intf_id, const std::string direction) {
         bcmolt_tm_queue_key tm_queue_key = {};
         tm_queue_key.sched_id = get_default_tm_sched_id(intf_id, direction);
         tm_queue_key.id = queue_id;
-        if (qos_type == BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE)
-            tm_queue_key.tm_q_set_id = BCMOLT_TM_QUEUE_SET_ID_QSET_NOT_USE;
-        else
-            tm_queue_key.tm_q_set_id = BCMOLT_TM_QUEUE_KEY_TM_Q_SET_ID_DEFAULT;
+        /* DefaultQueues on PON/NNI schedulers are created with egress_qos_type as
+           BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE - with tm_q_set_id 32768 */
+        tm_queue_key.tm_q_set_id = BCMOLT_TM_QUEUE_SET_ID_QSET_NOT_USE;
 
         BCMOLT_CFG_INIT(&tm_queue_cfg, tm_queue, tm_queue_key);
         BCMOLT_MSG_FIELD_SET(&tm_queue_cfg, tm_sched_param.type, BCMOLT_TM_SCHED_PARAM_TYPE_PRIORITY);
@@ -2689,8 +2766,8 @@ bcmos_errno CreateDefaultQueue(uint32_t intf_id, const std::string direction) {
     return BCM_ERR_OK;
 }
 
-bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, uint32_t priority,
-                        uint32_t gemport_id) {
+bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id,
+                        bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id) {
     bcmos_errno err;
     bcmolt_tm_queue_cfg cfg;
     bcmolt_tm_queue_key key = { };
@@ -2751,9 +2828,7 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
     uint32_t sched_id;
     std::string direction;
     bcmos_errno err;
-
-    qos_type = (traffic_queues->traffic_queues_size() > 1) ? \
-        BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE : BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
+    bcmolt_egress_qos_type qos_type = get_qos_type(intf_id, onu_id, uni_id, traffic_queues->traffic_queues_size());
 
     if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE) {
         uint32_t queues_priority_q[traffic_queues->traffic_queues_size()] = {0};
@@ -2791,7 +2866,7 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
         if (direction.compare("direction-not-supported") == 0)
             return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
 
-        err = CreateQueue(direction, intf_id, onu_id, uni_id, traffic_queue.priority(), traffic_queue.gemport_id());
+        err = CreateQueue(direction, intf_id, onu_id, uni_id, qos_type, traffic_queue.priority(), traffic_queue.gemport_id());
 
         // If the queue exists already, lets not return failure and break the loop.
         if (err && err != BCM_ERR_ALREADY) {
@@ -2801,8 +2876,8 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
     return Status::OK;
 }
 
-bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, uint32_t priority,
-                        uint32_t gemport_id) {
+bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id,
+                        bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id) {
     bcmolt_tm_queue_cfg cfg;
     bcmolt_tm_queue_key key = { };
     bcmos_errno err;
@@ -2856,9 +2931,7 @@ Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
     uint32_t sched_id;
     std::string direction;
     bcmos_errno err;
-
-    qos_type = (traffic_queues->traffic_queues_size() > 1) ? \
-        BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE : BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
+    bcmolt_egress_qos_type qos_type = get_qos_type(intf_id, onu_id, uni_id, traffic_queues->traffic_queues_size());
 
     for (int i = 0; i < traffic_queues->traffic_queues_size(); i++) {
         tech_profile::TrafficQueue traffic_queue = traffic_queues->traffic_queues(i);
@@ -2867,7 +2940,7 @@ Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
         if (direction.compare("direction-not-supported") == 0)
             return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
 
-        err = RemoveQueue(direction, intf_id, onu_id, uni_id, traffic_queue.priority(), traffic_queue.gemport_id());
+        err = RemoveQueue(direction, intf_id, onu_id, uni_id, qos_type, traffic_queue.priority(), traffic_queue.gemport_id());
         if (err) {
             return bcm_to_grpc_err(err, "Failed to remove queue");
         }
@@ -2882,6 +2955,7 @@ Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
             RemoveTrafficQueueMappingProfile(tm_qmp_id);
         }
     }
+    clear_qos_type(intf_id, onu_id, uni_id);
     return Status::OK;
 }
 
