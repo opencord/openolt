@@ -99,7 +99,12 @@ int main(int argc, char** argv) {
         }
     }
 
-    ProbeDeviceCapabilities_();
+    status = ProbeDeviceCapabilities_();
+    if (!status.ok()) {
+        std::cout << "ERROR: Could not find the OLT Device capabilities" << std::endl;
+        return 1;
+    }
+
     sleep(2);
     // Enable all PON interfaces. 
     for (int i = 0; i < NumPonIf_(); i++) {

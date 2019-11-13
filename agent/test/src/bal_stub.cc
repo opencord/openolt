@@ -31,8 +31,8 @@ char log_string[500];
 dev_log_id def_log_id=0;
 
 void bcmos_usleep(uint32_t us) {
-    // let always sleep for 1s irrespective of the value passed.
-    sleep (1);
+    // let always sleep for 10ms irrespective of the value passed.
+    usleep (10000);
 }
 
 void bcmos_fastlock_init(bcmos_fastlock *lock, uint32_t flags)  {

@@ -103,6 +103,10 @@ const std::string upstream = "upstream";
 const std::string downstream = "downstream";
 bcmolt_oltid dev_id = 0;
 
+/* Constants used for retrying some BAL APIs */
+const uint32_t BAL_API_RETRY_TIME_IN_USECS = 1000000;
+const uint32_t MAX_BAL_API_RETRY_COUNT = 5;
+
 /* Current session */
 static bcmcli_session *current_session;
 static bcmcli_entry *api_parent_dir;
@@ -1299,6 +1303,36 @@ Status EnablePonIf_(uint32_t intf_id) {
     return Status::OK;
 }
 
+/* Same as bcmolt_cfg_get but with added logic of retrying the API
+   in case of some specific failures like timeout or object not yet ready
+*/
+bcmos_errno bcmolt_cfg_get_mult_retry(bcmolt_oltid olt, bcmolt_cfg *cfg) {
+    bcmos_errno err;
+    uint32_t current_try = 0;
+
+    while (current_try < MAX_BAL_API_RETRY_COUNT) {
+        err = bcmolt_cfg_get(olt, cfg);
+        current_try++;
+
+        if (err == BCM_ERR_STATE || err == BCM_ERR_TIMEOUT) {
+            OPENOLT_LOG(WARNING, openolt_log_id, "bcmolt_cfg_get: err = %s(%d)\n",bcmos_strerror(err), err);
+            bcmos_usleep(BAL_API_RETRY_TIME_IN_USECS);
+            continue;
+        }
+        else {
+           break;
+        }
+    }
+
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "bcmolt_cfg_get tried (%d) times with retry time(%d usecs) err=%d\n",
+                           current_try,
+                           BAL_API_RETRY_TIME_IN_USECS,
+                           err);
+    }
+    return err;
+}
+
 Status ProbeDeviceCapabilities_() {
     bcmos_errno err;
     bcmolt_device_cfg dev_cfg = { };
@@ -1323,11 +1357,11 @@ Status ProbeDeviceCapabilities_() {
         // code in production code.
     err = bcmolt_cfg_get__olt_topology_stub(dev_id, &olt_cfg);
     #else
-    err = bcmolt_cfg_get(dev_id, &olt_cfg.hdr);
+    err = bcmolt_cfg_get_mult_retry(dev_id, &olt_cfg.hdr);
     #endif
     if (err) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "cfg: Failed to query OLT\n");
-        return bcm_to_grpc_err(err, "cfg: Failed to query OLT");
+        OPENOLT_LOG(ERROR, openolt_log_id, "cfg: Failed to query OLT topology\n");
+        return bcm_to_grpc_err(err, "cfg: Failed to query OLT topology");
     }
 
     num_of_nni_ports = olt_cfg.data.topology.num_switch_ports;
@@ -1342,16 +1376,18 @@ Status ProbeDeviceCapabilities_() {
             num_of_pon_ports,
             BCM_MAX_DEVS_PER_LINE_CARD);
 
+    uint32_t num_failed_cfg_gets = 0;
     for (int devid = 0; devid < BCM_MAX_DEVS_PER_LINE_CARD; devid++) {
         dev_key.device_id = devid;
         BCMOLT_CFG_INIT(&dev_cfg, device, dev_key);
         BCMOLT_MSG_FIELD_GET(&dev_cfg, firmware_sw_version);
         BCMOLT_MSG_FIELD_GET(&dev_cfg, chip_family);
         BCMOLT_MSG_FIELD_GET(&dev_cfg, system_mode);
-        err = bcmolt_cfg_get(dev_id, &dev_cfg.hdr);
+        err = bcmolt_cfg_get_mult_retry(dev_id, &dev_cfg.hdr);
         if (err) {
-            OPENOLT_LOG(ERROR, openolt_log_id, "device: Failed to query OLT\n");
-            return bcm_to_grpc_err(err, "device: Failed to query OLT");
+            OPENOLT_LOG(WARNING, openolt_log_id,"Failed to query PON MAC Device %d (errno = %d). Skipping the device.\n", devid, err);
+            num_failed_cfg_gets++;
+            continue;
         }
 
         std::string bal_version;
@@ -1382,6 +1418,13 @@ Status ProbeDeviceCapabilities_() {
             devid, BCM_MAX_PONS_PER_DEV, bal_version.c_str(), BAL_API_VERSION, chip_family.c_str(), board_technology.c_str());
 
         bcmos_usleep(500000);
+    }
+
+    /* If all the devices returned errors then we tell the caller that this is an error else we work with 
+       only the devices that retured success*/
+    if (num_failed_cfg_gets == BCM_MAX_DEVS_PER_LINE_CARD) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "device: Query of all the devices failed\n");
+        return bcm_to_grpc_err(err, "device: All devices failed query");
     }
 
     return Status::OK;

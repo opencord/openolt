@@ -118,7 +118,7 @@ TEST_OPENOLT_LIB_DIR=./lib
 TEST_BIN=test_openolt
 # The below way of getting source files is not working
 #TEST_SRCS = $($(filter-out src/bal_stub.cc, $(wildcard src/*.cc)))
-TEST_SRCS = src/main_test.cc src/bal_mocker.cc src/test_enable_olt.cc src/test_disable_reenable_olt.cc
+TEST_SRCS = src/main_test.cc src/bal_mocker.cc src/test_core.cc 
 TEST_OBJS = $(TEST_SRCS:.cc=.o)
 build: $(TEST_OBJS)
 	$(CXX) $(shell cmock-config --libs) -L$(TEST_OPENOLT_LIB_DIR) -L/usr/lib/ -I/usr/include -I./inc -o $(TEST_BIN) $(TEST_OBJS) -lgmock -lgtest -lopenolt -lopenoltapi  $(LDFLAGS)
