@@ -1875,10 +1875,16 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
             BCMOLT_MSG_FIELD_SET(&cfg, egress_intf.intf_type, BCMOLT_FLOW_INTERFACE_TYPE_PON);
             BCMOLT_MSG_FIELD_SET(&cfg, egress_intf.intf_id, access_intf_id);
         }
+    } else if (access_intf_id < 0 ) {
+            // This is the case for packet trap from NNI flow.
+            BCMOLT_MSG_FIELD_SET(&cfg, ingress_intf.intf_type, BCMOLT_FLOW_INTERFACE_TYPE_NNI);
+            BCMOLT_MSG_FIELD_SET(&cfg, ingress_intf.intf_id, network_intf_id);
+            BCMOLT_MSG_FIELD_SET(&cfg, egress_intf.intf_type, BCMOLT_FLOW_INTERFACE_TYPE_HOST);
     } else {
         OPENOLT_LOG(ERROR, openolt_log_id, "flow network setting invalid\n");
         return bcm_to_grpc_err(BCM_ERR_PARM, "flow network setting invalid");
     }
+
 
     if (onu_id >= 0) {
         BCMOLT_MSG_FIELD_SET(&cfg, onu_id, onu_id);
@@ -1909,20 +1915,12 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, o_tpid, classifier.o_tpid());
         }
         */
-        if (classifier.o_vid()) {
-            OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_vid %d\n", classifier.o_vid());
-            BCMOLT_FIELD_SET(&c_val, classifier, o_vid, classifier.o_vid());
-        }
         /* removed by BAL v3.0
         if (classifier.i_tpid()) {
             OPENOLT_LOG(DEBUG, openolt_log_id, "classify i_tpid 0x%04x\n", classifier.i_tpid());
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, i_tpid, classifier.i_tpid());
         }
         */
-        if (classifier.i_vid()) {
-            OPENOLT_LOG(DEBUG, openolt_log_id, "classify i_vid %d\n", classifier.i_vid());
-            BCMOLT_FIELD_SET(&c_val, classifier, i_vid, classifier.i_vid());
-        }
 
         if (classifier.eth_type()) {
             ether_type = classifier.eth_type();
@@ -1966,20 +1964,38 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
         }
 
         if (!classifier.pkt_tag_type().empty()) {
-            OPENOLT_LOG(DEBUG, openolt_log_id, "classify tag_type %s\n", classifier.pkt_tag_type().c_str());
-            if (classifier.pkt_tag_type().compare("untagged") == 0) {
-                BCMOLT_FIELD_SET(&c_val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_UNTAGGED);
-            } else if (classifier.pkt_tag_type().compare("single_tag") == 0) {
-                BCMOLT_FIELD_SET(&c_val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_SINGLE_TAG);
-                single_tag = true;
+            if (cfg.data.ingress_intf.intf_type == BCMOLT_FLOW_INTERFACE_TYPE_NNI && \
+                cfg.data.egress_intf.intf_type == BCMOLT_FLOW_INTERFACE_TYPE_HOST) {
+                    // This is case where packet traps from NNI port. As per Broadcom workaround
+                    // suggested in CS8839882, the packet_tag_type has to be 'untagged' irrespective
+                    // of what the actual tag type is. Otherwise, packet trap from NNI wont work.
+                    BCMOLT_FIELD_SET(&c_val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_UNTAGGED);
+            } else {
+                if (classifier.o_vid()) {
+                    OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_vid %d\n", classifier.o_vid());
+                    BCMOLT_FIELD_SET(&c_val, classifier, o_vid, classifier.o_vid());
+                }
 
-                OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_pbits 0x%x\n", classifier.o_pbits());
-                BCMOLT_FIELD_SET(&c_val, classifier, o_pbits, classifier.o_pbits());
-            } else if (classifier.pkt_tag_type().compare("double_tag") == 0) {
-                BCMOLT_FIELD_SET(&c_val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_DOUBLE_TAG);
+                if (classifier.i_vid()) {
+                    OPENOLT_LOG(DEBUG, openolt_log_id, "classify i_vid %d\n", classifier.i_vid());
+                    BCMOLT_FIELD_SET(&c_val, classifier, i_vid, classifier.i_vid());
+                }
 
-                OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_pbits 0x%x\n", classifier.o_pbits());
-                BCMOLT_FIELD_SET(&c_val, classifier, o_pbits, classifier.o_pbits());
+                OPENOLT_LOG(DEBUG, openolt_log_id, "classify tag_type %s\n", classifier.pkt_tag_type().c_str());
+                if (classifier.pkt_tag_type().compare("untagged") == 0) {
+                    BCMOLT_FIELD_SET(&c_val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_UNTAGGED);
+                } else if (classifier.pkt_tag_type().compare("single_tag") == 0) {
+                    BCMOLT_FIELD_SET(&c_val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_SINGLE_TAG);
+                    single_tag = true;
+
+                    OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_pbits 0x%x\n", classifier.o_pbits());
+                    BCMOLT_FIELD_SET(&c_val, classifier, o_pbits, classifier.o_pbits());
+                } else if (classifier.pkt_tag_type().compare("double_tag") == 0) {
+                    BCMOLT_FIELD_SET(&c_val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_DOUBLE_TAG);
+
+                    OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_pbits 0x%x\n", classifier.o_pbits());
+                    BCMOLT_FIELD_SET(&c_val, classifier, o_pbits, classifier.o_pbits());
+                }
             }
         }
         BCMOLT_MSG_FIELD_SET(&cfg, classifier, c_val);
@@ -2108,6 +2124,17 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
                 }
             }
         }
+    } else {
+        tm_val.sched_id = get_default_tm_sched_id(network_intf_id, upstream);
+        tm_val.queue_id = 0;
+
+        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.type, BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE);
+        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.tm_sched.id, tm_val.sched_id);
+        BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.fixed_queue.queue_id, tm_val.queue_id);
+
+        OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, queue_id = %d, sched_id = %d, intf_type %s\n", \
+                flow_type.c_str(), tm_val.queue_id, tm_val.sched_id, \
+                GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
     }
 
     BCMOLT_MSG_FIELD_SET(&cfg, state, BCMOLT_FLOW_STATE_ENABLE);
