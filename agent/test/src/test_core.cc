@@ -234,14 +234,11 @@ TEST_F(TestOltDisableReenable, OltDisableSuccess){
     // NiceMock is used to suppress 'WillByDefault' return errors.
     // This is described in https://github.com/arangodb-helper/gtest/blob/master/googlemock/docs/CookBook.md
     NiceMock<BalMocker> balMock;
-    bcmos_errno bal_cfg_get_res = BCM_ERR_OK;
+    bcmos_errno olt_oper_res = BCM_ERR_OK;
 
     Status olt_disable_res;
-
-    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _))
-                         .Times(num_of_pon_ports)
-                         .WillRepeatedly(Return(bal_cfg_get_res));
-
+    state.deactivate();
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(olt_oper_res));
     olt_disable_res = Disable_();
     ASSERT_TRUE( olt_disable_res.error_message() == Status::OK.error_message() );
 
@@ -252,14 +249,11 @@ TEST_F(TestOltDisableReenable, OltDisableAllPonFailed){
     // NiceMock is used to suppress 'WillByDefault' return errors.
     // This is described in https://github.com/arangodb-helper/gtest/blob/master/googlemock/docs/CookBook.md
     NiceMock<BalMocker> balMock;
-    bcmos_errno bal_cfg_get_res = BCM_ERR_INTERNAL;
+    bcmos_errno olt_oper_res = BCM_ERR_INTERNAL;
 
     Status olt_disable_res;
-
-    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _))
-                         .Times(num_of_pon_ports)
-                         .WillRepeatedly(Return(bal_cfg_get_res));
-
+    state.deactivate();
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(olt_oper_res));
     olt_disable_res = Disable_();
     ASSERT_TRUE( olt_disable_res.error_code() == grpc::StatusCode::INTERNAL);
 }
@@ -382,5 +376,58 @@ TEST_F(TestProbeDevCapabilities, ProbedDev_OltQuerySucceeded_SomeDevQueriesFaile
     Status query_status = ProbeDeviceCapabilities_();
 
     ASSERT_TRUE( query_status.error_message() == Status::OK.error_message() );
+}
+
+////////////////////////////////////////////////////////////////////////////
+// For testing DisablePonIf functionality
+////////////////////////////////////////////////////////////////////////////
+
+class TestDisablePonIf : public Test {
+    protected:
+        virtual void SetUp() {
+        }
+
+        virtual void TearDown() {
+        }
+};
+
+// Test 1 - DisablePonIf success case
+TEST_F(TestDisablePonIf, DisablePonIfSuccess) {
+    bcmos_errno olt_oper_res = BCM_ERR_OK;
+    bcmos_errno bal_cfg_set_res = BCM_ERR_OK;
+    NiceMock<BalMocker> balMock;
+    uint32_t pon_id=1;
+
+    //ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(bal_cfg_set_res));
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(olt_oper_res));
+    state.deactivate();
+    Status status = DisablePonIf_(pon_id);
+
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 2 - DisablePonIf Failure case
+TEST_F(TestDisablePonIf, DisablePonIfFailed) {
+    bcmos_errno olt_oper_res = BCM_ERR_INTERNAL;
+    NiceMock<BalMocker> balMock;
+    uint32_t pon_id=1;
+
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(olt_oper_res));
+    state.deactivate();
+    Status status = DisablePonIf_(pon_id);
+
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 3 - DisablePonIf ONU discovery failure case
+TEST_F(TestDisablePonIf, DisablePonIfOnuDiscoveryFail) {
+    NiceMock<BalMocker> balMock;
+    uint32_t pon_id=1;
+    bcmos_errno bal_cfg_set_res= BCM_ERR_INTERNAL;
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(bal_cfg_set_res));
+    state.deactivate();
+    Status status = DisablePonIf_(pon_id);
+
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 

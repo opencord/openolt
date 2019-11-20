@@ -55,11 +55,11 @@ bcmos_errno bcmolt_api_init(void)
 }
 
 /* Set configuration */
-bcmos_errno bcmolt_cfg_set(bcmolt_oltid olt, bcmolt_cfg *cfg)
+/*bcmos_errno bcmolt_cfg_set(bcmolt_oltid olt, bcmolt_cfg *cfg)
 {
     printf("-- entering :stubbed %s\n", __FUNCTION__);
     return BCM_ERR_OK;
-}
+}*/
 
 /* Get configuration */
 /*

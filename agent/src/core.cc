@@ -1549,18 +1549,31 @@ Status SetStateUplinkIf_(uint32_t intf_id, bool set_state) {
 }
 
 Status DisablePonIf_(uint32_t intf_id) {
+    bcmos_errno err;
     bcmolt_pon_interface_cfg interface_obj;
-    bcmolt_pon_interface_key interface_key;
+    bcmolt_pon_interface_key intf_key = {.pon_ni = (bcmolt_interface)intf_id};
+    bcmolt_pon_interface_set_pon_interface_state pon_interface_set_state;
 
-    interface_key.pon_ni = intf_id;
-    BCMOLT_CFG_INIT(&interface_obj, pon_interface, interface_key);
-    BCMOLT_MSG_FIELD_GET(&interface_obj, state);
-    bcmos_errno err = bcmolt_cfg_get(dev_id, &interface_obj.hdr);
-    if (err) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to disable PON interface: %d, err = %s\n", intf_id, bcmos_strerror(err));
+    BCMOLT_CFG_INIT(&interface_obj, pon_interface, intf_key);
+    BCMOLT_OPER_INIT(&pon_interface_set_state, pon_interface, set_pon_interface_state, intf_key);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, discovery.control, BCMOLT_CONTROL_STATE_DISABLE);
+
+    err = bcmolt_cfg_set(dev_id, &interface_obj.hdr);
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to disable discovery of onu, PON interface %d, err %d\n", intf_id, err);
+        return bcm_to_grpc_err(err, "Failed to disable discovery of onu");
+    }
+
+    BCMOLT_FIELD_SET(&pon_interface_set_state.data, pon_interface_set_pon_interface_state_data,
+    operation, BCMOLT_INTERFACE_OPERATION_INACTIVE);
+
+    err = bcmolt_oper_submit(dev_id, &pon_interface_set_state.hdr);
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to disable PON interface: %d\n , err %d\n", intf_id, err);
         return bcm_to_grpc_err(err, "Failed to disable PON interface");
     }
 
+    OPENOLT_LOG(INFO, openolt_log_id, "Successfully disabled PON interface: %d\n", intf_id);
     return Status::OK;
 }
 
