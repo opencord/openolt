@@ -142,10 +142,19 @@ static std::map<sched_qmp_id_map_key_tuple, int> sched_qmp_id_map;
 /* 'qmp_id_to_qmp_map' maps TM Queue Mapping Profile ID to TM Queue Mapping Profile */
 static std::map<int, std::vector < uint32_t > > qmp_id_to_qmp_map;
 
+#define ALLOC_CFG_COMPLETE_WAIT_TIMEOUT 1000 // in milli-seconds
+// Map used to track response from BAL for ITU PON Alloc Configuration.
+// The key is alloc_cfg_compltd_key and value is a concurrent thread-safe queue which is
+// used for pushing (from BAL) and popping (at application) the results.
+std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *> alloc_cfg_compltd_map;
+// Lock to protect critical section data structure used for handling AllocObject configuration response.
+bcmos_fastlock alloc_cfg_wait_lock;
+
 std::bitset<MAX_TM_SCHED_ID> tm_sched_bitset;
 std::bitset<MAX_TM_QMP_ID> tm_qmp_bitset;
 
 static bcmos_fastlock data_lock;
+
 
 #define MIN_ALLOC_ID_GPON 256
 #define MIN_ALLOC_ID_XGSPON 1024
@@ -578,6 +587,60 @@ inline const char *get_flow_acton_command(uint32_t command) {
     return s_actions_ptr;
 }
 
+// This method handles waiting for AllocObject configuration.
+// Returns error if the AllocObject is not in the appropriate state based on action requested.
+bcmos_errno wait_for_alloc_action(uint32_t intf_id, uint32_t alloc_id, AllocCfgAction action) {
+    Queue<alloc_cfg_complete_result> cfg_result;
+    alloc_cfg_compltd_key k(intf_id, alloc_id);
+    alloc_cfg_compltd_map[k] =  &cfg_result;
+    bcmos_errno err = BCM_ERR_OK;
+
+    // Try to pop the result from BAL with a timeout of ALLOC_CFG_COMPLETE_WAIT_TIMEOUT ms
+    std::pair<alloc_cfg_complete_result, bool> result = cfg_result.pop(ALLOC_CFG_COMPLETE_WAIT_TIMEOUT);
+    if (result.second == false) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "timeout waiting for alloc cfg complete indication intf_id %d, alloc_id %d\n",
+                    intf_id, alloc_id);
+        // Invalidate the queue pointer.
+        bcmos_fastlock_lock(&alloc_cfg_wait_lock);
+        alloc_cfg_compltd_map[k] = NULL;
+        bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
+        err = BCM_ERR_INTERNAL;
+    }
+    else if (result.first.status == ALLOC_CFG_STATUS_FAIL) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "error processing alloc cfg request intf_id %d, alloc_id %d\n",
+                    intf_id, alloc_id);
+        err = BCM_ERR_INTERNAL;
+    }
+
+    if (err == BCM_ERR_OK) {
+        if (action == ALLOC_OBJECT_CREATE) {
+            if (result.first.state != ALLOC_OBJECT_STATE_ACTIVE) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "alloc object not in active state intf_id %d, alloc_id %d alloc_obj_state %d\n",
+                            intf_id, alloc_id, result.first.state);
+               err = BCM_ERR_INTERNAL;
+            } else {
+                OPENOLT_LOG(INFO, openolt_log_id, "Create upstream bandwidth allocation success, intf_id %d, alloc_id %d\n",
+                            intf_id, alloc_id);
+            }
+        } else { // ALLOC_OBJECT_DELETE
+              if (result.first.state != ALLOC_OBJECT_STATE_NOT_CONFIGURED) {
+                  OPENOLT_LOG(ERROR, openolt_log_id, "alloc object is not reset intf_id %d, alloc_id %d alloc_obj_state %d\n",
+                              intf_id, alloc_id, result.first.state);
+                  err = BCM_ERR_INTERNAL;
+              } else {
+                  OPENOLT_LOG(INFO, openolt_log_id, "Remove alloc object success, intf_id %d, alloc_id %d\n",
+                              intf_id, alloc_id);
+              }
+        }
+    }
+
+    // Remove entry from map
+    bcmos_fastlock_lock(&alloc_cfg_wait_lock);
+    alloc_cfg_compltd_map.erase(k);
+    bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
+    return err;
+}
+
 char* openolt_read_sysinfo(const char* field_name, char* field_val)
 {
    FILE *fp;
@@ -865,6 +928,7 @@ Status Enable_(int argc, char *argv[]) {
         }
 
         bcmos_fastlock_init(&data_lock, 0);
+        bcmos_fastlock_init(&alloc_cfg_wait_lock, 0);
         OPENOLT_LOG(INFO, openolt_log_id, "Enable OLT - %s-%s\n", VENDOR_ID, MODEL_ID);
 
         //check BCM daemon is connected or not
@@ -2639,8 +2703,17 @@ bandwidth in None eligibility\n", pir_bw);
 port_no %u, alloc_id %d, err = %s\n", intf_id, onu_id,uni_id,port_no,alloc_id, bcmos_strerror(err));
             return err;
         }
-        OPENOLT_LOG(INFO, openolt_log_id, "Create upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d, port_no %u, \
-alloc_id %d\n", intf_id,onu_id,uni_id,port_no,alloc_id);
+
+        err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_CREATE);
+        if (err) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d,\
+port_no %u, alloc_id %d, err = %s\n", intf_id, onu_id,uni_id,port_no,alloc_id, bcmos_strerror(err));
+            return err;
+        }
+
+        OPENOLT_LOG(INFO, openolt_log_id, "create upstream bandwidth allocation success, intf_id %d, onu_id %d, uni_id %d,\
+port_no %u, alloc_id %d\n", intf_id, onu_id,uni_id,port_no,alloc_id);
+
     }
 
     return BCM_ERR_OK;
@@ -2688,12 +2761,14 @@ Status CreateTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
 bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::string direction) {
 
     bcmos_errno err;
+    uint16_t sched_id;
 
     if (direction == upstream) {
         bcmolt_itupon_alloc_cfg cfg;
         bcmolt_itupon_alloc_key key = { };
         key.pon_ni = intf_id;
         key.alloc_id = alloc_id;
+        sched_id = alloc_id;
 
         BCMOLT_CFG_INIT(&cfg, itupon_alloc, key); 
         err = bcmolt_cfg_clear(dev_id, &cfg.hdr);
@@ -2702,18 +2777,25 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
                 direction.c_str(), intf_id, alloc_id, bcmos_strerror(err));
             return err;
         }
-        OPENOLT_LOG(INFO, openolt_log_id, "Removed sched, direction = %s, intf_id %d, alloc_id %d\n", \
-            direction.c_str(), intf_id, alloc_id);
+
+        err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_DELETE);
+        if (err) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler, direction = %s, intf_id %d, alloc_id %d, err = %s\n",
+                direction.c_str(), intf_id, alloc_id, bcmos_strerror(err));
+            return err;
+        }
     } else if (direction == downstream) {
         bcmolt_tm_sched_cfg cfg;
         bcmolt_tm_sched_key key = { };
 
         if (is_tm_sched_id_present(intf_id, onu_id, uni_id, direction)) {
             key.id = get_tm_sched_id(intf_id, onu_id, uni_id, direction);
+            sched_id = key.id;
         } else {
             OPENOLT_LOG(INFO, openolt_log_id, "schduler not present in %s, err %d\n", direction.c_str(), err);
             return BCM_ERR_OK;
         }
+
         BCMOLT_CFG_INIT(&cfg, tm_sched, key);
         err = bcmolt_cfg_clear(dev_id, &(cfg.hdr));
         if (err) {
@@ -2721,10 +2803,10 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
 intf_id %d, onu_id %d, err = %s\n", direction.c_str(), key.id, intf_id, onu_id, bcmos_strerror(err));
             return err;
         }
-        OPENOLT_LOG(INFO, openolt_log_id, "Removed sched, direction = %s, id %d, intf_id %d, onu_id %d\n", \
-            direction.c_str(), key.id, intf_id, onu_id);
     }
 
+    OPENOLT_LOG(INFO, openolt_log_id, "Removed sched, direction = %s, id %d, intf_id %d, onu_id %d\n",
+                direction.c_str(), sched_id, intf_id, onu_id);
     free_tm_sched_id(intf_id, onu_id, uni_id, direction);
     return BCM_ERR_OK;
 }

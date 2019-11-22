@@ -18,17 +18,21 @@ class Queue
 {
  public:
 
-  std::pair<T, bool> pop(int timeout)
+  // timeout is in milliseconds, wait_granularity in milliseconds
+  std::pair<T, bool> pop(int timeout, int wait_granularity=10)
   {
     std::cv_status status = std::cv_status::no_timeout;
     std::unique_lock<std::mutex> mlock(mutex_);
     static int duration = 0;
+    if (timeout < wait_granularity) {
+        wait_granularity = timeout;
+    }
     while (queue_.empty())
     {
-      status = cond_.wait_for(mlock, std::chrono::seconds(1));
+      status = cond_.wait_for(mlock, std::chrono::milliseconds(wait_granularity));
       if (status == std::cv_status::timeout)
       {
-        duration++;
+        duration+=wait_granularity;
         if (duration > timeout)
         {
           duration = 0;

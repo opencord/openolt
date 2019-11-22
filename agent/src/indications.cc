@@ -34,7 +34,8 @@ extern "C"
 using grpc::Status;
 
 extern Queue<openolt::Indication> oltIndQ;
-//Queue<openolt::Indication*> oltIndQ;
+extern std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *> alloc_cfg_compltd_map;
+extern bcmos_fastlock alloc_cfg_wait_lock;
 
 
 bool subscribed = false;
@@ -544,6 +545,67 @@ static void PacketIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     bcmolt_msg_free(msg);
 }
 
+static void ItuPonAllocConfigCompletedInd(bcmolt_devid olt, bcmolt_msg *msg) {
+
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ITUPON_ALLOC:
+            switch (msg->subgroup) {
+                case BCMOLT_ITUPON_ALLOC_AUTO_SUBGROUP_CONFIGURATION_COMPLETED:
+                {
+                    bcmolt_itupon_alloc_configuration_completed *pkt =
+                        (bcmolt_itupon_alloc_configuration_completed*)msg;
+                    bcmolt_itupon_alloc_configuration_completed_data *pkt_data =
+                        &((bcmolt_itupon_alloc_configuration_completed*)msg)->data;
+
+                    alloc_cfg_compltd_key key((uint32_t)pkt->key.pon_ni, (uint32_t) pkt->key.alloc_id);
+                    alloc_cfg_complete_result res;
+                    res.pon_intf_id = pkt->key.pon_ni;
+                    res.alloc_id = pkt->key.alloc_id;
+
+                    pkt_data->status == BCMOLT_RESULT_SUCCESS ? res.status = ALLOC_CFG_STATUS_SUCCESS: res.status = ALLOC_CFG_STATUS_FAIL;
+                    switch (pkt_data->new_state) {
+                        case BCMOLT_ACTIVATION_STATE_NOT_CONFIGURED:
+                            res.state = ALLOC_OBJECT_STATE_NOT_CONFIGURED;
+                            break;
+                        case BCMOLT_ACTIVATION_STATE_INACTIVE:
+                            res.state = ALLOC_OBJECT_STATE_INACTIVE;
+                            break;
+                        case BCMOLT_ACTIVATION_STATE_PROCESSING:
+                            res.state = ALLOC_OBJECT_STATE_PROCESSING;
+                            break;
+                        case BCMOLT_ACTIVATION_STATE_ACTIVE:
+                            res.state = ALLOC_OBJECT_STATE_ACTIVE;
+                            break;
+                        default:
+                            OPENOLT_LOG(ERROR, openolt_log_id, "invalid itu pon alloc activation new_state, pon_intf %u, alloc_id %u, new_state %d\n",
+                                    pkt->key.pon_ni, pkt->key.alloc_id, pkt_data->new_state);
+                            res.state = ALLOC_OBJECT_STATE_NOT_CONFIGURED;
+                    }
+                    OPENOLT_LOG(INFO, openolt_log_id, "received itu pon alloc cfg complete ind, pon intf %u, alloc_id %u, status %u, new_state %u\n",
+                            pkt->key.pon_ni, pkt->key.alloc_id, pkt_data->status, pkt_data->new_state);
+
+                    bcmos_fastlock_lock(&alloc_cfg_wait_lock);
+                    // Push the result from BAL to queue
+                    std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *>::iterator it = alloc_cfg_compltd_map.find(key);
+                    if (it == alloc_cfg_compltd_map.end()) {
+                        // could be case of spurious aysnc response, OR, the application timed-out waiting for response and cleared the key.
+                        bcmolt_msg_free(msg);
+                        OPENOLT_LOG(ERROR, openolt_log_id, "alloc config key not found for alloc_id = %u, pon_intf = %u\n", pkt->key.alloc_id, pkt->key.pon_ni);
+                        bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
+                        return;
+                    }
+                    if (it->second) {
+                        // Push the result
+                        it->second->push(res);
+                    }
+                    bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
+                }
+            }
+    }
+
+    bcmolt_msg_free(msg);
+}
+
 static void FlowOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     OPENOLT_LOG(DEBUG, openolt_log_id, "flow oper state indication\n");
@@ -986,6 +1048,15 @@ Status SubscribeIndication() {
     rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "Packet indication subscribe failed");
+
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ITUPON_ALLOC;
+    rx_cfg.rx_cb = ItuPonAllocConfigCompletedInd;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_itupon_alloc_auto_subgroup_configuration_completed;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, "ITU PON Alloc Configuration \
+Complete Indication subscribe failed");
 
     subscribed = true;
 

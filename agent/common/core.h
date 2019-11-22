@@ -38,7 +38,7 @@ using grpc::Status;
         BCM_LOG(level, id, "%s" fmt "%s", LIGHT_GREEN, ##__VA_ARGS__, NONE); \
     else \
         BCM_LOG(INFO, id, fmt, ##__VA_ARGS__);
-#define COLLECTION_PERIOD 15
+#define COLLECTION_PERIOD 15 // in seconds
 #define BAL_DYNAMIC_LIST_BUFFER_SIZE (32 * 1024)
 #define MAX_REGID_LENGTH  36
 
@@ -73,6 +73,33 @@ enum FLOW_CFG {
     ACTION_I_PBITS = 25,
     STATE = 26
 };
+
+enum AllocCfgAction {
+    ALLOC_OBJECT_CREATE,
+    ALLOC_OBJECT_DELETE
+};
+
+enum AllocObjectState {
+    ALLOC_OBJECT_STATE_NOT_CONFIGURED,
+    ALLOC_OBJECT_STATE_INACTIVE,
+    ALLOC_OBJECT_STATE_PROCESSING,
+    ALLOC_OBJECT_STATE_ACTIVE
+};
+
+enum AllocCfgStatus {
+    ALLOC_CFG_STATUS_SUCCESS,
+    ALLOC_CFG_STATUS_FAIL
+};
+
+typedef struct {
+    uint32_t pon_intf_id;
+    uint32_t alloc_id;
+    AllocObjectState state;
+    AllocCfgStatus status;
+} alloc_cfg_complete_result;
+
+// key for map used for tracking ITU PON Alloc Configuration results from BAL
+typedef std::tuple<uint32_t, uint32_t> alloc_cfg_compltd_key;
 
 Status Enable_(int argc, char *argv[]);
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,

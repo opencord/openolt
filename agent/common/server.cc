@@ -182,7 +182,7 @@ class OpenoltService final : public openolt::Openolt::Service {
         state.connect();
 
         while (state.is_connected()) {
-            std::pair<openolt::Indication, bool> ind = oltIndQ.pop(COLLECTION_PERIOD);
+            std::pair<openolt::Indication, bool> ind = oltIndQ.pop(COLLECTION_PERIOD*1000, 1000);
             if (ind.second == false) {
                 /* timeout - do lower priority periodic stuff like stats */
                 stats_collection();
