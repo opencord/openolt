@@ -125,8 +125,8 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
                 port_stats->set_tx_error_packets(nni_stats.data.tx_error_packets);
             
             } else {
-                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d\n",
-                    (int)intf_ref.intf_id, (int)intf_ref.intf_type);
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d, err = %s\n",
+                    (int)intf_ref.intf_id, (int)intf_ref.intf_type, bcmos_strerror(err));
             }
             break;
         }
@@ -146,8 +146,8 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
                 port_stats->set_bip_errors(itu_pon_stats.data.bip_errors);
                 port_stats->set_rx_crc_errors(itu_pon_stats.data.rx_crc_error);
             } else {
-                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d, err %d\n",
-                    (int)intf_ref.intf_id, (int)intf_ref.intf_type, err);
+                OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d, err = %s\n",
+                    (int)intf_ref.intf_id, (int)intf_ref.intf_type, bcmos_strerror(err));
             }
             {
                 bcmolt_onu_key key;
@@ -164,8 +164,8 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
                     port_stats->set_rx_packets(pon_stats.data.rx_packets);
                     port_stats->set_tx_bytes(pon_stats.data.tx_bytes);
                 } else {
-                    OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d, err %d\n",
-                        (int)intf_ref.intf_id, (int)intf_ref.intf_type, err);
+                    OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d, err = %s\n",
+                        (int)intf_ref.intf_id, (int)intf_ref.intf_type, bcmos_strerror(err));
                 }
             }
             break;
