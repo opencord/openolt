@@ -140,7 +140,8 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->classifier(),
             request->action(),
             request->priority(),
-            request->cookie());
+            request->cookie(),
+            request->group_id());
     }
 
     Status FlowRemove(
@@ -300,6 +301,12 @@ class OpenoltService final : public openolt::Openolt::Service {
         return Status::OK;
     };
 
+    Status PerformGroupOperation(
+            ServerContext* context,
+            const openolt::Group* request,
+            openolt::Empty* response) override {
+        return PerformGroupOperation_(request);
+    };
 };
 
 void RunServer() {

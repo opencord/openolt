@@ -71,7 +71,8 @@ enum FLOW_CFG {
     ACTION_O_PBITS = 23,
     ACTION_I_VID = 24,
     ACTION_I_PBITS = 25,
-    STATE = 26
+    STATE = 26,
+    GROUP_ID = 27
 };
 
 enum AllocCfgAction {
@@ -122,7 +123,8 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
                 uint32_t flow_id, const std::string flow_type,
                 int32_t alloc_id, int32_t network_intf_id,
                 int32_t gemport_id, const ::openolt::Classifier& classifier,
-                const ::openolt::Action& action, int32_t priority_value, uint64_t cookie);
+                const ::openolt::Action& action, int32_t priority_value,
+                uint64_t cookie, int32_t group_id);
 Status FlowRemove_(uint32_t flow_id, const std::string flow_type);
 Status Disable_();
 Status Reenable_();
@@ -131,6 +133,7 @@ Status CreateTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
 Status RemoveTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_scheds);
 Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues);
 Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues);
+Status PerformGroupOperation_(const openolt::Group *group_cfg);
 uint32_t GetPortNum_(uint32_t flow_id);
 int get_status_bcm_cli_quit(void);
 uint16_t get_dev_id(void);

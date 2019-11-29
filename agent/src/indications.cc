@@ -840,6 +840,28 @@ bcmos_errno OnuProcessingErrorIndication(bcmbal_obj *obj) {
 }
 */
 
+static void GroupIndication(bcmolt_devid olt, bcmolt_msg *msg) {
+
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_GROUP:
+            switch (msg->subgroup) {
+                case BCMOLT_GROUP_AUTO_SUBGROUP_COMPLETE_MEMBERS_UPDATE:
+                {
+                    bcmolt_group_key *key = &((bcmolt_group_complete_members_update*)msg)->key;
+                    bcmolt_group_complete_members_update_data *data =
+                            &((bcmolt_group_complete_members_update*)msg)->data;
+
+                    if (data->result == BCMOLT_RESULT_SUCCESS) {
+                        OPENOLT_LOG(INFO, openolt_log_id, "Complete members update indication for group %d (successful)\n", key->id);
+                    } else {
+                        OPENOLT_LOG(ERROR, openolt_log_id, "Complete members update indication for group %d (failed with reason %d)\n", key->id, data->fail_reason);
+                    }
+                }
+            }
+    }
+    bcmolt_msg_free(msg);
+}
+
 Status SubscribeIndication() {
     bcmolt_rx_cfg rx_cfg = {};
     bcmos_errno rc;
@@ -1022,6 +1044,14 @@ Status SubscribeIndication() {
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "ITU PON Alloc Configuration \
 Complete Indication subscribe failed");
+
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_GROUP;
+    rx_cfg.rx_cb = GroupIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_group_auto_subgroup_complete_members_update;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, "Complete members update indication subscribe failed");
 
     subscribed = true;
 
