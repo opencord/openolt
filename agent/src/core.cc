@@ -142,6 +142,11 @@ static std::map<sched_qmp_id_map_key_tuple, int> sched_qmp_id_map;
 /* 'qmp_id_to_qmp_map' maps TM Queue Mapping Profile ID to TM Queue Mapping Profile */
 static std::map<int, std::vector < uint32_t > > qmp_id_to_qmp_map;
 
+// Flag used to watch whether mocked alloc_cfg_compltd_key is added to alloc_cfg_compltd_map
+#ifdef TEST_MODE
+bool ALLOC_CFG_FLAG = false;
+#endif
+
 #define ALLOC_CFG_COMPLETE_WAIT_TIMEOUT 1000 // in milli-seconds
 // Map used to track response from BAL for ITU PON Alloc Configuration.
 // The key is alloc_cfg_compltd_key and value is a concurrent thread-safe queue which is
@@ -178,6 +183,10 @@ uint16_t get_dev_id(void) {
 // Stubbed defntions of bcmolt_cfg_get required for unit-test
 #ifdef TEST_MODE
 extern bcmos_errno bcmolt_cfg_get__bal_state_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__onu_state_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__tm_sched_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__pon_intf_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__nni_intf_stub(bcmolt_oltid olt_id, void* ptr);
 extern bcmos_errno bcmolt_cfg_get__olt_topology_stub(bcmolt_oltid olt_id, void* ptr);
 #endif
 /**
@@ -594,6 +603,9 @@ bcmos_errno wait_for_alloc_action(uint32_t intf_id, uint32_t alloc_id, AllocCfgA
     alloc_cfg_compltd_key k(intf_id, alloc_id);
     alloc_cfg_compltd_map[k] =  &cfg_result;
     bcmos_errno err = BCM_ERR_OK;
+    #ifdef TEST_MODE
+    ALLOC_CFG_FLAG = true;
+    #endif
 
     // Try to pop the result from BAL with a timeout of ALLOC_CFG_COMPLETE_WAIT_TIMEOUT ms
     std::pair<alloc_cfg_complete_result, bool> result = cfg_result.pop(ALLOC_CFG_COMPLETE_WAIT_TIMEOUT);
@@ -605,6 +617,9 @@ bcmos_errno wait_for_alloc_action(uint32_t intf_id, uint32_t alloc_id, AllocCfgA
         alloc_cfg_compltd_map[k] = NULL;
         bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
         err = BCM_ERR_INTERNAL;
+        #ifdef TEST_MODE
+        ALLOC_CFG_FLAG = false;
+        #endif
     }
     else if (result.first.status == ALLOC_CFG_STATUS_FAIL) {
         OPENOLT_LOG(ERROR, openolt_log_id, "error processing alloc cfg request intf_id %d, alloc_id %d\n",
@@ -638,6 +653,9 @@ bcmos_errno wait_for_alloc_action(uint32_t intf_id, uint32_t alloc_id, AllocCfgA
     bcmos_fastlock_lock(&alloc_cfg_wait_lock);
     alloc_cfg_compltd_map.erase(k);
     bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
+    #ifdef TEST_MODE
+    ALLOC_CFG_FLAG = false;
+    #endif
     return err;
 }
 
@@ -1068,7 +1086,16 @@ bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_s
     BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
     BCMOLT_FIELD_SET_PRESENT(&pon_cfg.data, pon_interface_cfg_data, state);
     BCMOLT_FIELD_SET_PRESENT(&pon_cfg.data, pon_interface_cfg_data, itu);
+    #ifdef TEST_MODE
+    // It is impossible to mock the setting of pon_cfg.data.state because
+    // the actual bcmolt_cfg_get passes the address of pon_cfg.hdr and we cannot
+    // set the pon_cfg.data.state. So a new stub function is created and address
+    // of pon_cfg is passed. This is one-of case where we need to add test specific
+    // code in production code.
+    err = bcmolt_cfg_get__pon_intf_stub(dev_id, &pon_cfg);
+    #else
     err = bcmolt_cfg_get(dev_id, &pon_cfg.hdr);
+    #endif
     *state = pon_cfg.data.state;
     return err;
 }
@@ -1561,7 +1588,16 @@ bcmos_errno get_nni_interface_status(bcmolt_interface id, bcmolt_interface_state
 
     BCMOLT_CFG_INIT(&nni_cfg, nni_interface, nni_key);
     BCMOLT_FIELD_SET_PRESENT(&nni_cfg.data, nni_interface_cfg_data, state);
+    #ifdef TEST_MODE
+    // It is impossible to mock the setting of nni_cfg.data.state because
+    // the actual bcmolt_cfg_get passes the address of nni_cfg.hdr and we cannot
+    // set the nni_cfg.data.state. So a new stub function is created and address
+    // of nni_cfg is passed. This is one-of case where we need to add test specific
+    // code in production code.
+    err = bcmolt_cfg_get__nni_intf_stub(dev_id, &nni_cfg);
+    #else
     err = bcmolt_cfg_get(dev_id, &nni_cfg.hdr);
+    #endif
     *state = nni_cfg.data.state;
     return err;
 }
@@ -1653,7 +1689,16 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     onu_key.pon_ni = intf_id;
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
     BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
+    #ifdef TEST_MODE
+    // It is impossible to mock the setting of onu_cfg.data.onu_state because
+    // the actual bcmolt_cfg_get passes the address of onu_cfg.hdr and we cannot
+    // set the onu_cfg.data.onu_state. So a new stub function is created and address
+    // of onu_cfg is passed. This is one-of case where we need to add test specific
+    // code in production code.
+    err = bcmolt_cfg_get__onu_state_stub(dev_id, &onu_cfg);
+    #else
     err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
+    #endif
     if (err == BCM_ERR_OK) {
         if ((onu_cfg.data.onu_state == BCMOLT_ONU_STATE_PROCESSING ||
              onu_cfg.data.onu_state == BCMOLT_ONU_STATE_ACTIVE) ||
@@ -1700,10 +1745,20 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     onu_key.pon_ni = intf_id;
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
     BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
+    #ifdef TEST_MODE
+    // It is impossible to mock the setting of onu_cfg.data.onu_state because
+    // the actual bcmolt_cfg_get passes the address of onu_cfg.hdr and we cannot
+    // set the onu_cfg.data.onu_state. So a new stub function is created and address
+    // of onu_cfg is passed. This is one-of case where we need to add test specific
+    // code in production code.
+    err = bcmolt_cfg_get__onu_state_stub(dev_id, &onu_cfg);
+    onu_state = onu_cfg.data.onu_state;
+    #else
     err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
+    #endif
     if (err == BCM_ERR_OK) {
         switch (onu_state) {
-            case BCMOLT_ONU_OPERATION_ACTIVE:
+            case BCMOLT_ONU_STATE_ACTIVE:
                 BCMOLT_OPER_INIT(&onu_oper, onu, set_onu_state, onu_key);
                 BCMOLT_FIELD_SET(&onu_oper.data, onu_set_onu_state_data,
                     onu_state, BCMOLT_ONU_OPERATION_INACTIVE);
@@ -1738,7 +1793,9 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     bcmolt_onu_cfg cfg_obj;
     bcmolt_onu_key key;
 
-    OPENOLT_LOG(INFO, openolt_log_id, "Processing subscriber terminal cfg clear for sub_term_id %d  and intf_id %d\n",
+    //OPENOLT_LOG(INFO, openolt_log_id, "Processing subscriber terminal cfg clear for sub_term_id %d  and intf_id %d\n",
+    //    onu_id, intf_id);
+    OPENOLT_LOG(INFO, openolt_log_id, "Processing onu cfg clear for onu_id %d  and intf_id %d\n",
         onu_id, intf_id);
 
     key.onu_id = onu_id;
@@ -1748,7 +1805,8 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     bcmos_errno err = bcmolt_cfg_clear(dev_id, &cfg_obj.hdr);
     if (err != BCM_ERR_OK)
     {
-       OPENOLT_LOG(ERROR, openolt_log_id, "Failed to clear information for BAL subscriber_terminal_id %d, Interface ID %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
+       //OPENOLT_LOG(ERROR, openolt_log_id, "Failed to clear information for BAL subscriber_terminal_id %d, Interface ID %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
+       OPENOLT_LOG(ERROR, openolt_log_id, "Failed to clear information for BAL onu_id %d, Interface ID %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
         return Status(grpc::StatusCode::INTERNAL, "Failed to delete ONU");
     }
 
@@ -2476,7 +2534,16 @@ bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction) {
     //check TM scheduler has configured or not
     BCMOLT_CFG_INIT(&tm_sched_cfg, tm_sched, tm_sched_key);
     BCMOLT_MSG_FIELD_GET(&tm_sched_cfg, state);
+    #ifdef TEST_MODE
+    // It is impossible to mock the setting of tm_sched_cfg.data.state because
+    // the actual bcmolt_cfg_get passes the address of tm_sched_cfg.hdr and we cannot
+    // set the tm_sched_cfg.data.state. So a new stub function is created and address
+    // of tm_sched_cfg is passed. This is one-of case where we need to add test specific
+    // code in production code.
+    err = bcmolt_cfg_get__tm_sched_stub(dev_id, &tm_sched_cfg);
+    #else
     err = bcmolt_cfg_get(dev_id, &tm_sched_cfg.hdr);
+    #endif
     if (err) {
         OPENOLT_LOG(ERROR, openolt_log_id, "cfg: Failed to query TM scheduler, err = %s\n",bcmos_strerror(err));
         return err;
@@ -2616,6 +2683,7 @@ uni_id %d, port_no %u\n", tm_sched_key.id, intf_id, onu_id, uni_id, port_no);
                 if (pir_bw == 0) {
                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth was set to 0, must be at least \
 %d bytes/sec\n", (board_technology == "XGS-PON")?XGS_BANDWIDTH_GRANULARITY:GPON_BANDWIDTH_GRANULARITY);
+                   return BCM_ERR_PARM;
                 } else if (pir_bw < cir_bw) {
                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth (%d) can't be less than Guaranteed \
 bandwidth (%d)\n", pir_bw, cir_bw);
@@ -2659,13 +2727,13 @@ for additional bandwidth eligibility of type None\n");
                 } else if (pir_bw > cir_bw) {
                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth must be equal to Guaranteed bandwidth \
 for additional bandwidth eligibility of type None\n");
-                   OPENOLT_LOG(ERROR, openolt_log_id, "set Maximum bandwidth (%d) to Guaranteed \
+                   OPENOLT_LOG(ERROR, openolt_log_id, "Setting Maximum bandwidth (%d) to Guaranteed \
 bandwidth in None eligibility\n", pir_bw);
                    cir_bw = pir_bw;
                 } else if (pir_bw < cir_bw) {
                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth (%d) can't be less than Guaranteed \
 bandwidth (%d)\n", pir_bw, cir_bw);
-                   OPENOLT_LOG(ERROR, openolt_log_id, "set Maximum bandwidth (%d) to Guaranteed \
+                   OPENOLT_LOG(ERROR, openolt_log_id, "Setting Maximum bandwidth (%d) to Guaranteed \
 bandwidth in None eligibility\n", pir_bw);
                    cir_bw = pir_bw;
                 }
@@ -2844,7 +2912,8 @@ bcmos_errno CreateTrafficQueueMappingProfile(uint32_t sched_id, uint32_t intf_id
 
     int tm_qmp_id = get_tm_qmp_id(sched_id, intf_id, onu_id, uni_id, tmq_map_profile);
     if (tm_qmp_id == -1) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create tm queue mapping profile. Max allowed profile count is 16.\n");
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create tm queue mapping profile. Max allowed tm queue mapping profile count is 16.\n");
+        return BCM_ERR_RANGE;
     }
 
     tm_qmp_key.id = tm_qmp_id;
@@ -3005,7 +3074,11 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
 
         int tm_qmp_id = get_tm_qmp_id(tmq_map_profile);
         if (tm_qmp_id == -1) {
-            CreateTrafficQueueMappingProfile(sched_id, intf_id, onu_id, uni_id, direction, tmq_map_profile);
+            err = CreateTrafficQueueMappingProfile(sched_id, intf_id, onu_id, uni_id, direction, tmq_map_profile);
+            if (err != BCM_ERR_OK) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create tm queue mapping profile, err = %s\n", bcmos_strerror(err));
+                return bcm_to_grpc_err(err, "Failed to create tm queue mapping profile");
+            }
         } else if (tm_qmp_id != -1 && get_tm_qmp_id(sched_id, intf_id, onu_id, uni_id) == -1) {
             OPENOLT_LOG(INFO, openolt_log_id, "tm queue mapping profile present already with id %d\n", tm_qmp_id);
             update_sched_qmp_id_map(sched_id, intf_id, onu_id, uni_id, tm_qmp_id);
@@ -3107,7 +3180,11 @@ Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
 
         int tm_qmp_id = get_tm_qmp_id(sched_id, intf_id, onu_id, uni_id);
         if (free_tm_qmp_id(sched_id, intf_id, onu_id, uni_id, tm_qmp_id)) {
-            RemoveTrafficQueueMappingProfile(tm_qmp_id);
+            err = RemoveTrafficQueueMappingProfile(tm_qmp_id);
+            if (err != BCM_ERR_OK) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove tm queue mapping profile, err = %s\n", bcmos_strerror(err));
+                return bcm_to_grpc_err(err, "Failed to remove tm queue mapping profile");
+            }
         }
     }
     clear_qos_type(intf_id, onu_id, uni_id);

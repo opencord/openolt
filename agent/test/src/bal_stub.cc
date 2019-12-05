@@ -71,11 +71,13 @@ bcmos_errno bcmolt_cfg_get(bcmolt_oltid olt, bcmolt_cfg *cfg)
 */
 
 /* Clear configuration */
+/*
 bcmos_errno bcmolt_cfg_clear(bcmolt_oltid olt, bcmolt_cfg *cfg)
 {
     printf("-- entering :stubbed %s\n", __FUNCTION__);
     return BCM_ERR_OK;
 }
+*/
 
 /* Get statistics */
 bcmos_errno bcmolt_stat_get(bcmolt_oltid olt, bcmolt_stat *stat, bcmolt_stat_flags flags)

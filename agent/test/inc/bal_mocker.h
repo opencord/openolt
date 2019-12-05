@@ -43,6 +43,7 @@ public:
     MOCK_METHOD2(bcmolt_cfg_get, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
     MOCK_METHOD2(bcmolt_oper_submit, bcmos_errno(bcmolt_oltid, bcmolt_oper*));
     MOCK_METHOD2(bcmolt_cfg_set, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
+    MOCK_METHOD2(bcmolt_cfg_clear, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
   // Add more here
 };
 
