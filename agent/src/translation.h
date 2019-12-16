@@ -25,5 +25,6 @@ extern "C"
 int interface_key_to_port_no(bcmolt_interface_id intf_id, 
         bcmolt_interface_type intf_type);
 std::string alarm_status_to_string(bcmolt_status status);
+std::string bcmolt_result_to_string(bcmolt_result result);
 
 #endif

@@ -40,3 +40,14 @@ std::string alarm_status_to_string(bcmolt_status status) {
     return "unknown";
 }
 
+std::string bcmolt_result_to_string(bcmolt_result result) {
+    switch (result) {
+        case BCMOLT_RESULT_SUCCESS:
+            return "success";
+        case BCMOLT_RESULT_FAIL:
+            return "fail";
+        default:
+            return "unknown";
+    }
+}
+
