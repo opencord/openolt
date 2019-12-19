@@ -188,6 +188,7 @@ extern bcmos_errno bcmolt_cfg_get__tm_sched_stub(bcmolt_oltid olt_id, void* ptr)
 extern bcmos_errno bcmolt_cfg_get__pon_intf_stub(bcmolt_oltid olt_id, void* ptr);
 extern bcmos_errno bcmolt_cfg_get__nni_intf_stub(bcmolt_oltid olt_id, void* ptr);
 extern bcmos_errno bcmolt_cfg_get__olt_topology_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__flow_stub(bcmolt_oltid olt_id, void* ptr);
 #endif
 /**
 * Returns the default NNI (Upstream direction) or PON (Downstream direction) scheduler
@@ -1113,14 +1114,27 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
     switch (data_id) {
         case ONU_ID: //onu_id
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, onu_id);
+            #ifdef TEST_MODE
+            // It is impossible to mock the setting of flow_cfg.data.state because
+            // the actual bcmolt_cfg_get passes the address of flow_cfg.hdr and we cannot
+            // set the flow_cfg.data. So a new stub function is created and address
+            // of flow_cfg is passed. This is one-of case where we need to add test specific
+            // code in production code.
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get onu_id, err = %s\n",bcmos_strerror(err));
                 return err;
             }
             return flow_cfg.data.onu_id;
         case FLOW_TYPE:
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get flow_type, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1128,7 +1142,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.key.flow_type;
         case SVC_PORT_ID: //svc_port_id
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, svc_port_id);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get svc_port_id, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1136,7 +1154,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.svc_port_id;
         case PRIORITY:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, priority);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get priority, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1144,7 +1166,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.priority;
         case COOKIE: //cookie
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, cookie);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get cookie, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1152,7 +1178,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.cookie;
         case INGRESS_INTF_TYPE: //ingress intf_type
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, ingress_intf);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get ingress intf_type, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1160,7 +1190,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.ingress_intf.intf_type;
         case EGRESS_INTF_TYPE: //egress intf_type
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, egress_intf);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress intf_type, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1168,7 +1202,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.egress_intf.intf_type;
         case INGRESS_INTF_ID: //ingress intf_id
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, ingress_intf);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get ingress intf_id, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1176,7 +1214,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.ingress_intf.intf_id;
         case EGRESS_INTF_ID: //egress intf_id
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, egress_intf);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress intf_id, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1184,7 +1226,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.egress_intf.intf_id;
         case CLASSIFIER_O_VID:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier o_vid, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1192,7 +1238,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.classifier.o_vid;
         case CLASSIFIER_O_PBITS:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier o_pbits, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1200,7 +1250,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.classifier.o_pbits;
         case CLASSIFIER_I_VID:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier i_vid, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1208,7 +1262,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.classifier.i_vid;
         case CLASSIFIER_I_PBITS:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier i_pbits, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1216,7 +1274,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.classifier.i_pbits;
         case CLASSIFIER_ETHER_TYPE:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier ether_type, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1224,7 +1286,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.classifier.ether_type;
         case CLASSIFIER_IP_PROTO:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier ip_proto, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1232,7 +1298,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.classifier.ip_proto;
         case CLASSIFIER_SRC_PORT:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier src_port, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1240,7 +1310,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.classifier.src_port;
         case CLASSIFIER_DST_PORT:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier dst_port, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1248,7 +1322,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.classifier.dst_port;
         case CLASSIFIER_PKT_TAG_TYPE:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, classifier);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier pkt_tag_type, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1256,7 +1334,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.classifier.pkt_tag_type;
         case EGRESS_QOS_TYPE:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, egress_qos);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress_qos type, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1264,7 +1346,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.egress_qos.type;
         case EGRESS_QOS_QUEUE_ID:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, egress_qos);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress_qos queue_id, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1284,7 +1370,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             }
         case EGRESS_QOS_TM_SCHED_ID:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, egress_qos);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress_qos tm_sched_id, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1292,7 +1382,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.egress_qos.tm_sched.id;
         case ACTION_CMDS_BITMASK:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, action);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action cmds_bitmask, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1300,7 +1394,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.action.cmds_bitmask;
         case ACTION_O_VID:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, action);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action o_vid, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1308,7 +1406,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.action.o_vid;
         case ACTION_O_PBITS:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, action);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action o_pbits, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1316,7 +1418,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.action.o_pbits;
         case ACTION_I_VID:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, action);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action i_vid, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1324,7 +1430,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.action.i_vid;
         case ACTION_I_PBITS:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, action);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action i_pbits, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1332,7 +1442,11 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             return flow_cfg.data.action.i_pbits;
         case STATE:
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, state);
+            #ifdef TEST_MODE
+            err = bcmolt_cfg_get__flow_stub(dev_id, &flow_cfg);
+            #else
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
+            #endif
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get state, err = %s\n",bcmos_strerror(err));
                 return err;
@@ -1958,6 +2072,7 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt) {
             }
         }
         else {
+            OPENOLT_LOG(ERROR, openolt_log_id, "no flow id found for uplink packetout\n");
             return grpc::Status(grpc::StatusCode::NOT_FOUND, "no flow id found");
         }
     }
@@ -1979,6 +2094,7 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt) {
     bcmos_errno err = bcmolt_oper_submit(dev_id, &oper.hdr);
     if (err) {
         OPENOLT_LOG(ERROR, openolt_log_id, "Error sending packets via nni port %d, flow_id %d, err = %s\n", intf_id, key.flow_id, bcmos_strerror(err));
+        return bcm_to_grpc_err(BCM_ERR_SYSCALL_ERR, "Error sending packets via nni port");
     } else {
         OPENOLT_LOG(INFO, openolt_log_id, "sent packets to port %d in upstream direction, flow_id %d \n", intf_id, key.flow_id);
     }

@@ -57,12 +57,17 @@ ACTION_P(SetArg1ToBcmOltPonCfg, value) { *static_cast<bcmolt_pon_interface_cfg*>
 // bcmolt_cfg_get__nni_intf_stub.
 ACTION_P(SetArg1ToBcmOltNniCfg, value) { *static_cast<bcmolt_nni_interface_cfg*>(arg1) = value; };
 
+// This is used to set custom bcmolt_flow_cfg value to bcmolt_flow_cfg pointer coming in
+// bcmolt_cfg_get__flow_stub.
+ACTION_P(SetArg1ToBcmOltFlowCfg, value) { *static_cast<bcmolt_flow_cfg*>(arg1) = value; };
+
 // Create a mock function for bcmolt_cfg_get__bal_state_stub C++ function
 MOCK_GLOBAL_FUNC2(bcmolt_cfg_get__bal_state_stub, bcmos_errno(bcmolt_oltid, void*));
 MOCK_GLOBAL_FUNC2(bcmolt_cfg_get__onu_state_stub, bcmos_errno(bcmolt_oltid, void*));
 MOCK_GLOBAL_FUNC2(bcmolt_cfg_get__tm_sched_stub, bcmos_errno(bcmolt_oltid, void*));
 MOCK_GLOBAL_FUNC2(bcmolt_cfg_get__pon_intf_stub, bcmos_errno(bcmolt_oltid, void*));
 MOCK_GLOBAL_FUNC2(bcmolt_cfg_get__nni_intf_stub, bcmos_errno(bcmolt_oltid, void*));
+MOCK_GLOBAL_FUNC2(bcmolt_cfg_get__flow_stub, bcmos_errno(bcmolt_oltid, void*));
 
 
 // Test Fixture for OltEnable
@@ -1043,6 +1048,306 @@ TEST_F(TestOmciMsgOut, OmciMsgOutFailure) {
 }
 
 ////////////////////////////////////////////////////////////////////////////
+// For testing FlowAdd functionality
+////////////////////////////////////////////////////////////////////////////
+
+class TestFlowAdd : public Test {
+    protected:
+        int32_t access_intf_id = 0;
+        int32_t onu_id = 1;
+        int32_t uni_id = 0;
+        uint32_t port_no = 16;
+        uint32_t flow_id = 1;
+        std::string flow_type = "upstream";
+        int32_t alloc_id = 1024;
+        int32_t network_intf_id = 0;
+        int32_t gemport_id = 1024;
+        int32_t priority_value = 0;
+        uint64_t cookie = 0;
+
+        NiceMock<BalMocker> balMock;
+        openolt::Flow* flow;
+        openolt::Classifier* classifier;
+        openolt::Action* action;
+        openolt::ActionCmd* cmd;
+
+        bcmolt_flow_key flow_key;
+        bcmolt_flow_cfg flow_cfg;
+
+        tech_profile::TrafficQueues* traffic_queues;
+        tech_profile::TrafficQueue* traffic_queue_1;
+        tech_profile::TrafficQueue* traffic_queue_2;
+        tech_profile::DiscardConfig* discard_config_1;
+        tech_profile::DiscardConfig* discard_config_2;
+        tech_profile::TailDropDiscardConfig* tail_drop_discard_config_1;
+        tech_profile::TailDropDiscardConfig* tail_drop_discard_config_2;
+
+
+        virtual void SetUp() {
+            classifier = new openolt::Classifier;
+            action = new openolt::Action;
+            cmd = new openolt::ActionCmd;
+
+            classifier->set_o_tpid(0);
+            classifier->set_o_vid(7);
+            classifier->set_i_tpid(0);
+            classifier->set_i_vid(0);
+            classifier->set_o_pbits(0);
+            classifier->set_i_pbits(0);
+            classifier->set_eth_type(0);
+            classifier->set_ip_proto(0);
+            classifier->set_src_port(0);
+            classifier->set_dst_port(0);
+            classifier->set_pkt_tag_type("single_tag");
+
+            action->set_o_vid(12);
+            action->set_o_pbits(0);
+            action->set_o_tpid(0);
+            action->set_i_vid(0);
+            action->set_i_pbits(0);
+            action->set_i_tpid(0);
+
+            cmd->set_add_outer_tag(true);
+            cmd->set_remove_outer_tag(false);
+            cmd->set_trap_to_host(false);
+            action->set_allocated_cmd(cmd);
+
+            flow_key.flow_id = 1;
+            flow_key.flow_type = BCMOLT_FLOW_TYPE_UPSTREAM;
+            BCMOLT_CFG_INIT(&flow_cfg, flow, flow_key);
+            flow_cfg.data.onu_id=1;
+            flow_cfg.key.flow_type = BCMOLT_FLOW_TYPE_UPSTREAM;
+            flow_cfg.data.svc_port_id=1024;
+            flow_cfg.data.priority=0;
+            flow_cfg.data.cookie=0;
+            flow_cfg.data.ingress_intf.intf_type=BCMOLT_FLOW_INTERFACE_TYPE_PON;
+            flow_cfg.data.egress_intf.intf_type=BCMOLT_FLOW_INTERFACE_TYPE_NNI;
+            flow_cfg.data.ingress_intf.intf_id=0;
+            flow_cfg.data.egress_intf.intf_id=0;
+            flow_cfg.data.classifier.o_vid=7;
+            flow_cfg.data.classifier.o_pbits=0;
+            flow_cfg.data.classifier.i_vid=0;
+            flow_cfg.data.classifier.i_pbits=0;
+            flow_cfg.data.classifier.ether_type=0;
+            flow_cfg.data.classifier.ip_proto=0;
+            flow_cfg.data.classifier.src_port=0;
+            flow_cfg.data.classifier.dst_port=0;
+            flow_cfg.data.classifier.pkt_tag_type=BCMOLT_PKT_TAG_TYPE_SINGLE_TAG;
+            flow_cfg.data.egress_qos.type=BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
+            flow_cfg.data.egress_qos.u.fixed_queue.queue_id=0;
+            flow_cfg.data.egress_qos.tm_sched.id=1020;
+            flow_cfg.data.action.cmds_bitmask=BCMOLT_ACTION_CMD_ID_ADD_OUTER_TAG;
+            flow_cfg.data.action.o_vid=12;
+            flow_cfg.data.action.o_pbits=0;
+            flow_cfg.data.action.i_vid=0;
+            flow_cfg.data.action.i_pbits=0;
+            flow_cfg.data.state=BCMOLT_FLOW_STATE_ENABLE;
+
+            traffic_queues = new tech_profile::TrafficQueues;
+            traffic_queues->set_intf_id(0);
+            traffic_queues->set_onu_id(2);
+            traffic_queue_1 = traffic_queues->add_traffic_queues();
+            traffic_queue_1->set_gemport_id(1024);
+            traffic_queue_1->set_pbit_map("0b00000101");
+            traffic_queue_1->set_aes_encryption(true);
+            traffic_queue_1->set_sched_policy(tech_profile::SchedulingPolicy::StrictPriority);
+            traffic_queue_1->set_priority(0);
+            traffic_queue_1->set_weight(0);
+            traffic_queue_1->set_discard_policy(tech_profile::DiscardPolicy::TailDrop);
+            discard_config_1 = new tech_profile::DiscardConfig;
+            discard_config_1->set_discard_policy(tech_profile::DiscardPolicy::TailDrop);
+            tail_drop_discard_config_1 = new tech_profile::TailDropDiscardConfig;
+            tail_drop_discard_config_1->set_queue_size(8);
+            discard_config_1->set_allocated_tail_drop_discard_config(tail_drop_discard_config_1);
+            traffic_queue_1->set_allocated_discard_config(discard_config_1);
+
+            traffic_queues->set_uni_id(0);
+            traffic_queues->set_port_no(16);
+
+            traffic_queue_2 = traffic_queues->add_traffic_queues();
+            traffic_queue_2->set_gemport_id(1025);
+            traffic_queue_2->set_pbit_map("0b00001010");
+            traffic_queue_2->set_aes_encryption(true);
+            traffic_queue_2->set_sched_policy(tech_profile::SchedulingPolicy::StrictPriority);
+            traffic_queue_2->set_priority(1);
+            traffic_queue_2->set_weight(0);
+            traffic_queue_2->set_discard_policy(tech_profile::DiscardPolicy::TailDrop);
+            discard_config_2 = new tech_profile::DiscardConfig;
+            discard_config_2->set_discard_policy(tech_profile::DiscardPolicy::TailDrop);
+            tail_drop_discard_config_2 = new tech_profile::TailDropDiscardConfig;
+            tail_drop_discard_config_2->set_queue_size(8);
+            discard_config_2->set_allocated_tail_drop_discard_config(tail_drop_discard_config_2);
+            traffic_queue_2->set_allocated_discard_config(discard_config_2);
+        }
+
+        virtual void TearDown() {
+        }
+};
+
+// Test 1 - FlowAdd - success case(HSIA-upstream FixedQueue)
+TEST_F(TestFlowAdd, FlowAddHsiaFixedQueueUpstreamSuccess) {
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 2 - FlowAdd - Duplicate Flow case
+TEST_F(TestFlowAdd, FlowAddHsiaFixedQueueUpstreamDuplicate) {
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 3 - FlowAdd - Failure case(bcmolt_cfg_set returns error)
+TEST_F(TestFlowAdd, FlowAddHsiaFixedQueueUpstreamFailure) {
+    gemport_id = 1025;
+
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_INTERNAL;
+
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 4 - FlowAdd - Failure case(Invalid flow direction)
+TEST_F(TestFlowAdd, FlowAddFailureInvalidFlowDirection) {
+    flow_type = "bidirectional";
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 5 - FlowAdd - Failure case(Invalid network setting)
+TEST_F(TestFlowAdd, FlowAddFailureInvalidNWCfg) {
+    network_intf_id = -1;
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 6 - FlowAdd - Success case(Single tag & EAP Ether type)
+TEST_F(TestFlowAdd, FlowAddEapEtherTypeSuccess) {
+    flow_id = 2;
+
+    classifier->set_eth_type(34958);
+    cmd->set_add_outer_tag(false);
+    cmd->set_trap_to_host(true);
+    action->set_allocated_cmd(cmd);
+
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 7 - FlowAdd - Success case(Single tag & DHCP flow)
+TEST_F(TestFlowAdd, FlowAddDhcpSuccess) {
+    flow_id = 3;
+    gemport_id = 1025;
+
+    classifier->set_ip_proto(17);
+    classifier->set_src_port(68);
+    classifier->set_dst_port(67);
+    cmd->set_add_outer_tag(false);
+    cmd->set_trap_to_host(true);
+    action->set_allocated_cmd(cmd);
+
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 8 - FlowAdd - success case(HSIA-downstream FixedQueue)
+TEST_F(TestFlowAdd, FlowAddHsiaFixedQueueDownstreamSuccess) {
+    flow_id = 4;
+    flow_type = "downstream";
+
+    classifier->set_o_vid(12);
+    classifier->set_i_vid(7);
+    classifier->set_pkt_tag_type("double_tag");
+    action->set_o_vid(0);
+    cmd->set_add_outer_tag(false);
+    cmd->set_remove_outer_tag(true);
+    action->set_allocated_cmd(cmd);
+
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 9 - FlowAdd - success case(HSIA-upstream PriorityQueue)
+TEST_F(TestFlowAdd, FlowAddHsiaPriorityQueueUpstreamSuccess) {
+    onu_id = 2;
+    flow_id = 5;
+    alloc_id = 1025;
+
+    traffic_queue_1->set_direction(tech_profile::Direction::UPSTREAM);
+    traffic_queue_2->set_direction(tech_profile::Direction::UPSTREAM);
+
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+    CreateTrafficQueues_(traffic_queues);
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 10 - FlowAdd - success case(HSIA-downstream PriorityQueue)
+TEST_F(TestFlowAdd, FlowAddHsiaPriorityQueueDownstreamSuccess) {
+    onu_id = 2;
+    flow_id = 6;
+    flow_type = "downstream";
+    alloc_id = 1025;
+
+    classifier->set_o_vid(12);
+    classifier->set_i_vid(7);
+    classifier->set_pkt_tag_type("double_tag");
+    action->set_o_vid(0);
+    cmd->set_add_outer_tag(false);
+    cmd->set_remove_outer_tag(true);
+    action->set_allocated_cmd(cmd);
+
+    traffic_queue_1->set_direction(tech_profile::Direction::DOWNSTREAM);
+    traffic_queue_2->set_direction(tech_profile::Direction::DOWNSTREAM);
+
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+    CreateTrafficQueues_(traffic_queues);
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+////////////////////////////////////////////////////////////////////////////
 // For testing OnuPacketOut functionality
 ////////////////////////////////////////////////////////////////////////////
 
@@ -1064,8 +1369,8 @@ class TestOnuPacketOut : public Test {
 TEST_F(TestOnuPacketOut, OnuPacketOutSuccess) {
     uint32_t port_no = 16;
     uint32_t gemport_id = 1024;
-    bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
 
+    bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
 
     Status status = OnuPacketOut_(pon_id, onu_id, port_no, gemport_id, pkt);
@@ -1079,6 +1384,155 @@ TEST_F(TestOnuPacketOut, OnuPacketOutPortNo0) {
 
     Status status = OnuPacketOut_(pon_id, onu_id, port_no, gemport_id, pkt);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 3 - OnuPacketOut success, Finding Flow ID from port no and Gem from Flow ID case
+TEST_F(TestOnuPacketOut, OnuPacketOutFindGemFromFlowSuccess) {
+    uint32_t port_no = 16;
+    uint32_t gemport_id = 0;
+
+    bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
+
+    Status status = OnuPacketOut_(pon_id, onu_id, port_no, gemport_id, pkt);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 4 - OnuPacketOut success, Failure in finding Gem port case
+TEST_F(TestOnuPacketOut, OnuPacketOutFindGemFromFlowFailure) {
+    uint32_t port_no = 64;
+    uint32_t gemport_id = 0;
+
+    bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
+
+    Status status = OnuPacketOut_(pon_id, onu_id, port_no, gemport_id, pkt);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+////////////////////////////////////////////////////////////////////////////
+// For testing FlowRemove functionality
+////////////////////////////////////////////////////////////////////////////
+
+class TestFlowRemove : public Test {
+    protected:
+        NiceMock<BalMocker> balMock;
+
+        virtual void SetUp() {
+        }
+
+        virtual void TearDown() {
+        }
+};
+
+// Test 1 - FlowRemove - Failure case
+TEST_F(TestFlowRemove, FlowRemoveFailure) {
+    bcmos_errno olt_cfg_clear_res = BCM_ERR_INTERNAL;
+    ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
+
+    Status status = FlowRemove_(1, "upstream");
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 2 - FlowRemove - success case
+TEST_F(TestFlowRemove, FlowRemoveSuccess) {
+    bcmos_errno olt_cfg_clear_res = BCM_ERR_OK;
+    ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
+
+    Status status = FlowRemove_(1, "upstream");
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+////////////////////////////////////////////////////////////////////////////
+// For testing UplinkPacketOut functionality
+////////////////////////////////////////////////////////////////////////////
+
+class TestUplinkPacketOut : public Test {
+    protected:
+        uint32_t pon_id = 0;
+        std::string pkt = "omci-pkt";
+        NiceMock<BalMocker> balMock;
+
+        bcmolt_flow_key flow_key;
+        bcmolt_flow_cfg flow_cfg;
+
+        virtual void SetUp() {
+            flow_key.flow_id = 1;
+            flow_key.flow_type = BCMOLT_FLOW_TYPE_UPSTREAM;
+            BCMOLT_CFG_INIT(&flow_cfg, flow, flow_key);
+            flow_cfg.data.onu_id=1;
+            flow_cfg.key.flow_type = BCMOLT_FLOW_TYPE_UPSTREAM;
+            flow_cfg.data.svc_port_id=1024;
+            flow_cfg.data.priority=0;
+            flow_cfg.data.cookie=0;
+            flow_cfg.data.ingress_intf.intf_type=BCMOLT_FLOW_INTERFACE_TYPE_PON;
+            flow_cfg.data.egress_intf.intf_type=BCMOLT_FLOW_INTERFACE_TYPE_NNI;
+            flow_cfg.data.ingress_intf.intf_id=0;
+            flow_cfg.data.egress_intf.intf_id=0;
+            flow_cfg.data.classifier.o_vid=7;
+            flow_cfg.data.classifier.o_pbits=0;
+            flow_cfg.data.classifier.i_vid=0;
+            flow_cfg.data.classifier.i_pbits=0;
+            flow_cfg.data.classifier.ether_type=0;
+            flow_cfg.data.classifier.ip_proto=0;
+            flow_cfg.data.classifier.src_port=0;
+            flow_cfg.data.classifier.dst_port=0;
+            flow_cfg.data.classifier.pkt_tag_type=BCMOLT_PKT_TAG_TYPE_SINGLE_TAG;
+            flow_cfg.data.egress_qos.type=BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE;
+            flow_cfg.data.egress_qos.u.fixed_queue.queue_id=0;
+            flow_cfg.data.egress_qos.tm_sched.id=1020;
+            flow_cfg.data.action.cmds_bitmask=BCMOLT_ACTION_CMD_ID_ADD_OUTER_TAG;
+            flow_cfg.data.action.o_vid=12;
+            flow_cfg.data.action.o_pbits=0;
+            flow_cfg.data.action.i_vid=0;
+            flow_cfg.data.action.i_pbits=0;
+            flow_cfg.data.state=BCMOLT_FLOW_STATE_ENABLE;
+        }
+
+        virtual void TearDown() {
+        }
+};
+
+// Test 1 - UplinkPacketOut success case
+TEST_F(TestUplinkPacketOut, UplinkPacketOutSuccess) {
+    bcmos_errno send_eth_oper_sub_res = BCM_ERR_OK;
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(send_eth_oper_sub_res));
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+
+    Status status = UplinkPacketOut_(pon_id, pkt);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 2 - UplinkPacketOut Failure case
+TEST_F(TestUplinkPacketOut, UplinkPacketOutFailure) {
+    bcmos_errno send_eth_oper_sub_res = BCM_ERR_INTERNAL;
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(send_eth_oper_sub_res));
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+
+    Status status = UplinkPacketOut_(pon_id, pkt);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 3 - UplinkPacketOut No matching flow id found for Uplink Packetout case
+TEST_F(TestUplinkPacketOut, UplinkPacketOutFailureNoFlowIdFound) {
+    flow_cfg.key.flow_type = BCMOLT_FLOW_TYPE_DOWNSTREAM;
+
+    FlowRemove_(2, "upstream");
+    FlowRemove_(3, "upstream");
+    FlowRemove_(4, "downstream");
+    FlowRemove_(5, "upstream");
+    FlowRemove_(6, "downstream");
+
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+
+    Status status = UplinkPacketOut_(pon_id, pkt);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
 ////////////////////////////////////////////////////////////////////////////
