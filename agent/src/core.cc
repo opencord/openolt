@@ -2692,19 +2692,6 @@ bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction) {
     // num_priorities: Max number of strict priority scheduling elements
     BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, num_priorities, 8);
 
-    // bcmbal_tm_shaping
-    uint32_t cir = 1000000;
-    uint32_t pir = 1000000;
-    uint32_t burst = 65536;
-    OPENOLT_LOG(INFO, openolt_log_id, "applying traffic shaping in %s pir=%u, burst=%u\n",
-       direction.c_str(), pir, burst);
-    BCMOLT_FIELD_SET_PRESENT(&tm_sched_cfg.data.rate, tm_shaping, pir);
-    BCMOLT_FIELD_SET_PRESENT(&tm_sched_cfg.data.rate, tm_shaping, burst);
-    // FIXME: Setting CIR, results in BAL throwing error 'tm_sched minimum rate is not supported yet'
-    // BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, rate.cir, cir);
-    BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, rate.pir, pir);
-    BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, rate.burst, burst);
-
     err = bcmolt_cfg_set(dev_id, &tm_sched_cfg.hdr);
     if (err) {
         OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create %s scheduler, id %d, intf_id %d, err = %s\n",
