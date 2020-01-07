@@ -1,7 +1,7 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides:          bal_core_dist
+# Provides:          dev_mgmt_daemon
 # Required-Start:    $local_fs $network $syslog
 # Required-Stop:     $network $local_fs $syslog
 # Default-Start:     2 3 4 5
@@ -14,7 +14,7 @@ NAME="dev_mgmt_daemon"
 PATH="/broadcom:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 APPDIR="/broadcom"
 APPBIN="dev_mgmt_daemon"
-APPARGS="-pcie -syslog"
+APPARGS="-pcie -d"
 PID_FILE="root_dev_mgmt_pid"
 USER="root"
 GROUP="root"
@@ -27,8 +27,9 @@ start() {
   /opt/bcm68620/svk_init.sh
   sleep 10
   printf "Starting '$NAME'... "
+  touch /var/log/$NAME.log
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$APPDIR
-  start-stop-daemon --verbose --start --chuid "$USER:$GROUP" --background --no-close --chdir "$APPDIR" --exec "$APPBIN" -- $APPARGS 2>&1 || true
+  start-stop-daemon --verbose --start --chuid "$USER:$GROUP" --background --no-close --chdir "$APPDIR" --exec "$APPBIN" -- $APPARGS < /dev/tty1 >> /var/log/$NAME.log 2>&1 || true
   printf "done\n"
 }
 

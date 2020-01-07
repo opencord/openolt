@@ -1,4 +1,4 @@
-/var/log/bal_core_dist.log
+/var/log/dev_mgmt_daemon.log
 /var/log/openolt.log
 {
   rotate 7

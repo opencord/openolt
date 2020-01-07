@@ -316,11 +316,11 @@ clean: protos-clean deb-cleanup
 	@rm -f $(OBJS) $(DEPS)
 	@rm -rf $(OPENOLT_PROTOS_DIR)/googleapis
 	@rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1
-	@rm -f $(BUILD_DIR)/libbal_api_dist.so
+	@rm -f $(BUILD_DIR)/libbal_host_api.so
 	@rm -f $(BUILD_DIR)/openolt
-	@rm -f $(BUILD_DIR)/bal_core_dist
-	@rm -f $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(DEV_VER).tar.gz
-	@rm -f $(BUILD_DIR)/openolt.deb
+	@rm -f $(BUILD_DIR)/dev_mgmt_daemon
+	@rm -f $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz
+	@rm -f $(BUILD_DIR)/openolt_$(OPENOLTDEVICE).deb
 
 clean-src: protos-clean
 	@rm -f $(OBJS) $(DEPS)
