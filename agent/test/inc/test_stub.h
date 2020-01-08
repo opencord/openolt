@@ -31,6 +31,7 @@
 
 
 void bcmos_usleep(uint32_t us);
+void* bcmos_calloc(uint32_t size);
 void bcmos_fastlock_init(bcmos_fastlock *lock, uint32_t flags);
 long bcmos_fastlock_lock(bcmos_fastlock *lock);
 void bcmos_fastlock_unlock(bcmos_fastlock *lock, long flags);

@@ -14,8 +14,7 @@ NAME="dev_mgmt_daemon"
 PATH="/broadcom:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 APPDIR="/broadcom"
 APPBIN="dev_mgmt_daemon"
-APPARGS="-pcie -d"
-PID_FILE="root_dev_mgmt_pid"
+APPARGS="-pcie -syslog"
 USER="root"
 GROUP="root"
 
@@ -27,9 +26,10 @@ start() {
   /opt/bcm68620/svk_init.sh
   sleep 10
   printf "Starting '$NAME'... "
-  touch /var/log/$NAME.log
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$APPDIR
+  export USER=$USER
   start-stop-daemon --verbose --start --chuid "$USER:$GROUP" --background --no-close --chdir "$APPDIR" --exec "$APPBIN" -- $APPARGS < /dev/tty1 >> /var/log/$NAME.log 2>&1 || true
+  sleep 2 && [ -z `pidof $NAME 2>/dev/null` ] || pidof $NAME > /var/run/$NAME.pid
   printf "done\n"
 }
 
@@ -45,17 +45,17 @@ killtree() {
 
 stop() {
   printf "Stopping '$NAME'... "
-  [ -z `cat /tmp/$PID_FILE 2>/dev/null` ] || \
-  while test -d /proc/$(cat /tmp/$PID_FILE); do
-    killtree $(cat /tmp/$PID_FILE) 15
-    sleep 0.5
-  done 
-  [ -z `cat /tmp/$PID_FILE 2>/dev/null` ] || rm /tmp/$PID_FILE
+  [ -z "`pidof $NAME`" ] ||
+  for p in "`pidof $NAME`";do
+  killtree $p 15
+  sleep 0.5
+  done
+  rm -f /var/run/$NAME.pid
   printf "done\n"
 }
 
 status() {
-  status_of_proc -p /tmp/$PID_FILE $APPDIR/$APPBIN $NAME && exit 0 || exit $?
+  status_of_proc -p /var/run/$NAME.pid $APPDIR/$APPBIN $NAME && exit 0 || exit $?
 }
 
 case "$1" in

@@ -24,9 +24,9 @@ set -e
 . /lib/lsb/init-functions
 
 start() {
-  printf "Starting '$NAME'... "
   rm -f /var/log/$NAME.log
-  touch /var/log/$NAME.log
+  printf "Starting '$NAME'... "
+  export USER=$USER
   start-stop-daemon --verbose --start --chuid "$USER:$GROUP" --background --no-close --make-pidfile --pidfile /var/run/$NAME.pid --chdir "$APPDIR" --exec "$APPBIN" -- $APPARGS < /dev/tty1 >> /var/log/$NAME.log 2>&1 || true
   printf "done\n"
 }
@@ -49,7 +49,6 @@ stop() {
     sleep 0.5
   done 
   [ -z `cat /var/run/$NAME.pid 2>/dev/null` ] || rm /var/run/$NAME.pid
-  rm -f /var/log/$NAME.log
   printf "done\n"
 }
 

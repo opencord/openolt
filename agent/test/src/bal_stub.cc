@@ -22,6 +22,7 @@ extern "C" {
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 #include <bcmos_system.h>
 #include <bcmolt_msg.h>
@@ -33,6 +34,20 @@ dev_log_id def_log_id=0;
 void bcmos_usleep(uint32_t us) {
     // let always sleep for 10ms irrespective of the value passed.
     usleep (10000);
+}
+
+void* bcmos_calloc(uint32_t size) {
+    void *ptr = malloc(size);
+    if (ptr) {
+       memset(ptr, 0, size);
+    }
+    return ptr;
+}
+
+void bcmos_free(void *ptr) {
+    if (ptr) {
+       free(ptr);
+    }
 }
 
 void bcmos_fastlock_init(bcmos_fastlock *lock, uint32_t flags)  {

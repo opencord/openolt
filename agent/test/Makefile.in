@@ -53,7 +53,7 @@ CXXFLAGSDEVICE = -I../device -I../device/$(OPENOLTDEVICE) -I../device/generic
 
 export CXX CXXFLAGS OPENOLT_PROTO_VER
 
-BAL_API_DIR=bal-api-3.1.0
+BAL_API_DIR=bal-api-3.2.3.2
 BALLIBNAME=bcm_host_api_stubs
 BALLIBDIR=$(BAL_API_DIR)/stubs
 BAL_INC = -I$(BAL_API_DIR)/include \
@@ -127,16 +127,19 @@ src/%.o: src/%.cc
 
 
 # bcm_host_api_stubs
-BAL_API_DIR=bal-api-3.1.0
+BAL_API_DIR=bal-api-3.2.3.2
 bcm_host_api_stubs:
 	# TODO: There is temporary hack below to introduce the definition of bcmos_mutex.
-	# This should ideally come as part of bal-api-3.1.0
+	# This should ideally come as part of bal-api-3.2.3.2
 	if [ -d $(BAL_API_DIR) ]; then \
 		echo "$(BAL_API_DIR) exists"; \
 	else \
-		git clone https://github.com/balapi/bal-api-3.1.0.git ;\
-        sed -i "\$$i #define BCMOLT_TM_QUEUE_KEY_TM_Q_SET_ID_DEFAULT 0" ./bal-api-3.1.0/include/bcmos_system.h; \
-        sed -i "\$$i struct bcmos_mutex \{ pthread_mutex_t m; };" ./bal-api-3.1.0/include/bcmos_system.h; \
+		git clone https://github.com/balapi/bal-api-3.2.3.2.git ;\
+		sed -i "\$$i #define BCMOLT_TM_QUEUE_KEY_TM_Q_SET_ID_DEFAULT 0" ./bal-api-3.2.3.2/include/bcmos_system.h; \
+		sed -i "\$$i struct bcmos_mutex \{ pthread_mutex_t m; };" ./bal-api-3.2.3.2/include/bcmos_system.h; \
+		sed -i "\$$i extern void* bcmos_calloc(uint32_t size);"  ./bal-api-3.2.3.2/include/bcmos_common.h; \
+		sed -i "\$$i #define BCMOLT_INTERFACE_TYPE_EPON_1_G 3"  ./bal-api-3.2.3.2/include/bcmos_common.h; \
+		sed -i "\$$i #define BCMOLT_INTERFACE_TYPE_EPON_10_G 4"  ./bal-api-3.2.3.2/include/bcmos_common.h; \
 	fi
 
 # openoltapi

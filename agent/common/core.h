@@ -102,6 +102,19 @@ typedef struct {
 // key for map used for tracking ITU PON Alloc Configuration results from BAL
 typedef std::tuple<uint32_t, uint32_t> alloc_cfg_compltd_key;
 
+// The elements in this acl_classifier_key structure constitute key to
+// acl_classifier_to_acl_id_map.
+// Fill invalid values in the acl_classifier_key structure to -1.
+typedef struct acl_classifier_key {
+    int32_t ether_type;
+    int16_t ip_proto;
+    int32_t src_port;
+    int32_t dst_port;
+    // Add more classifiers elements as needed here
+    // For now, ACLs will be classified only based on
+    // above elements.
+} acl_classifier_key;
+
 Status Enable_(int argc, char *argv[]);
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific, uint32_t pir);

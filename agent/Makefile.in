@@ -27,13 +27,13 @@ OPENOLTDEVICE ?= generic
 # sdk-all-<SDK_VER>.tar.gz - Broadcom Qumran SDK.
 # ACCTON_BAL_<BAL_VER>-<DEV_VER>.patch - Accton/Edgecore's patch.
 BAL_MAJOR_VER = 3
-BAL_MINOR_VER = 1
-BAL_REV_A_VER = 1
-BAL_REV_B_VER = 1
-BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER)
+BAL_MINOR_VER = 2
+BAL_REV_A_VER = 3
+BAL_REV_B_VER = 2
+BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
 BAL_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
 SDK_VER = 6.5.13
-DEV_VER ?= 201908010203
+DEV_VER ?= 201912230101
 #
 # Version of Open Network Linux (ONL).
 ONL_KERN_VER_MAJOR = 4.14
@@ -156,7 +156,7 @@ bal-api-clean:
 ##        BAL
 ##
 ##
-BAL_ZIP = SW-BCM68620_$(subst .,_,$(BAL_VER)).tgz
+BAL_ZIP = SW-BCM686OLT_$(subst .,_,$(BAL_VER)).tgz
 SDK_ZIP = sdk-all-$(SDK_VER).tar.gz
 ACCTON_PATCH = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER).patch
 BAL_DIR = $(BUILD_DIR)/$(OPENOLTDEVICE)-bal
@@ -270,7 +270,7 @@ DEPS = $(SRCS:.cc=.d)
 all: $(BUILD_DIR)/openolt
 $(BUILD_DIR)/openolt: sdk protos $(OBJS)
 	$(CXX) $(LDFLAGS) -L$(BALLIBDIR) $(OBJS) $(OPENOLT_API_LIB) $(LIBPROTOBUF_PATH)/libprotobuf.a -o $@ -l$(BALLIBNAME) $(shell pkg-config --libs protobuf grpc++ grpc)
-	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
+	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_reference/host_api/strip/libbal_host_api.so $(BUILD_DIR)/.
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_driver/dev_mgmt_daemon/dev_mgmt_daemon $(BUILD_DIR)/.
 	ln -sf $(LIBGRPC_PATH)/libgrpc.so.6 $(BUILD_DIR)/libgrpc.so.6
@@ -281,7 +281,7 @@ src/%.o: src/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) $(CPPFLAGS) -I./common -c $< -o $@
 
 deb:
-	cp $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/openolt device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc.so.6 device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/libgrpc++.so.1 device/$(OPENOLTDEVICE)/mkdebian/debian
@@ -308,7 +308,7 @@ deb-cleanup:
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libbal_host_api.so
 	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/init.d/
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/openolt
-	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz
 	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/tmp/
 	@rm -f device/$(OPENOLTDEVICE)/$(OPENOLTDEVICE)_$(BAL_VER)+edgecore-V$(DEV_VER)_amd64.changes
 
@@ -319,7 +319,7 @@ clean: protos-clean deb-cleanup
 	@rm -f $(BUILD_DIR)/libbal_host_api.so
 	@rm -f $(BUILD_DIR)/openolt
 	@rm -f $(BUILD_DIR)/dev_mgmt_daemon
-	@rm -f $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(DEV_VER).tar.gz
+	@rm -f $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz
 	@rm -f $(BUILD_DIR)/openolt_$(OPENOLTDEVICE).deb
 
 clean-src: protos-clean

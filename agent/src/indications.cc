@@ -80,13 +80,13 @@ std::string bcmolt_to_grpc_intf_type(bcmolt_interface_type intf_type)
     return "unknown";
 }
 
-std::string bcmolt_to_grpc_flow_intf_type(bcmolt_flow_interface_type intf_type)
+std::string bcmolt_to_grpc_interface_rf__intf_type(bcmolt_interface_type intf_type)
 {
-    if (intf_type == BCMOLT_FLOW_INTERFACE_TYPE_NNI) {
+    if (intf_type == BCMOLT_INTERFACE_TYPE_NNI) {
         return "nni";
-    } else if (intf_type == BCMOLT_FLOW_INTERFACE_TYPE_PON) {
+    } else if (intf_type == BCMOLT_INTERFACE_TYPE_PON) {
         return "pon";
-    } else if (intf_type == BCMOLT_FLOW_INTERFACE_TYPE_HOST) {
+    } else if (intf_type == BCMOLT_INTERFACE_TYPE_HOST) {
         return "host";
     }
     return "unknown";
@@ -440,31 +440,30 @@ static void PacketIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::PacketIndication* pkt_ind = new openolt::PacketIndication;
 
     switch (msg->obj_type) {
-        case BCMOLT_OBJ_ID_FLOW:
+        case BCMOLT_OBJ_ID_ACCESS_CONTROL:
             switch (msg->subgroup) {
-                case BCMOLT_FLOW_AUTO_SUBGROUP_RECEIVE_ETH_PACKET:
+                case BCMOLT_ACCESS_CONTROL_AUTO_SUBGROUP_RECEIVE_ETH_PACKET:
                 {
-                    bcmolt_flow_receive_eth_packet *pkt =
-                        (bcmolt_flow_receive_eth_packet*)msg;
-                    bcmolt_flow_receive_eth_packet_data *pkt_data =
-                        &((bcmolt_flow_receive_eth_packet*)msg)->data;
+                    bcmolt_access_control_receive_eth_packet *pkt =
+                        (bcmolt_access_control_receive_eth_packet*)msg;
+                    bcmolt_access_control_receive_eth_packet_data *pkt_data =
+                        &((bcmolt_access_control_receive_eth_packet*)msg)->data;
 
-                    uint32_t port_no = GetPortNum_(pkt->key.flow_id);
-                    pkt_ind->set_intf_type(bcmolt_to_grpc_flow_intf_type((bcmolt_flow_interface_type)get_flow_status(pkt->key.flow_id, pkt->key.flow_type, INGRESS_INTF_TYPE)));
-                    pkt_ind->set_intf_id(get_flow_status(pkt->key.flow_id, pkt->key.flow_type, INGRESS_INTF_ID));
-                    pkt_ind->set_gemport_id(get_flow_status(pkt->key.flow_id, pkt->key.flow_type, SVC_PORT_ID));
-                    pkt_ind->set_flow_id(pkt->key.flow_id);
+                    pkt_ind->set_intf_type(bcmolt_to_grpc_interface_rf__intf_type(
+                                            (bcmolt_interface_type)pkt_data->interface_ref.intf_type));
+                    pkt_ind->set_intf_id((bcmolt_interface_id)pkt_data->interface_ref.intf_id);
                     pkt_ind->set_pkt(pkt_data->buffer.arr, pkt_data->buffer.len);
-                    pkt_ind->set_port_no(port_no);
-                    pkt_ind->set_cookie(get_flow_status(pkt->key.flow_id, pkt->key.flow_type, COOKIE));
+                    //pkt_ind->set_gemport_id(getPacketInGemPort(pkt->key.id));
+                    pkt_ind->set_gemport_id(pkt_data->svc_port_id);
                     ind.set_allocated_pkt_ind(pkt_ind);
 
-                    OPENOLT_LOG(INFO, openolt_log_id, "packet indication, ingress intf_type %s, ingress intf_id %d, egress intf_type %s, egress intf_id %lu, svc_port %d, flow_type %s, flow_id %d, port_no %d, cookie %"PRIu64"\n",
-                        pkt_ind->intf_type().c_str(), pkt_ind->intf_id(),
-                        bcmolt_to_grpc_flow_intf_type((bcmolt_flow_interface_type)get_flow_status(pkt->key.flow_id, pkt->key.flow_type, EGRESS_INTF_TYPE)).c_str(),
-                        get_flow_status(pkt->key.flow_id, pkt->key.flow_type, EGRESS_INTF_ID),
-                        pkt_ind->gemport_id(), GET_FLOW_TYPE(pkt->key.flow_type),
-                        pkt_ind->flow_id(), port_no, pkt_ind->cookie());
+                    if (pkt_data->interface_ref.intf_type == BCMOLT_INTERFACE_TYPE_PON) {
+                        OPENOLT_LOG(INFO, openolt_log_id, "packet indication, ingress intf_type %s, ingress intf_id %d, gem_port %d\n",
+                            pkt_ind->intf_type().c_str(), pkt_ind->intf_id(), pkt_data->svc_port_id);
+                    } else if (pkt_data->interface_ref.intf_type == BCMOLT_INTERFACE_TYPE_NNI ) {
+                        OPENOLT_LOG(INFO, openolt_log_id, "packet indication, ingress intf_type %s, ingress intf_id %d\n",
+                            pkt_ind->intf_type().c_str(), pkt_ind->intf_id());
+                    }
                 }
             }
     }
@@ -702,7 +701,6 @@ static void OnuSignalsFailureIndication(bcmolt_devid olt, bcmolt_msg *msg) {
 
                     OPENOLT_LOG(WARNING, openolt_log_id,  "onu signals failure indication, intf_id %d, onu_id %d, alarm %d, BER %d\n",
                         key->pon_ni, key->onu_id, data->alarm_status, data->ber);
-
 
                     sfi_ind->set_intf_id(key->pon_ni);
                     sfi_ind->set_onu_id(key->onu_id);
@@ -1028,10 +1026,11 @@ Status SubscribeIndication() {
         return Status(grpc::StatusCode::INTERNAL,
             "onu deactivation indication subscribe failed");
 
-    rx_cfg.obj_type = BCMOLT_OBJ_ID_FLOW;
+    /* Packet-In by Access_Control */
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ACCESS_CONTROL;
     rx_cfg.rx_cb = PacketIndication;
     rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
-    rx_cfg.subgroup = bcmolt_flow_auto_subgroup_receive_eth_packet;
+    rx_cfg.subgroup = bcmolt_access_control_auto_subgroup_receive_eth_packet;
     rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "Packet indication subscribe failed");

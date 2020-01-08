@@ -1047,6 +1047,7 @@ TEST_F(TestOmciMsgOut, OmciMsgOutFailure) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
+#if 0
 ////////////////////////////////////////////////////////////////////////////
 // For testing FlowAdd functionality
 ////////////////////////////////////////////////////////////////////////////
@@ -1346,6 +1347,7 @@ TEST_F(TestFlowAdd, FlowAddHsiaPriorityQueueDownstreamSuccess) {
     Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////
 // For testing OnuPacketOut functionality
@@ -1410,6 +1412,7 @@ TEST_F(TestOnuPacketOut, OnuPacketOutFindGemFromFlowFailure) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
+#if 0
 ////////////////////////////////////////////////////////////////////////////
 // For testing FlowRemove functionality
 ////////////////////////////////////////////////////////////////////////////
@@ -1534,6 +1537,7 @@ TEST_F(TestUplinkPacketOut, UplinkPacketOutFailureNoFlowIdFound) {
     Status status = UplinkPacketOut_(pon_id, pkt);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////
 // For testing CreateTrafficSchedulers functionality
