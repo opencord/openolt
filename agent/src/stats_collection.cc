@@ -20,6 +20,7 @@
 
 #include "indications.h"
 #include "core.h"
+#include "core_data.h"
 #include "translation.h"
 
 extern "C"

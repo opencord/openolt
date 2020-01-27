@@ -47,11 +47,19 @@ OPENOLT_PROTO_VER ?= v3.1.0
 #
 # Build directory
 BUILD_DIR = build
+
+# Protobuf installation
+PROTOBUF_VER = 3.5.0
+PROTOBUF_ADDR = https://github.com/protocolbuffers/protobuf/releases/download/v$(PROTOBUF_VER)/protobuf-cpp-$(PROTOBUF_VER).tar.gz
+PROTOBUF_DST = /tmp/protobuf-$(PROTOBUF_VER)
+protoc-bin = $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/bin/protoc
+
 #
 # GRPC installation
 GRPC_ADDR = https://github.com/grpc/grpc
 GRPC_DST = /tmp/grpc
 GRPC_VER = v1.10.x
+grpc-cpp-plugin-bin = $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/bin/grpc_cpp_plugin
 
 USER := $(shell echo $(USER))
 #
@@ -82,7 +90,7 @@ CPPFLAGS += @CPPFLAGS@
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CPPFLAGS += -DVERSION=\"$(VERSION)\" -DBAL_VER=\"$(BAL_VER)\" -DLABEL_VCS_URL=\"$(LABEL_VCS_URL)\" \
             -DLABEL_VCS_REF=\"$(LABEL_VCS_REF)\" -DLABEL_BUILD_DATE=\"$(LABEL_BUILD_DATE)\" \
-            -DLABEL_COMMIT_DATE=\"$(LABEL_COMMIT_DATE)\"
+            -DLABEL_COMMIT_DATE=\"$(LABEL_COMMIT_DATE)\" -DFLOW_CHECKER
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
 LDFLAGS += @LDFLAGS@
 LDFLAGS += `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
@@ -90,21 +98,31 @@ CXXFLAGSDEVICE = -I./device -I./device/$(OPENOLTDEVICE) -I./device/generic
 
 export CXX CXXFLAGS OPENOLT_PROTO_VER
 
-prereq:
+prereqs-system:
 	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
 	sudo apt-get install -y build-essential autoconf libssl-dev gawk debhelper dh-systemd init-system-helpers curl cmake ccache g++-4.9
 
-	# Install GRPC, libprotobuf and protoc
+prereqs-local: $(protoc-bin) $(grpc-cpp-plugin-bin)
+
+$(protoc-bin):
+	# Install protobuf
+	rm -rf $(PROTOBUF_DST)
+	cd /tmp && wget $(PROTOBUF_ADDR)
+	cd /tmp && tar -zxvf protobuf-cpp-$(PROTOBUF_VER).tar.gz
+	cd $(PROTOBUF_DST) && ./autogen.sh
+	mkdir -p $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
+	cd $(PROTOBUF_DST) && ./configure --prefix=$(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
+	make -C $(PROTOBUF_DST)
+	make -C $(PROTOBUF_DST) install
+
+$(grpc-cpp-plugin-bin):
+	# Install GRPC, protoc
 	rm -rf $(GRPC_DST)
-	git clone -b $(GRPC_VER) $(GRPC_ADDR) $(GRPC_DST)
+	cd /tmp && git clone -b $(GRPC_VER) $(GRPC_ADDR) $(GRPC_DST)
 	cd $(GRPC_DST) && git submodule update --init
-	cd $(GRPC_DST)/third_party/protobuf && ./autogen.sh && ./configure
-	make -C $(GRPC_DST)/third_party/protobuf
-	sudo make -C $(GRPC_DST)/third_party/protobuf install
-	sudo ldconfig
+	mkdir -p $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
 	make -C $(GRPC_DST)
-	sudo make -C $(GRPC_DST) install
-	sudo ldconfig
+	make -C $(GRPC_DST) install prefix=$(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
 
 docker:
 	echo $(USER)
@@ -328,4 +346,4 @@ clean-src: protos-clean
 distclean: clean-src clean
 	@rm -rf $(BUILD_DIR)
 
-.PHONY: onl sdk bal protos prereq sim .FORCE
+.PHONY: onl sdk bal protos prereqs-system prereqs-local sim .FORCE

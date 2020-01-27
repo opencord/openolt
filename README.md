@@ -51,7 +51,7 @@ Accton/Edgecore makes available pre-built debian packages of OpenOLT agent to th
 Get access credentials for https://edgecore.quickconnect.to and then login and navigate to
 File_Station -> EdgecoreNAS, and then the folder /ASXvOLT16/OpenOLT_Agent/From_ONF_Distribution/
 and pick the right version of deb package required for your testing.
-voltha-2.2/openolt-2.2.0.deb is the latest version of package with support for BAL3.1.1.1.
+voltha-2.2/openolt-2.2.0.deb is the latest version of package with support for BAL3.2.3.2
 The pre-built debian packages have been tested on ONL-4.14. The ONL Installer required for
 voltha-2.2/openolt-2.2.0.deb is also available at in the same patch, i.e., voltha-2.2/.
 
@@ -72,7 +72,7 @@ Install the *openolt.deb* package using *dpkg*:
 dpkg -i openolt.deb
 ```
 
-Note that ONL required for BAL3.1 is ONL `4.14`. This will be built as part of build procedure described `Build OpenOLT` section.
+Note that ONL required for BAL3.2.3.2 is ONL `4.14.109-OpenNetworkLinux`. This will be built as part of build procedure described `Build OpenOLT` section.
 
 ## Run OpenOLT as a Linux service
 
@@ -138,21 +138,21 @@ At the VOLTHA CLI, preprovision and enable the OLT:
 
 ### Supported BAL API versions
 
-Currently, OpenOLT supports Broadcom's BAL API, version *3.1.1.1*.
+Currently, OpenOLT supports Broadcom's BAL API, version *3.2.3.2*.
 
 ### Proprietary software requirements
 
 The following proprietary source code is required to build the OpenOLT agent.
 
-* `SW-BCM68620_<BAL_VER>.zip` - Broadcom BAL source and Maple SDK
+* `SW-BCM686OLT_<BAL_VER>.tgz` - Broadcom BAL source and Maple SDK
 * `sdk-all-<SDK_VER>.tar.gz` - Broadcom Qumran SDK
 * `ACCTON_BAL_<BAL_VER>-<ACCTON_VER>.patch` - Accton/Edgecore's patch
 
 The versions currently supported by the OpenOLT agent are:
 
-* SW-BCM68620_3_1_1_1.tgz
+* SW-BCM686OLT_3_2_3_2.tgz
 * sdk-all-6.5.13.tar.gz
-* ACCTON_BAL_3.1.1.1-V201908010203.patch
+* ACCTON_BAL_3.2.3.2-V201912230101.patch
 
 > NOTE: the repository does not contain the above three source packages.  These
 > are needed to build the OpenOLT agent executable. Contact
@@ -197,7 +197,7 @@ Copy the Broadcom source and patch files to the openolt/agent/download directory
 
 ```shell
 cd <dir containing Broadcom source and patch files>
-cp SW-BCM68620_3_1_1_1.tgz sdk-all-6.5.13.tar.gz ACCTON_BAL_3.1.1.1-V201908010203.patch <cloned openolt repo path>/agent/download
+cp ACCTON_BAL_3.2.3.2-V201912230101.patch SW-BCM686OLT_3_2_3_2.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
 ```
 
 Run Autoconfig to generate the appropriate makefile scaffolding for the desired target
@@ -231,7 +231,7 @@ tht specific version as below. For ex:
 make OPENOLTDEVICE=asfvolt16 OPENOLT_PROTO_VER=master
 ```
 
-By default, the OPENOLT_PROTO_VER defaults to git tag *v1.0.3* of https://github.com/opencord/voltha-protos repo.
+By default, the OPENOLT_PROTO_VER defaults to git tag *v3.1.0* of https://github.com/opencord/voltha-protos repo.
 
 If the build process succeeds, libraries and executables will be created in the
 *openolt/agent/build* directory.
@@ -264,14 +264,6 @@ Auto-negotiation on the NNI (uplink) interfaces is not tested. By default, the O
 ```shell
 port ce128 sp=40000
 ```
-
-This change can also be made at run-time from the CLI of the dev_mgmt_daemon:
-
-```shell
-d/s/shell
-port ce128 speed=40000
-```
-(It is safe to ignore the error msgs.)
 
 ### Why does the Broadcom ONU not forward eapol packets?
 
@@ -396,8 +388,6 @@ BCM.0> a/m max_msgs=100 filter_invert=no object=flow
 Navigate to `/opt/bcm68620` and execute the command `/broadcom/dev_mgmt_attach` to access the QAX
 diag shell. Note that you will not be able to access the QAX diag shell, you need to recompile the
 BAL SDK with `SW_UTIL_SHELL=y` option.
-There is also a known issue where `/broadcom/dev_mgmt_attach` does not work when openolt processes
-restart, and this will be fixed in BAL3.2.
 
 ### DBA Scheduler fail to create on the OLT with errors related to Bandwidth configuration
 
@@ -418,3 +408,12 @@ For more details about BW profile parameters, please refer below links.
 
 [MEF Whitepaper - Bandwidth-Profiles-for-Ethernet-Services](https://www.mef.net/Assets/White_Papers/Bandwidth-Profiles-for-Ethernet-Services.pdf)
 [Technology Profile Implementation Note](https://www.opennetworking.org/wp-content/uploads/2019/09/2pm-Shaun-Missett-Technology-Profile-and-Speed-Profile-Implementation.pdf)
+
+
+## Known Issues
+
+* The Minimum BW that should be configured for ITU PON Alloc Object has changed from 16Kbps
+  to 32Kbps from BAL3.1 to BAL3.2 release. As per BAL3.x documents, when FEC is disabled,
+  the minimum BW is 16Kbps on the ITU PON Alloc Object. This seems to be a discrepency.
+  So, ensure that `cir` + `eir` value is greater than equal to *32000* for XGSPON use case.
+

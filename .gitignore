@@ -1,5 +1,6 @@
 # Autoconf files
-Makefile
+agent/Makefile
+agent/test/Makefile
 config.h
 config.log
 config.status
@@ -12,6 +13,9 @@ protos/googleapis
 # Protobuf intermediate files
 **/*.pb.*
 
+# Proto files
+**/*.proto
+
 # C++ output files
 **/*.o
 **/*.a
@@ -19,17 +23,14 @@ protos/googleapis
 # Build output
 build
 
-# BAL API 3.1.0
-**/bal-api-3.1.0
+# BAL API 3.x
+**/bal-api-3.*
 
 # Test binary
 **/test_openolt
 
 # Test report
-**/test_openolt_report.xml
-
-# Downloaded voltha-protos file
-voltha_protos
+**/test_openolt_report_xunit.xml
 
 # IntelliJ Files
 .idea

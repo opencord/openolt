@@ -17,6 +17,7 @@
 #include "Queue.h"
 #include "bal_mocker.h"
 #include "core.h"
+#include "core_data.h"
 #include <future>
 using namespace testing;
 using namespace std;
@@ -227,7 +228,7 @@ TEST_F(TestOltEnable, OltEnableSuccess_One_PON_Enable_Fail) {
 // For testing Enable/Disable functionality
 ////////////////////////////////////////////////////////////////////////
 
-int num_of_pon_ports = 16;
+int num_of_pon_port = 16;
 
 // Create a mock function for bcmolt_cfg_get__olt_topology_stub C++ function
 MOCK_GLOBAL_FUNC2(bcmolt_cfg_get__olt_topology_stub, bcmos_errno(bcmolt_oltid, void*));
@@ -243,7 +244,7 @@ class TestOltDisableReenable : public Test {
 
     BCMOLT_CFG_INIT(&olt_cfg, olt, olt_key);
 
-    olt_cfg.data.topology.topology_maps.len = num_of_pon_ports;
+    olt_cfg.data.topology.topology_maps.len = num_of_pon_port;
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__olt_topology_stub, bcmolt_cfg_get__olt_topology_stub(_, _))
                      .WillOnce(DoAll(SetArg1ToBcmOltCfg(olt_cfg), Return(bal_cfg_get_stub_res)));
 
@@ -309,7 +310,7 @@ TEST_F(TestOltDisableReenable, OltReenableSuccess){
     pon_cfg.data.state = BCMOLT_INTERFACE_STATE_INACTIVE;
 
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
-                     .Times(num_of_pon_ports)
+                     .Times(num_of_pon_port)
                      .WillRepeatedly(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
 
     bcmolt_tm_sched_cfg tm_sched_cfg;
@@ -318,7 +319,7 @@ TEST_F(TestOltDisableReenable, OltReenableSuccess){
     tm_sched_cfg.data.state = BCMOLT_CONFIG_STATE_NOT_CONFIGURED;
 
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__tm_sched_stub, bcmolt_cfg_get__tm_sched_stub(_, _))
-                     .Times(num_of_pon_ports)
+                     .Times(num_of_pon_port)
                      .WillRepeatedly(DoAll(SetArg1ToBcmOltTmSchedCfg(tm_sched_cfg), Return(olt_cfg_get_tmstub_res)));
 
     olt_reenable_res = Reenable_();
@@ -343,10 +344,10 @@ TEST_F(TestOltDisableReenable, OltReenableAllPonFailed){
     pon_cfg.data.state = BCMOLT_INTERFACE_STATE_INACTIVE;
 
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
-                     .Times(num_of_pon_ports)
+                     .Times(num_of_pon_port)
                      .WillRepeatedly(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
     EXPECT_CALL(balMock,bcmolt_oper_submit(_, _))
-                         .Times(num_of_pon_ports)
+                         .Times(num_of_pon_port)
                          .WillRepeatedly(Return(olt_oper_res));
 
     olt_reenable_res = Reenable_();
@@ -372,7 +373,7 @@ class TestProbeDevCapabilities : public Test {
 
             BCMOLT_CFG_INIT(&olt_cfg, olt, olt_key);
 
-            olt_cfg.data.topology.topology_maps.len = num_of_pon_ports;
+            olt_cfg.data.topology.topology_maps.len = num_of_pon_port;
         }
 
         virtual void TearDown() {

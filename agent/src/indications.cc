@@ -16,7 +16,8 @@
 
 #include "indications.h"
 #include "core.h"
-#include "utils.h"
+#include "core_data.h"
+#include "core_utils.h"
 #include "stats_collection.h"
 #include "translation.h"
 #include "state.h"

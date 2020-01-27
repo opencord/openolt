@@ -574,8 +574,6 @@ ac_config_libobj_dir=.
 LIBOBJS=
 cross_compiling=no
 subdirs=
-MFLAGS=
-MAKEFLAGS=
 
 # Identity of this package.
 PACKAGE_NAME='openolt'

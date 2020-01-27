@@ -23,6 +23,27 @@ using grpc::Status;
 
 #include "state.h"
 
+extern "C"
+{
+#include <bcmolt_api.h>
+#include <bcmolt_api_model_supporting_enums.h>
+
+#include <bcmolt_api_conn_mgr.h>
+//CLI header files
+#include <bcmcli_session.h>
+#include <bcmcli.h>
+#include <bcm_api_cli.h>
+
+#include <bcmos_common.h>
+#include <bcm_config.h>
+// FIXME : dependency problem
+// #include <bcm_common_gpon.h>
+// #include <bcm_dev_log_task.h>
+}
+// ************************//
+// Macros used by the core //
+// ************************//
+
 #define NONE "\033[m"
 #define LIGHT_RED "\033[1;31m"
 #define BROWN "\033[0;33m"
@@ -38,83 +59,144 @@ using grpc::Status;
         BCM_LOG(level, id, "%s" fmt "%s", LIGHT_GREEN, ##__VA_ARGS__, NONE); \
     else \
         BCM_LOG(INFO, id, fmt, ##__VA_ARGS__);
+
+
+#define ACL_LOG(level,msg,err) \
+    do { \
+    OPENOLT_LOG(level, openolt_log_id, "--------> %s (acl_id %d) err: %d <--------\n", msg, key.id, err); \
+    OPENOLT_LOG(level, openolt_log_id, "action_type %s\n", \
+        GET_ACL_ACTION_TYPE(action_type)); \
+    OPENOLT_LOG(level, openolt_log_id, "classifier(ether type %d), ip_proto %d, src_port %d, dst_port %d\n", \
+        acl_key.ether_type, acl_key.ip_proto, acl_key.src_port, acl_key.dst_port); \
+    } while(0)
+
+#define FLOW_LOG(level,msg,err) \
+    do { \
+    OPENOLT_LOG(level, openolt_log_id, "--------> %s (flow_id %d) err: %d <--------\n", msg, key.flow_id, err); \
+    OPENOLT_LOG(level, openolt_log_id, "intf_id %d, onu_id %d, uni_id %d, port_no %u, cookie %"PRIu64"\n", \
+        access_intf_id, onu_id, uni_id, port_no, cookie); \
+    OPENOLT_LOG(level, openolt_log_id, "flow_type %s, queue_id %d, sched_id %d\n", flow_type.c_str(), \
+        cfg.data.egress_qos.u.fixed_queue.queue_id, cfg.data.egress_qos.tm_sched.id); \
+    OPENOLT_LOG(level, openolt_log_id, "Ingress(intfd_type %s, intf_id %d), Egress(intf_type %s, intf_id %d)\n", \
+        GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type), cfg.data.ingress_intf.intf_id,  \
+        GET_FLOW_INTERFACE_TYPE(cfg.data.egress_intf.intf_type), cfg.data.egress_intf.intf_id); \
+    OPENOLT_LOG(level, openolt_log_id, "classifier(o_vid %d, o_pbits %d, i_vid %d, i_pbits %d, ether type 0x%x)\n", \
+        c_val.o_vid, c_val.o_pbits, c_val.i_vid, c_val.i_pbits,  classifier.eth_type()); \
+    OPENOLT_LOG(level, openolt_log_id, "classifier(ip_proto 0x%x, gemport_id %d, src_port %d, dst_port %d, pkt_tag_type %s)\n", \
+        c_val.ip_proto, gemport_id, c_val.src_port,  c_val.dst_port, GET_PKT_TAG_TYPE(c_val.pkt_tag_type)); \
+    OPENOLT_LOG(level, openolt_log_id, "action(cmds_bitmask %s, o_vid %d, o_pbits %d, i_vid %d, i_pbits %d)\n\n", \
+        get_flow_acton_command(a_val.cmds_bitmask), a_val.o_vid, a_val.o_pbits, a_val.i_vid, a_val.i_pbits); \
+    } while(0)
+
+#define FLOW_PARAM_LOG() \
+    do { \
+    OPENOLT_LOG(INFO, openolt_log_id, "--------> flow comparison (now before) <--------\n"); \
+    OPENOLT_LOG(INFO, openolt_log_id, "flow_id (%d %d)\n", \
+        key.flow_id, it->first.first); \
+    OPENOLT_LOG(INFO, openolt_log_id, "onu_id (%d %lu)\n", \
+        cfg.data.onu_id , get_flow_status(it->first.first, it->first.second, ONU_ID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "type (%d %lu)\n", \
+        key.flow_type, get_flow_status(it->first.first, it->first.second, FLOW_TYPE)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "svc_port_id (%d %lu)\n", \
+        cfg.data.svc_port_id, get_flow_status(it->first.first, it->first.second, SVC_PORT_ID));  \
+    OPENOLT_LOG(INFO, openolt_log_id, "priority (%d %lu)\n", \
+        cfg.data.priority, get_flow_status(it->first.first, it->first.second, PRIORITY)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "cookie (%lu %lu)\n", \
+        cfg.data.cookie, get_flow_status(it->first.first, it->first.second, COOKIE)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "ingress intf_type (%s %s)\n", \
+        GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type), \
+        GET_FLOW_INTERFACE_TYPE(get_flow_status(it->first.first, it->first.second, INGRESS_INTF_TYPE))); \
+    OPENOLT_LOG(INFO, openolt_log_id, "ingress intf id (%d %lu)\n", \
+        cfg.data.ingress_intf.intf_id , get_flow_status(it->first.first, it->first.second, INGRESS_INTF_ID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "egress intf_type (%d %lu)\n", \
+        cfg.data.egress_intf.intf_type , get_flow_status(it->first.first, it->first.second, EGRESS_INTF_TYPE)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "egress intf_id (%d %lu)\n", \
+        cfg.data.egress_intf.intf_id , get_flow_status(it->first.first, it->first.second, EGRESS_INTF_ID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier o_vid (%d %lu)\n", \
+        c_val.o_vid , get_flow_status(it->first.first, it->first.second, CLASSIFIER_O_VID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier o_pbits (%d %lu)\n", \
+        c_val.o_pbits , get_flow_status(it->first.first, it->first.second, CLASSIFIER_O_PBITS)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier i_vid (%d %lu)\n", \
+        c_val.i_vid , get_flow_status(it->first.first, it->first.second, CLASSIFIER_I_VID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier i_pbits (%d %lu)\n", \
+        c_val.i_pbits , get_flow_status(it->first.first, it->first.second, CLASSIFIER_I_PBITS)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier ether_type (0x%x 0x%lx)\n", \
+        c_val.ether_type , get_flow_status(it->first.first, it->first.second, CLASSIFIER_ETHER_TYPE));  \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier ip_proto (%d %lu)\n", \
+        c_val.ip_proto , get_flow_status(it->first.first, it->first.second, CLASSIFIER_IP_PROTO)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier src_port (%d %lu)\n", \
+        c_val.src_port , get_flow_status(it->first.first, it->first.second, CLASSIFIER_SRC_PORT)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier dst_port (%d %lu)\n", \
+        c_val.dst_port , get_flow_status(it->first.first, it->first.second, CLASSIFIER_DST_PORT)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier pkt_tag_type (%s %s)\n", \
+        GET_PKT_TAG_TYPE(c_val.pkt_tag_type), \
+        GET_PKT_TAG_TYPE(get_flow_status(it->first.first, it->first.second, CLASSIFIER_PKT_TAG_TYPE))); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier egress_qos type (%d %lu)\n", \
+        cfg.data.egress_qos.type , get_flow_status(it->first.first, it->first.second, EGRESS_QOS_TYPE)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier egress_qos queue_id (%d %lu)\n", \
+        cfg.data.egress_qos.u.fixed_queue.queue_id, \
+        get_flow_status(it->first.first, it->first.second, EGRESS_QOS_QUEUE_ID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier egress_qos sched_id (%d %lu)\n", \
+        cfg.data.egress_qos.tm_sched.id, \
+        get_flow_status(it->first.first, it->first.second, EGRESS_QOS_TM_SCHED_ID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "classifier cmds_bitmask (%s %s)\n", \
+        get_flow_acton_command(a_val.cmds_bitmask), \
+        get_flow_acton_command(get_flow_status(it->first.first, it->first.second, ACTION_CMDS_BITMASK))); \
+    OPENOLT_LOG(INFO, openolt_log_id, "action o_vid (%d %lu)\n", \
+        a_val.o_vid , get_flow_status(it->first.first, it->first.second, ACTION_O_VID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "action i_vid (%d %lu)\n", \
+        a_val.i_vid , get_flow_status(it->first.first, it->first.second, ACTION_I_VID)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "action o_pbits (%d %lu)\n", \
+        a_val.o_pbits , get_flow_status(it->first.first, it->first.second, ACTION_O_PBITS)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "action i_pbits (%d %lu)\n\n", \
+        a_val.i_pbits, get_flow_status(it->first.first, it->first.second, ACTION_I_PBITS)); \
+    OPENOLT_LOG(INFO, openolt_log_id, "group_id (%d %lu)\n\n", \
+        a_val.group_id, get_flow_status(it->first.first, it->first.second, GROUP_ID)); \
+    } while(0)
+
 #define COLLECTION_PERIOD 15 // in seconds
 #define BAL_DYNAMIC_LIST_BUFFER_SIZE (32 * 1024)
 #define MAX_REGID_LENGTH  36
 
+#define BAL_RSC_MANAGER_BASE_TM_SCHED_ID 16384
+#define MAX_TM_QMP_ID 16
+#define TMQ_MAP_PROFILE_SIZE 8
+#define MAX_TM_SCHED_ID 1023
+#define MAX_SUBS_TM_SCHED_ID (MAX_SUPPORTED_PON == 16 ? MAX_TM_SCHED_ID-4-16 : MAX_TM_SCHED_ID-10-64)
+#define EAP_ETHER_TYPE 34958
+#define XGS_BANDWIDTH_GRANULARITY 16000
+#define GPON_BANDWIDTH_GRANULARITY 32000
+#define NUM_OF_PRIORITIES 8
+#define NUMBER_OF_DEFAULT_INTERFACE_QUEUES 4 // <= NUM_OF_PRIORITIES
+#define FILL_ARRAY(ARRAY,START,END,VALUE) for(int i=START;i<END;ARRAY[i++]=VALUE);
+#define COUNT_OF(array) (sizeof(array) / sizeof(array[0]))
+
+#define GET_FLOW_INTERFACE_TYPE(type) \
+       (type == BCMOLT_FLOW_INTERFACE_TYPE_PON) ? "PON" : \
+       (type == BCMOLT_FLOW_INTERFACE_TYPE_NNI) ? "NNI" : \
+       (type == BCMOLT_FLOW_INTERFACE_TYPE_HOST) ? "HOST" : "unknown"
+#define GET_PKT_TAG_TYPE(type) \
+       (type == BCMOLT_PKT_TAG_TYPE_UNTAGGED) ? "UNTAG" : \
+       (type == BCMOLT_PKT_TAG_TYPE_SINGLE_TAG) ? "SINGLE_TAG" : \
+       (type == BCMOLT_PKT_TAG_TYPE_DOUBLE_TAG) ? "DOUBLE_TAG" : "unknown"
+#define GET_ACL_ACTION_TYPE(type) \
+       (type == BCMOLT_ACCESS_CONTROL_FWD_ACTION_TYPE_TRAP_TO_HOST) ? "trap_to_host" : \
+       (type == BCMOLT_ACCESS_CONTROL_FWD_ACTION_TYPE_DROP) ? "drop" : \
+       (type == BCMOLT_ACCESS_CONTROL_FWD_ACTION_TYPE_REDIRECT) ? "redirction" : "unknown"
+#define GET_ACL_MEMBERS_UPDATE_COMMAND(command) \
+       (command == BCMOLT_MEMBERS_UPDATE_COMMAND_ADD) ? "add" : \
+       (command == BCMOLT_MEMBERS_UPDATE_COMMAND_REMOVE) ? "remove" : \
+       (command == BCMOLT_MEMBERS_UPDATE_COMMAND_SET) ? "set" : "unknown"
+#define GET_INTERFACE_TYPE(type) \
+       (type == BCMOLT_INTERFACE_TYPE_PON) ? "PON" : \
+       (type == BCMOLT_INTERFACE_TYPE_NNI) ? "NNI" : \
+       (type == BCMOLT_INTERFACE_TYPE_HOST) ? "HOST" : "unknown"
+
 extern State state;
 
-enum FLOW_CFG {
-    ONU_ID = 0,
-    FLOW_TYPE = 1,
-    SVC_PORT_ID = 2,
-    PRIORITY = 3,
-    COOKIE = 4,
-    INGRESS_INTF_TYPE= 5,
-    EGRESS_INTF_TYPE= 6,
-    INGRESS_INTF_ID = 7,
-    EGRESS_INTF_ID = 8,
-    CLASSIFIER_O_VID = 9,
-    CLASSIFIER_O_PBITS = 10,
-    CLASSIFIER_I_VID = 11,
-    CLASSIFIER_I_PBITS = 12,
-    CLASSIFIER_ETHER_TYPE = 13,
-    CLASSIFIER_IP_PROTO =14,
-    CLASSIFIER_SRC_PORT = 15,
-    CLASSIFIER_DST_PORT = 16,
-    CLASSIFIER_PKT_TAG_TYPE = 17,
-    EGRESS_QOS_TYPE = 18,
-    EGRESS_QOS_QUEUE_ID = 19,
-    EGRESS_QOS_TM_SCHED_ID = 20,
-    ACTION_CMDS_BITMASK = 21,
-    ACTION_O_VID = 22,
-    ACTION_O_PBITS = 23,
-    ACTION_I_VID = 24,
-    ACTION_I_PBITS = 25,
-    STATE = 26,
-    GROUP_ID = 27
-};
-
-enum AllocCfgAction {
-    ALLOC_OBJECT_CREATE,
-    ALLOC_OBJECT_DELETE
-};
-
-enum AllocObjectState {
-    ALLOC_OBJECT_STATE_NOT_CONFIGURED,
-    ALLOC_OBJECT_STATE_INACTIVE,
-    ALLOC_OBJECT_STATE_PROCESSING,
-    ALLOC_OBJECT_STATE_ACTIVE
-};
-
-enum AllocCfgStatus {
-    ALLOC_CFG_STATUS_SUCCESS,
-    ALLOC_CFG_STATUS_FAIL
-};
-
-typedef struct {
-    uint32_t pon_intf_id;
-    uint32_t alloc_id;
-    AllocObjectState state;
-    AllocCfgStatus status;
-} alloc_cfg_complete_result;
-
-// key for map used for tracking ITU PON Alloc Configuration results from BAL
-typedef std::tuple<uint32_t, uint32_t> alloc_cfg_compltd_key;
-
-// The elements in this acl_classifier_key structure constitute key to
-// acl_classifier_to_acl_id_map.
-// Fill invalid values in the acl_classifier_key structure to -1.
-typedef struct acl_classifier_key {
-    int32_t ether_type;
-    int16_t ip_proto;
-    int32_t src_port;
-    int32_t dst_port;
-    // Add more classifiers elements as needed here
-    // For now, ACLs will be classified only based on
-    // above elements.
-} acl_classifier_key;
-
+//***************************************//
+// Function declations used by the core. //
+//***************************************//
 Status Enable_(int argc, char *argv[]);
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific, uint32_t pir);
@@ -156,4 +238,16 @@ uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t data_id)
 void stats_collection();
 Status check_connection();
 Status check_bal_ready();
+
+// Stubbed defntions of bcmolt_cfg_get required for unit-test
+#ifdef TEST_MODE
+extern bcmos_errno bcmolt_cfg_get__bal_state_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__onu_state_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__tm_sched_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__pon_intf_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__nni_intf_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__olt_topology_stub(bcmolt_oltid olt_id, void* ptr);
+extern bcmos_errno bcmolt_cfg_get__flow_stub(bcmolt_oltid olt_id, void* ptr);
+#endif //TEST_MODE
+
 #endif

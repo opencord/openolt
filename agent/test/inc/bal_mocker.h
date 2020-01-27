@@ -15,7 +15,7 @@
  */
 #ifndef __BAL_MOCKER_H__
 #define __BAL_MOCKER_H__
-#include <cmock/cmock.h>
+#include <cmock.h>
 #include <gmock-global/gmock-global.h>
 #include <cstdlib>
 #include <grpc++/grpc++.h>

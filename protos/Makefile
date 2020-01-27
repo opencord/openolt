@@ -20,15 +20,16 @@ SYSTEM ?= $(HOST_SYSTEM)
 # repo that we need to refer to, to pick the right version of
 # openolt.proto and tech_profile.proto
 OPENOLT_PROTO_VER ?= v3.1.0
+GRPC_VER ?= v1.10.x
 
 CXX ?= g++
 #powerpc64-fsl-linux-g++
-CPPFLAGS += `pkg-config --cflags protobuf grpc` -I googleapis/gens -I./
+CPPFLAGS += `PKG_CONFIG_PATH=$(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/lib/pkgconfig pkg-config --cflags protobuf grpc` -I googleapis/gens -I./
 CXXFLAGS += -std=c++11
 #LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc` -ldl
-PROTOC = protoc
+PROTOC = $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/bin/protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
-GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
+GRPC_CPP_PLUGIN_PATH ?= $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/bin/$(GRPC_CPP_PLUGIN)
 
 OBJS = voltha_protos/tech_profile.pb.o voltha_protos/tech_profile.grpc.pb.o voltha_protos/openolt.pb.o voltha_protos/openolt.grpc.pb.o ./googleapis/gens/google/api/annotations.grpc.pb.o ./googleapis/gens/google/api/annotations.pb.o ./googleapis/gens/google/api/http.pb.o
 
