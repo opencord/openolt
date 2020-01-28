@@ -14,11 +14,11 @@ NAME="dev_mgmt_daemon"
 PATH="/broadcom:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 APPDIR="/broadcom"
 APPBIN="dev_mgmt_daemon"
-APPARGS="-pcie -syslog"
+APPARGS="-pcie -d"
 USER="root"
 GROUP="root"
 
-# Include functions 
+# Include functions
 set -e
 . /lib/lsb/init-functions
 
@@ -26,6 +26,7 @@ start() {
   /opt/bcm68620/svk_init.sh
   sleep 10
   printf "Starting '$NAME'... "
+  touch /var/log/$NAME.log
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$APPDIR
   export USER=$USER
   start-stop-daemon --verbose --start --chuid "$USER:$GROUP" --background --no-close --chdir "$APPDIR" --exec "$APPBIN" -- $APPARGS < /dev/tty1 >> /var/log/$NAME.log 2>&1 || true
