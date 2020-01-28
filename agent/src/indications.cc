@@ -358,7 +358,11 @@ static void OnuDyingGaspIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                 case BCMOLT_ONU_AUTO_SUBGROUP_DGI:
                 {
                     bcmolt_onu_dgi* dgi_data = (bcmolt_onu_dgi *)msg;
+                    bcmolt_onu_key *key = &((bcmolt_onu_dgi *)msg)->key;
+
                     dgi_ind->set_status(alarm_status_to_string(dgi_data->data.alarm_status));
+                    dgi_ind->set_intf_id(key->pon_ni);
+                    dgi_ind->set_onu_id(key->onu_id);
 
                     alarm_ind->set_allocated_dying_gasp_ind(dgi_ind);
                     ind.set_allocated_alarm_ind(alarm_ind);
