@@ -3354,8 +3354,8 @@ uni_id %d, port_no %u\n", tm_sched_key.id, intf_id, onu_id, uni_id, port_no);
         key.pon_ni = intf_id;
         key.alloc_id = alloc_id;
         int bw_granularity = (board_technology == "XGS-PON")?XGS_BANDWIDTH_GRANULARITY:GPON_BANDWIDTH_GRANULARITY;
-        int pir_bw = tf_sh_info.pir();
-        int cir_bw = tf_sh_info.cir();
+        int pir_bw = tf_sh_info.pir()*125; // conversion from kbps to bytes/sec
+        int cir_bw = tf_sh_info.cir()*125; // conversion from kbps to bytes/sec
         //offset to match bandwidth granularity
         int offset_pir_bw = pir_bw%bw_granularity;
         int offset_cir_bw = cir_bw%bw_granularity;
