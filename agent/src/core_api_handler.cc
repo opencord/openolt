@@ -2038,6 +2038,7 @@ Status CreateTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
 bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::string direction) {
 
     bcmos_errno err;
+    bcmolt_interface_state state;
     uint16_t sched_id;
 
     if (direction == upstream) {
@@ -2055,10 +2056,26 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
             return err;
         }
 
-        err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_DELETE);
-        if (err) {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler, direction = %s, intf_id %d, alloc_id %d, err = %s\n",
-                direction.c_str(), intf_id, alloc_id, bcmos_strerror(err));
+        err = get_pon_interface_status((bcmolt_interface)intf_id, &state);
+        if (err == BCM_ERR_OK) {
+            if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
+                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled, waiting for alloc cfg clear response\n",
+                    intf_id);
+                err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_DELETE);
+                if (err) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler, direction = %s, intf_id %d, alloc_id %d, err = %s\n",
+                        direction.c_str(), intf_id, alloc_id, bcmos_strerror(err));
+                    return err;
+                }
+            }
+            else if (state == BCMOLT_INTERFACE_STATE_INACTIVE) {
+                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is disabled, not waiting for alloc cfg clear response\n",
+                    intf_id);
+            }
+        }
+        else {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch PON interface state, intf_id = %d, err = %s\n",
+                intf_id, bcmos_strerror(err));
             return err;
         }
     } else if (direction == downstream) {

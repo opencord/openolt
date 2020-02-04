@@ -1918,6 +1918,7 @@ class TestRemoveTrafficSchedulers : public Test {
         tech_profile::SchedulerConfig* scheduler;
         tech_profile::TrafficShapingInfo* traffic_shaping_info;
         alloc_cfg_complete_result res;
+        uint32_t pon_id = 0;
 
         virtual void SetUp() {
             traffic_scheds = new tech_profile::TrafficSchedulers;
@@ -1977,6 +1978,15 @@ TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersUpstreamSuccess) {
     bcmos_errno olt_cfg_clear_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
 
+    bcmolt_pon_interface_key pon_key;
+    bcmolt_pon_interface_cfg pon_cfg;
+    pon_key.pon_ni = pon_id;
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
+    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+
     future<Status> future_res = async(launch::async, RemoveTrafficSchedulers_, traffic_scheds);
     async(launch::async, TestRemoveTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_NOT_CONFIGURED, ALLOC_CFG_STATUS_SUCCESS);
 
@@ -1990,6 +2000,15 @@ TEST_F(TestRemoveTrafficSchedulers, UpstreamAllocObjNotReset) {
     bcmos_errno olt_cfg_clear_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
 
+    bcmolt_pon_interface_key pon_key;
+    bcmolt_pon_interface_cfg pon_cfg;
+    pon_key.pon_ni = pon_id;
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
+    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+
     future<Status> future_res = async(launch::async, RemoveTrafficSchedulers_, traffic_scheds);
     async(launch::async, TestRemoveTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_INACTIVE, ALLOC_CFG_STATUS_SUCCESS);
 
@@ -1997,7 +2016,49 @@ TEST_F(TestRemoveTrafficSchedulers, UpstreamAllocObjNotReset) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
-// Test 3 - RemoveTrafficSchedulers-Upstream Failure case
+// Test 3 - RemoveTrafficSchedulers-Upstream success case(PON disable case - Don't wait for alloc object delete response)
+TEST_F(TestRemoveTrafficSchedulers, UpstreamAllocObjPonDisable) {
+    traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
+    bcmos_errno olt_cfg_clear_res = BCM_ERR_OK;
+    ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
+
+    bcmolt_pon_interface_key pon_key;
+    bcmolt_pon_interface_cfg pon_cfg;
+    pon_key.pon_ni = pon_id;
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
+    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_INACTIVE;
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+
+    future<Status> future_res = async(launch::async, RemoveTrafficSchedulers_, traffic_scheds);
+
+    Status status = future_res.get();
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 4 - RemoveTrafficSchedulers-Upstream success case(Get PON State failure case)
+TEST_F(TestRemoveTrafficSchedulers, UpstreamAllocObjGetPonStateFailure) {
+    traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
+    bcmos_errno olt_cfg_clear_res = BCM_ERR_OK;
+    ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
+
+    bcmolt_pon_interface_key pon_key;
+    bcmolt_pon_interface_cfg pon_cfg;
+    pon_key.pon_ni = pon_id;
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
+    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_INACTIVE;
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_INTERNAL;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+
+    future<Status> future_res = async(launch::async, RemoveTrafficSchedulers_, traffic_scheds);
+
+    Status status = future_res.get();
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 5 - RemoveTrafficSchedulers-Upstream Failure case
 TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersUpstreamFailure) {
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
 
@@ -2008,7 +2069,7 @@ TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersUpstreamFailure) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
-// Test 4 - RemoveTrafficSchedulers-Downstream Failure case
+// Test 6 - RemoveTrafficSchedulers-Downstream Failure case
 TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersDownstreamFailure) {
     //Create Scheduler
     scheduler->set_direction(tech_profile::Direction::DOWNSTREAM);
@@ -2023,7 +2084,7 @@ TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersDownstreamFailure) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
-// Test 5 - RemoveTrafficSchedulers-Downstream success case
+// Test 7 - RemoveTrafficSchedulers-Downstream success case
 TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersDownstreamSuccess) {
     //Create Scheduler
     scheduler->set_direction(tech_profile::Direction::DOWNSTREAM);
@@ -2038,7 +2099,7 @@ TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersDownstreamSuccess) {
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
-// Test 6 - RemoveTrafficSchedulers-Downstream Scheduler not present case
+// Test 8 - RemoveTrafficSchedulers-Downstream Scheduler not present case
 TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersDownstreamSchedNotpresent) {
     traffic_sched->set_direction(tech_profile::Direction::DOWNSTREAM);
 
