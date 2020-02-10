@@ -288,11 +288,16 @@ WAN port packt counters:
 ```shell
 bs /b/e port/index=wan0
 ```
+### How to get access to MAPLE CLI on OLT box
+To get access to the `BCM.0>` maple console please ssh into the OLT and then execute:
+```shell
+cd /broadcom
+./example_user_appl
+```
 
 ### How do I check packet counters on the OLT's PON interface?
 
 Following is an example of retrieving the interface description for PON intf_id 0 (TODO: document PON interface numbering for Edgecore OLT).
-**The BCM.0> shell is accessible when running openolt agent in the foreground**
 
 ```shell
 BCM.0> a/t clear=no object=pon_interface sub=itu_pon_stats pon_ni=0
@@ -344,10 +349,9 @@ data={
 [-- API Complete: 0 (OK) --]
 ```
 
-#### How do I check packet counters on the OLT's NNI interface?
+### How do I check packet counters on the OLT's NNI interface?
 
 Following command retrieves NNI intf_id 0:
-**The BCM.0> shell is accessible when running openolt agent in the foreground**
 
 ```shell
 BCM.0> a/t clear=no object=nni_interface sub=stats id=0
@@ -377,7 +381,6 @@ data={
 ### How do I list flows installed in the OLT?
 
 Following command lists the flows installed on the OLT.
-**The BCM.0> shell is accessible when running openolt agent in the foreground**
 
 ```shell
 BCM.0> a/m max_msgs=100 filter_invert=no object=flow
