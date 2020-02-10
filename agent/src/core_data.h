@@ -41,6 +41,8 @@ extern "C"
 
 #define ALLOC_CFG_COMPLETE_WAIT_TIMEOUT 1000 // in milli-seconds
 
+#define ONU_DEACTIVATE_COMPLETE_WAIT_TIMEOUT 1000 // in milli-seconds
+
 #define MIN_ALLOC_ID_GPON 256
 #define MIN_ALLOC_ID_XGSPON 1024
 
@@ -104,8 +106,18 @@ typedef struct {
     AllocCfgStatus status;
 } alloc_cfg_complete_result;
 
+typedef struct {
+    uint32_t pon_intf_id;
+    uint32_t onu_id;
+    bcmolt_result result;
+    bcmolt_deactivation_fail_reason reason;
+} onu_deactivate_complete_result;
+
 // key for map used for tracking ITU PON Alloc Configuration results from BAL
 typedef std::tuple<uint32_t, uint32_t> alloc_cfg_compltd_key;
+
+// key for map used for tracking Onu Deactivation Completed Indication
+typedef std::tuple<uint32_t, uint32_t> onu_deact_compltd_key;
 
 // The elements in this acl_classifier_key structure constitute key to
 // acl_classifier_to_acl_id_map.
@@ -183,17 +195,19 @@ extern std::map<sched_qmp_id_map_key_tuple, int> sched_qmp_id_map;
 /* 'qmp_id_to_qmp_map' maps TM Queue Mapping Profile ID to TM Queue Mapping Profile */
 extern std::map<int, std::vector < uint32_t > > qmp_id_to_qmp_map;
 
-// Flag used to watch whether mocked alloc_cfg_compltd_key is added to alloc_cfg_compltd_map
-#ifdef TEST_MODE
-extern bool ALLOC_CFG_FLAG;
-#endif
-
 // Map used to track response from BAL for ITU PON Alloc Configuration.
 // The key is alloc_cfg_compltd_key and value is a concurrent thread-safe queue which is
 // used for pushing (from BAL) and popping (at application) the results.
 extern std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *> alloc_cfg_compltd_map;
+// Map used to track response from BAL for Onu Deactivation Completed Indication
+// The key is alloc_cfg_compltd_key and value is a concurrent thread-safe queue which is
+// used for pushing (from BAL) and popping (at application) the results.
+extern std::map<onu_deact_compltd_key,  Queue<onu_deactivate_complete_result> *> onu_deact_compltd_map;
+
 // Lock to protect critical section data structure used for handling AllocObject configuration response.
 extern bcmos_fastlock alloc_cfg_wait_lock;
+// Lock to protect critical section data structure used for handling Onu deactivation completed Indication
+extern bcmos_fastlock onu_deactivate_wait_lock;
 
 
 /*** ACL Handling related data start ***/

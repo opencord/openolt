@@ -869,6 +869,33 @@ static void OnuDeactivationCompletedIndication(bcmolt_devid olt, bcmolt_msg *msg
                     onu_ind_data->set_oper_state("down");
                     onu_ind_data->set_admin_state("down");
                     onu_ind.set_allocated_onu_ind(onu_ind_data);
+
+                    onu_deact_compltd_key onu_key((uint32_t)key->pon_ni, (uint32_t) key->onu_id);
+                    onu_deactivate_complete_result res;
+                    res.pon_intf_id = (uint32_t)key->pon_ni;
+                    res.onu_id = (uint32_t) key->onu_id;
+                    res.result = data->status;
+                    res.reason = data->fail_reason;
+
+                    OPENOLT_LOG(INFO, openolt_log_id, "received onu deactivate result, pon intf %u, onu_id %u, status %u, reason %u\n",
+                            key->pon_ni, key->onu_id, data->status, data->fail_reason);
+
+                    bcmos_fastlock_lock(&onu_deactivate_wait_lock);
+                    // Push the result from BAL to queue
+                    std::map<onu_deact_compltd_key,  Queue<onu_deactivate_complete_result> *>::iterator it = onu_deact_compltd_map.find(onu_key);
+                    if (it == onu_deact_compltd_map.end()) {
+                        // could be case of spurious aysnc response, OR, the application timed-out waiting for response and cleared the key.
+                        bcmolt_msg_free(msg);
+                        OPENOLT_LOG(ERROR, openolt_log_id, "onu deactivate completed key not found for pon intf %u, onu_id %u\n",
+                            key->pon_ni, key->onu_id);
+                        bcmos_fastlock_unlock(&onu_deactivate_wait_lock, 0);
+                        return;
+                    }
+                    if (it->second) {
+                        // Push the result
+                        it->second->push(res);
+                    }
+                    bcmos_fastlock_unlock(&onu_deactivate_wait_lock, 0);
                 }
             }
     }

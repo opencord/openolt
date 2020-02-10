@@ -251,6 +251,7 @@ Status Enable_(int argc, char *argv[]) {
 
         bcmos_fastlock_init(&data_lock, 0);
         bcmos_fastlock_init(&alloc_cfg_wait_lock, 0);
+        bcmos_fastlock_init(&onu_deactivate_wait_lock, 0);
         OPENOLT_LOG(INFO, openolt_log_id, "Enable OLT - %s-%s\n", VENDOR_ID, MODEL_ID);
 
         //check BCM daemon is connected or not
@@ -1046,10 +1047,10 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     // of onu_cfg is passed. This is one-of case where we need to add test specific
     // code in production code.
     err = bcmolt_cfg_get__onu_state_stub(dev_id, &onu_cfg);
-    onu_state = onu_cfg.data.onu_state;
     #else
     err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
     #endif
+    onu_state = onu_cfg.data.onu_state;
     if (err == BCM_ERR_OK) {
         switch (onu_state) {
             case BCMOLT_ONU_STATE_ACTIVE:
@@ -1070,25 +1071,23 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
 
 Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific) {
+    bcmos_errno err = BCM_ERR_OK;
 
     OPENOLT_LOG(INFO, openolt_log_id,  "DeleteOnu ONU %d on PON %d : vendor id %s, vendor specific %s\n",
         onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str());
 
     // Need to deactivate before removing it (BAL rules)
-
     DeactivateOnu_(intf_id, onu_id, vendor_id, vendor_specific);
-    // Sleep to allow the state to propagate
-    // We need the subscriber terminal object to be admin down before removal
-    // Without sleep the race condition is lost by ~ 20 ms
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    // TODO: Delete the schedulers and queues.
+    err = wait_for_onu_deactivate_complete(intf_id, onu_id);
+    if (err) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "failed to delete onu intf_id %d, onu_id %d\n",
+                intf_id, onu_id);
+        return bcm_to_grpc_err(err, "Failed to delete ONU");
+    }
 
     bcmolt_onu_cfg cfg_obj;
     bcmolt_onu_key key;
 
-    //OPENOLT_LOG(INFO, openolt_log_id, "Processing subscriber terminal cfg clear for sub_term_id %d  and intf_id %d\n",
-    //    onu_id, intf_id);
     OPENOLT_LOG(INFO, openolt_log_id, "Processing onu cfg clear for onu_id %d  and intf_id %d\n",
         onu_id, intf_id);
 
@@ -1096,10 +1095,9 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     key.pon_ni = intf_id;
     BCMOLT_CFG_INIT(&cfg_obj, onu, key);
 
-    bcmos_errno err = bcmolt_cfg_clear(dev_id, &cfg_obj.hdr);
+    err = bcmolt_cfg_clear(dev_id, &cfg_obj.hdr);
     if (err != BCM_ERR_OK)
     {
-       //OPENOLT_LOG(ERROR, openolt_log_id, "Failed to clear information for BAL subscriber_terminal_id %d, Interface ID %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to clear information for BAL onu_id %d, Interface ID %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
         return Status(grpc::StatusCode::INTERNAL, "Failed to delete ONU");
     }

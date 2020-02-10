@@ -122,11 +122,6 @@ std::map<sched_qmp_id_map_key_tuple, int> sched_qmp_id_map;
 /* 'qmp_id_to_qmp_map' maps TM Queue Mapping Profile ID to TM Queue Mapping Profile */
 std::map<int, std::vector < uint32_t > > qmp_id_to_qmp_map;
 
-// Flag used to watch whether mocked alloc_cfg_compltd_key is added to alloc_cfg_compltd_map
-#ifdef TEST_MODE
-bool ALLOC_CFG_FLAG = false;
-#endif
-
 // Map used to track response from BAL for ITU PON Alloc Configuration.
 // The key is alloc_cfg_compltd_key and value is a concurrent thread-safe queue which is
 // used for pushing (from BAL) and popping (at application) the results.
@@ -134,6 +129,12 @@ std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *> alloc_cfg_c
 // Lock to protect critical section data structure used for handling AllocObject configuration response.
 bcmos_fastlock alloc_cfg_wait_lock;
 
+// Map used to track response from BAL for Onu Deactivation Completed Indication
+// The key is alloc_cfg_compltd_key and value is a concurrent thread-safe queue which is
+// used for pushing (from BAL) and popping (at application) the results.
+std::map<onu_deact_compltd_key,  Queue<onu_deactivate_complete_result> *> onu_deact_compltd_map;
+// Lock to protect critical section data structure used for handling Onu Deactivation Completed Indication
+bcmos_fastlock onu_deactivate_wait_lock;
 
 /*** ACL Handling related data start ***/
 

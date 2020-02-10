@@ -68,6 +68,7 @@ bcmolt_egress_qos_type get_qos_type(uint32_t pon_intf_id, uint32_t onu_id, uint3
 void clear_qos_type(uint32_t pon_intf_id, uint32_t onu_id, uint32_t uni_id);
 std::string GetDirection(int direction);
 bcmos_errno wait_for_alloc_action(uint32_t intf_id, uint32_t alloc_id, AllocCfgAction action);
+bcmos_errno wait_for_onu_deactivate_complete(uint32_t intf_id, uint32_t onu_id);
 char* openolt_read_sysinfo(const char* field_name, char* field_val);
 Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state);
 void openolt_cli_get_prompt_cb(bcmcli_session *session, char *buf, uint32_t max_len);

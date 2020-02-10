@@ -25,7 +25,6 @@ using namespace std;
 extern std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *> alloc_cfg_compltd_map;
 extern dev_log_id openolt_log_id;
 extern bcmos_fastlock alloc_cfg_wait_lock;
-extern bool ALLOC_CFG_FLAG;
 
 class TestOltEnable : public Test {
  protected:
@@ -968,6 +967,28 @@ class TestDeleteOnu : public Test {
 
         virtual void TearDown() {
         }
+    public:
+       static int PushOnuDeactCompltResult(bcmolt_result result, bcmolt_deactivation_fail_reason reason) {
+                onu_deactivate_complete_result res;
+                res.pon_intf_id = 0;
+                res.onu_id = 1;
+                res.result = result;
+                res.reason = reason;
+                // We need to wait for some time to allow the Onu Deactivation Reqeuest to be triggered
+                // before we push the result.
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                bcmos_fastlock_lock(&onu_deactivate_wait_lock);
+                onu_deact_compltd_key k(0, 1);
+                std::map<onu_deact_compltd_key,  Queue<onu_deactivate_complete_result> *>::iterator it = onu_deact_compltd_map.find(k);
+                if (it == onu_deact_compltd_map.end()) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "onu deact key not found for pon_intf=%d, onu_id=%d\n", 0, 1);
+                } else {
+                    it->second->push(res);
+                    OPENOLT_LOG(INFO, openolt_log_id, "Pushed ONU deact completed result\n");
+                }
+                bcmos_fastlock_unlock(&onu_deactivate_wait_lock, 0);
+                return 0;
+       }
 };
 
 // Test 1 - DeleteOnu success case
@@ -986,12 +1007,16 @@ TEST_F(TestDeleteOnu, DeleteOnuSuccess) {
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(onu_cfg_clear_res));
 
-    Status status = DeleteOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str());
+    future<int> push_onu_deact_complt_res = \
+             async(launch::async,TestDeleteOnu::PushOnuDeactCompltResult, BCMOLT_RESULT_SUCCESS, BCMOLT_DEACTIVATION_FAIL_REASON_NONE);
+    future<Status> future_res = async(launch::async, DeleteOnu_, pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str());
+    Status status = future_res.get();
+    int res = push_onu_deact_complt_res.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
-// Test 2 - DeleteOnu failure case
-TEST_F(TestDeleteOnu, DeleteOnuFailure) {
+// Test 2 - DeleteOnu failure case - BAL Clear ONU fails
+TEST_F(TestDeleteOnu, DeleteOnuFailureClearOnuFail) {
     bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
     bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
     bcmos_errno onu_cfg_clear_res = BCM_ERR_INTERNAL;
@@ -1006,9 +1031,58 @@ TEST_F(TestDeleteOnu, DeleteOnuFailure) {
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(onu_cfg_clear_res));
 
-    Status status = DeleteOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str());
+    future<int> push_onu_deact_complt_res = \
+                async(launch::async,TestDeleteOnu::PushOnuDeactCompltResult, BCMOLT_RESULT_SUCCESS, BCMOLT_DEACTIVATION_FAIL_REASON_NONE);
+    future<Status> future_res = async(launch::async, DeleteOnu_, pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str());
+
+    Status status = future_res.get();
+    int res = push_onu_deact_complt_res.get();
     ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
 }
+
+// Test 3 - DeleteOnu failure case - onu deactivation fails
+TEST_F(TestDeleteOnu, DeleteOnuFailureDeactivationFail) {
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
+
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
+
+    future<int> push_onu_deact_complt_res = \
+                async(launch::async,TestDeleteOnu::PushOnuDeactCompltResult, BCMOLT_RESULT_FAIL, BCMOLT_DEACTIVATION_FAIL_REASON_FAIL);
+    future<Status> future_res = async(launch::async, DeleteOnu_, pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str());
+
+    Status status = future_res.get();
+    int res = push_onu_deact_complt_res.get();
+    ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 4 - DeleteOnu failure case - onu deactivation timesout
+TEST_F(TestDeleteOnu, DeleteOnuFailureDeactivationTimeout) {
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
+
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
+
+    future<Status> future_res = async(launch::async, DeleteOnu_, pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str());
+
+    Status status = future_res.get();
+    ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
+}
+
 
 ////////////////////////////////////////////////////////////////////////////
 // For testing OmciMsgOut functionality
@@ -1574,27 +1648,27 @@ class TestCreateTrafficSchedulers : public Test {
         }
 
     public:
-        static void PushAllocCfgResult(AllocObjectState state, AllocCfgStatus status) {
-            if(ALLOC_CFG_FLAG) {
-                alloc_cfg_compltd_key k(0, 1024);
-                alloc_cfg_complete_result res;
-                res.pon_intf_id = 0;
-                res.alloc_id = 1024;
-                res.state = state;
-                res.status = status;
+        static int PushAllocCfgResult(AllocObjectState state, AllocCfgStatus status) {
+            alloc_cfg_compltd_key k(0, 1024);
+            alloc_cfg_complete_result res;
+            res.pon_intf_id = 0;
+            res.alloc_id = 1024;
+            res.state = state;
+            res.status = status;
 
-                bcmos_fastlock_lock(&alloc_cfg_wait_lock);
-                std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *>::iterator it = alloc_cfg_compltd_map.find(k);
-                if (it == alloc_cfg_compltd_map.end()) {
-                    OPENOLT_LOG(ERROR, openolt_log_id, "alloc config key not found for alloc_id = %u, pon_intf = %u\n", 1024, 0);
-                } else {
-                    it->second->push(res);
-                    OPENOLT_LOG(INFO, openolt_log_id, "Pushed mocked alloc cfg result\n");
-                }
-                bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
+            // We need to wait for some time to allow the Alloc Cfg Request to be triggered
+            // before we push the result.
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            bcmos_fastlock_lock(&alloc_cfg_wait_lock);
+            std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *>::iterator it = alloc_cfg_compltd_map.find(k);
+            if (it == alloc_cfg_compltd_map.end()) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "alloc config key not found for alloc_id = %u, pon_intf = %u\n", 1024, 0);
             } else {
-                PushAllocCfgResult(state, status); 
+                it->second->push(res);
+                OPENOLT_LOG(INFO, openolt_log_id, "Pushed mocked alloc cfg result\n");
             }
+            bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
+            return 0;
         }
 };
 
@@ -1612,9 +1686,11 @@ TEST_F(TestCreateTrafficSchedulers, CreateTrafficSchedulersUpstreamSuccess) {
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
     future<Status> future_res = async(launch::async, CreateTrafficSchedulers_, traffic_scheds);
-    async(launch::async, TestCreateTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_ACTIVE, ALLOC_CFG_STATUS_SUCCESS);
+    future<int> push_alloc_cfg_complt = \
+                async(launch::async, TestCreateTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_ACTIVE, ALLOC_CFG_STATUS_SUCCESS);
 
     Status status = future_res.get();
+    int res = push_alloc_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -1649,9 +1725,12 @@ TEST_F(TestCreateTrafficSchedulers, UpstreamErrorProcessingAllocCfg) {
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
     future<Status> future_res = async(launch::async, CreateTrafficSchedulers_, traffic_scheds);
-    async(launch::async, TestCreateTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_ACTIVE, ALLOC_CFG_STATUS_FAIL);
+    future<int> push_alloc_cfg_complt = \
+                async(launch::async, TestCreateTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_ACTIVE, ALLOC_CFG_STATUS_FAIL);
 
     Status status = future_res.get();
+    int res = push_alloc_cfg_complt.get();
+
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
@@ -1669,9 +1748,11 @@ TEST_F(TestCreateTrafficSchedulers, UpstreamAllocObjNotinActiveState) {
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
     future<Status> future_res = async(launch::async, CreateTrafficSchedulers_, traffic_scheds);
-    async(launch::async, TestCreateTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_INACTIVE, ALLOC_CFG_STATUS_SUCCESS);
+    future<int> push_alloc_cfg_complt = \
+                async(launch::async, TestCreateTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_INACTIVE, ALLOC_CFG_STATUS_SUCCESS);
 
     Status status = future_res.get();
+    int res = push_alloc_cfg_complt.get();
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
@@ -1832,9 +1913,11 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NoneMaxBWGtGuaranteedBwSuccess)
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
     future<Status> future_res = async(launch::async, CreateTrafficSchedulers_, traffic_scheds);
+    future<int> push_alloc_cfg_complt = \
     async(launch::async, TestCreateTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_ACTIVE, ALLOC_CFG_STATUS_SUCCESS);
 
     Status status = future_res.get();
+    int res = push_alloc_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -1852,9 +1935,11 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NoneMaxBWLtGuaranteedBwSuccess)
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
     future<Status> future_res = async(launch::async, CreateTrafficSchedulers_, traffic_scheds);
+    future<int> push_alloc_cfg_complt = \
     async(launch::async, TestCreateTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_ACTIVE, ALLOC_CFG_STATUS_SUCCESS);
 
     Status status = future_res.get();
+    int res = push_alloc_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -1948,27 +2033,24 @@ class TestRemoveTrafficSchedulers : public Test {
         }
 
     public:
-        static void PushAllocCfgResult(AllocObjectState state, AllocCfgStatus status) {
-            if(ALLOC_CFG_FLAG) {
-                alloc_cfg_compltd_key k(0, 1025);
-                alloc_cfg_complete_result res;
-                res.pon_intf_id = 0;
-                res.alloc_id = 1025;
-                res.state = state;
-                res.status = status;
+        static int PushAllocCfgResult(AllocObjectState state, AllocCfgStatus status) {
+            alloc_cfg_compltd_key k(0, 1025);
+            alloc_cfg_complete_result res;
+            res.pon_intf_id = 0;
+            res.alloc_id = 1025;
+            res.state = state;
+            res.status = status;
 
-                bcmos_fastlock_lock(&alloc_cfg_wait_lock);
-                std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *>::iterator it = alloc_cfg_compltd_map.find(k);
-                if (it == alloc_cfg_compltd_map.end()) {
-                    OPENOLT_LOG(ERROR, openolt_log_id, "alloc config key not found for alloc_id = %u, pon_intf = %u\n", 1025, 0);
-                } else {
-                    it->second->push(res);
-                    OPENOLT_LOG(INFO, openolt_log_id, "Pushed mocked alloc cfg result\n");
-                }
-                bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
+            bcmos_fastlock_lock(&alloc_cfg_wait_lock);
+            std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *>::iterator it = alloc_cfg_compltd_map.find(k);
+            if (it == alloc_cfg_compltd_map.end()) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "alloc config key not found for alloc_id = %u, pon_intf = %u\n", 1025, 0);
             } else {
-                PushAllocCfgResult(state, status); 
+                it->second->push(res);
+                OPENOLT_LOG(INFO, openolt_log_id, "Pushed mocked alloc cfg result\n");
             }
+            bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
+            return 0;
         }
 };
 
@@ -1988,9 +2070,11 @@ TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersUpstreamSuccess) {
                      .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
 
     future<Status> future_res = async(launch::async, RemoveTrafficSchedulers_, traffic_scheds);
+    future<int> push_alloc_cfg_complt = \
     async(launch::async, TestRemoveTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_NOT_CONFIGURED, ALLOC_CFG_STATUS_SUCCESS);
 
     Status status = future_res.get();
+    int res = push_alloc_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -2010,9 +2094,11 @@ TEST_F(TestRemoveTrafficSchedulers, UpstreamAllocObjNotReset) {
                      .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
 
     future<Status> future_res = async(launch::async, RemoveTrafficSchedulers_, traffic_scheds);
+    future<int> push_alloc_cfg_complt = \
     async(launch::async, TestRemoveTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_INACTIVE, ALLOC_CFG_STATUS_SUCCESS);
 
     Status status = future_res.get();
+    int res = push_alloc_cfg_complt.get();
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 

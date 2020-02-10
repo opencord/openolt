@@ -485,9 +485,6 @@ bcmos_errno wait_for_alloc_action(uint32_t intf_id, uint32_t alloc_id, AllocCfgA
     alloc_cfg_compltd_key k(intf_id, alloc_id);
     alloc_cfg_compltd_map[k] =  &cfg_result;
     bcmos_errno err = BCM_ERR_OK;
-    #ifdef TEST_MODE
-    ALLOC_CFG_FLAG = true;
-    #endif
 
     // Try to pop the result from BAL with a timeout of ALLOC_CFG_COMPLETE_WAIT_TIMEOUT ms
     std::pair<alloc_cfg_complete_result, bool> result = cfg_result.pop(ALLOC_CFG_COMPLETE_WAIT_TIMEOUT);
@@ -499,9 +496,6 @@ bcmos_errno wait_for_alloc_action(uint32_t intf_id, uint32_t alloc_id, AllocCfgA
         alloc_cfg_compltd_map[k] = NULL;
         bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
         err = BCM_ERR_INTERNAL;
-        #ifdef TEST_MODE
-        ALLOC_CFG_FLAG = false;
-        #endif
     }
     else if (result.first.status == ALLOC_CFG_STATUS_FAIL) {
         OPENOLT_LOG(ERROR, openolt_log_id, "error processing alloc cfg request intf_id %d, alloc_id %d\n",
@@ -535,9 +529,41 @@ bcmos_errno wait_for_alloc_action(uint32_t intf_id, uint32_t alloc_id, AllocCfgA
     bcmos_fastlock_lock(&alloc_cfg_wait_lock);
     alloc_cfg_compltd_map.erase(k);
     bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
-    #ifdef TEST_MODE
-    ALLOC_CFG_FLAG = false;
-    #endif
+    return err;
+}
+
+// This method handles waiting for OnuDeactivate Completed Indication
+bcmos_errno wait_for_onu_deactivate_complete(uint32_t intf_id, uint32_t onu_id) {
+    Queue<onu_deactivate_complete_result> deact_result;
+    onu_deact_compltd_key k(intf_id, onu_id);
+    onu_deact_compltd_map[k] =  &deact_result;
+    bcmos_errno err = BCM_ERR_OK;
+
+    // Try to pop the result from BAL with a timeout of ONU_DEACTIVATE_COMPLETE_WAIT_TIMEOUT ms
+    std::pair<onu_deactivate_complete_result, bool> result = deact_result.pop(ONU_DEACTIVATE_COMPLETE_WAIT_TIMEOUT);
+    if (result.second == false) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "timeout waiting for onu deactivate complete indication intf_id %d, onu_id %d\n",
+                    intf_id, onu_id);
+        // Invalidate the queue pointer.
+        bcmos_fastlock_lock(&onu_deactivate_wait_lock);
+        onu_deact_compltd_map[k] = NULL;
+        bcmos_fastlock_unlock(&onu_deactivate_wait_lock, 0);
+        err = BCM_ERR_INTERNAL;
+    }
+    else if (result.first.result == BCMOLT_RESULT_FAIL) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "error processing onu deactivate request intf_id %d, onu_id %d, fail_reason %d\n",
+                    intf_id, onu_id, result.first.reason);
+        err = BCM_ERR_INTERNAL;
+    } else if (result.first.result == BCMOLT_RESULT_SUCCESS) {
+        OPENOLT_LOG(INFO, openolt_log_id, "success processing onu deactivate request intf_id %d, onu_id %d\n",
+                    intf_id, onu_id);
+    }
+
+    // Remove entry from map
+    bcmos_fastlock_lock(&onu_deactivate_wait_lock);
+    onu_deact_compltd_map.erase(k);
+    bcmos_fastlock_unlock(&onu_deactivate_wait_lock, 0);
+
     return err;
 }
 
