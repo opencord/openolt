@@ -1160,8 +1160,6 @@ TEST_F(TestOmciMsgOut, OmciMsgOutFailure) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
-// TODO: VOL-2494
-#if 0
 ////////////////////////////////////////////////////////////////////////////
 // For testing FlowAdd functionality
 ////////////////////////////////////////////////////////////////////////////
@@ -1179,6 +1177,7 @@ class TestFlowAdd : public Test {
         int32_t gemport_id = 1024;
         int32_t priority_value = 0;
         uint64_t cookie = 0;
+        int32_t group_id = -1;
 
         NiceMock<BalMocker> balMock;
         openolt::Flow* flow;
@@ -1304,19 +1303,23 @@ TEST_F(TestFlowAdd, FlowAddHsiaFixedQueueUpstreamSuccess) {
     bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type,
+        alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie, group_id);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
+#ifdef FLOW_CHECKER
 // Test 2 - FlowAdd - Duplicate Flow case
 TEST_F(TestFlowAdd, FlowAddHsiaFixedQueueUpstreamDuplicate) {
     bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
                      .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
+#endif
 
 // Test 3 - FlowAdd - Failure case(bcmolt_cfg_set returns error)
 TEST_F(TestFlowAdd, FlowAddHsiaFixedQueueUpstreamFailure) {
@@ -1329,7 +1332,8 @@ TEST_F(TestFlowAdd, FlowAddHsiaFixedQueueUpstreamFailure) {
                      .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
@@ -1337,7 +1341,8 @@ TEST_F(TestFlowAdd, FlowAddHsiaFixedQueueUpstreamFailure) {
 TEST_F(TestFlowAdd, FlowAddFailureInvalidFlowDirection) {
     flow_type = "bidirectional";
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
@@ -1345,7 +1350,8 @@ TEST_F(TestFlowAdd, FlowAddFailureInvalidFlowDirection) {
 TEST_F(TestFlowAdd, FlowAddFailureInvalidNWCfg) {
     network_intf_id = -1;
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
@@ -1354,7 +1360,8 @@ TEST_F(TestFlowAdd, FlowAddEapEtherTypeSuccess) {
     flow_id = 2;
 
     classifier->set_eth_type(34958);
-    cmd->set_add_outer_tag(false);
+    action = new openolt::Action;
+    cmd = new openolt::ActionCmd;
     cmd->set_trap_to_host(true);
     action->set_allocated_cmd(cmd);
 
@@ -1364,7 +1371,8 @@ TEST_F(TestFlowAdd, FlowAddEapEtherTypeSuccess) {
                      .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id,
+        network_intf_id, gemport_id, *classifier, *action, priority_value, cookie, group_id);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -1376,7 +1384,8 @@ TEST_F(TestFlowAdd, FlowAddDhcpSuccess) {
     classifier->set_ip_proto(17);
     classifier->set_src_port(68);
     classifier->set_dst_port(67);
-    cmd->set_add_outer_tag(false);
+    action = new openolt::Action;
+    cmd = new openolt::ActionCmd;
     cmd->set_trap_to_host(true);
     action->set_allocated_cmd(cmd);
 
@@ -1386,7 +1395,8 @@ TEST_F(TestFlowAdd, FlowAddDhcpSuccess) {
                      .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -1398,8 +1408,9 @@ TEST_F(TestFlowAdd, FlowAddHsiaFixedQueueDownstreamSuccess) {
     classifier->set_o_vid(12);
     classifier->set_i_vid(7);
     classifier->set_pkt_tag_type("double_tag");
+    action = new openolt::Action;
+    cmd = new openolt::ActionCmd;
     action->set_o_vid(0);
-    cmd->set_add_outer_tag(false);
     cmd->set_remove_outer_tag(true);
     action->set_allocated_cmd(cmd);
 
@@ -1409,7 +1420,8 @@ TEST_F(TestFlowAdd, FlowAddHsiaFixedQueueDownstreamSuccess) {
                      .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -1429,7 +1441,8 @@ TEST_F(TestFlowAdd, FlowAddHsiaPriorityQueueUpstreamSuccess) {
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
     CreateTrafficQueues_(traffic_queues);
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -1443,8 +1456,9 @@ TEST_F(TestFlowAdd, FlowAddHsiaPriorityQueueDownstreamSuccess) {
     classifier->set_o_vid(12);
     classifier->set_i_vid(7);
     classifier->set_pkt_tag_type("double_tag");
+    action = new openolt::Action;
+    cmd = new openolt::ActionCmd;
     action->set_o_vid(0);
-    cmd->set_add_outer_tag(false);
     cmd->set_remove_outer_tag(true);
     action->set_allocated_cmd(cmd);
 
@@ -1458,10 +1472,11 @@ TEST_F(TestFlowAdd, FlowAddHsiaPriorityQueueDownstreamSuccess) {
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
     CreateTrafficQueues_(traffic_queues);
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id, gemport_id, *classifier, *action, priority_value, cookie);
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
-#endif
+
 
 ////////////////////////////////////////////////////////////////////////////
 // For testing OnuPacketOut functionality
@@ -1502,8 +1517,6 @@ TEST_F(TestOnuPacketOut, OnuPacketOutPortNo0) {
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
-// TODO: VOL-2494
-#if 0
 // Test 3 - OnuPacketOut success, Finding Flow ID from port no and Gem from Flow ID case
 TEST_F(TestOnuPacketOut, OnuPacketOutFindGemFromFlowSuccess) {
     uint32_t port_no = 16;
@@ -1515,7 +1528,6 @@ TEST_F(TestOnuPacketOut, OnuPacketOutFindGemFromFlowSuccess) {
     Status status = OnuPacketOut_(pon_id, onu_id, port_no, gemport_id, pkt);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
-#endif
 
 // Test 4 - OnuPacketOut success, Failure in finding Gem port case
 TEST_F(TestOnuPacketOut, OnuPacketOutFindGemFromFlowFailure) {
@@ -1529,8 +1541,6 @@ TEST_F(TestOnuPacketOut, OnuPacketOutFindGemFromFlowFailure) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
-// TODO: VOL-2494
-#if 0
 ////////////////////////////////////////////////////////////////////////////
 // For testing FlowRemove functionality
 ////////////////////////////////////////////////////////////////////////////
@@ -1655,7 +1665,6 @@ TEST_F(TestUplinkPacketOut, UplinkPacketOutFailureNoFlowIdFound) {
     Status status = UplinkPacketOut_(pon_id, pkt);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
-#endif
 
 ////////////////////////////////////////////////////////////////////////////
 // For testing CreateTrafficSchedulers functionality
@@ -2084,6 +2093,9 @@ class TestRemoveTrafficSchedulers : public Test {
             res.state = state;
             res.status = status;
 
+            // We need to wait for some time to allow the Alloc Cfg Request to be triggered
+            // before we push the result.
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             bcmos_fastlock_lock(&alloc_cfg_wait_lock);
             std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *>::iterator it = alloc_cfg_compltd_map.find(k);
             if (it == alloc_cfg_compltd_map.end()) {
@@ -2097,8 +2109,6 @@ class TestRemoveTrafficSchedulers : public Test {
         }
 };
 
-// TODO: VOL-2494
-#if 0
 // Test 1 - RemoveTrafficSchedulers-Upstream success case
 TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersUpstreamSuccess) {
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
@@ -2122,7 +2132,6 @@ TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersUpstreamSuccess) {
     int res = push_alloc_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
-#endif
 
 // Test 2 - RemoveTrafficSchedulers-Upstream success case(alloc object is not reset)
 TEST_F(TestRemoveTrafficSchedulers, UpstreamAllocObjNotReset) {

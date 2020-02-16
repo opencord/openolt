@@ -360,10 +360,11 @@ bool free_tm_qmp_id(uint32_t sched_id,uint32_t pon_intf_id, uint32_t onu_id, \
     return result;
 }
 
-// Gets free ACL ID if available, else -1
+/* ACL ID is a shared resource, caller of this function has to ensure atomicity using locks
+   Gets free ACL ID if available, else -1. */
 int get_acl_id() {
     int acl_id;
-    bcmos_fastlock_lock(&data_lock);
+
     /* Complexity of O(n). Is there better way that can avoid linear search? */
     for (acl_id = 0; acl_id < MAX_ACL_ID; acl_id++) {
         if (acl_id_bitset[acl_id] == 0) {
@@ -371,7 +372,6 @@ int get_acl_id() {
             break;
         }
     }
-    bcmos_fastlock_unlock(&data_lock, 0);
     if (acl_id < MAX_ACL_ID) {
         return acl_id ;
     } else {
@@ -379,12 +379,11 @@ int get_acl_id() {
     }
 }
 
-// Frees up the ACL ID.
+/* ACL ID is a shared resource, caller of this function has to ensure atomicity using locks
+   Frees up the ACL ID. */
 void free_acl_id (int acl_id) {
     if (acl_id < MAX_ACL_ID) {
-        bcmos_fastlock_lock(&data_lock);
         acl_id_bitset[acl_id] = 0;
-        bcmos_fastlock_unlock(&data_lock, 0);
     }
 }
 
@@ -922,7 +921,6 @@ Status update_acl_interface(int32_t intf_id, bcmolt_interface_type intf_type, ui
 }
 
 Status install_acl(const acl_classifier_key acl_key) {
-
     bcmos_errno err;
     bcmolt_access_control_cfg cfg;
     bcmolt_access_control_key key = { };
@@ -934,14 +932,12 @@ Status install_acl(const acl_classifier_key acl_key) {
     if (acl_id < 0) {
         OPENOLT_LOG(ERROR, openolt_log_id, "exhausted acl_id for eth_type = %d, ip_proto = %d, src_port = %d, dst_port = %d\n",
                 acl_key.ether_type, acl_key.ip_proto, acl_key.src_port, acl_key.dst_port);
-        bcmos_fastlock_unlock(&data_lock, 0);
         return bcm_to_grpc_err(BCM_ERR_INTERNAL, "exhausted acl id");
     }
 
     key.id = acl_id;
     /* config access control instance */
     BCMOLT_CFG_INIT(&cfg, access_control, key);
-
     if (acl_key.ether_type > 0) {
         OPENOLT_LOG(DEBUG, openolt_log_id, "Access_Control classify ether_type 0x%04x\n", acl_key.ether_type);
         BCMOLT_FIELD_SET(&c_val, classifier, ether_type, acl_key.ether_type);
