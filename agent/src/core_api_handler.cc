@@ -1447,21 +1447,21 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
                 single_tag = true;
 
                 OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_pbits 0x%x\n", classifier.o_pbits());
-                //According to makeOpenOltClassifierField in voltha-openolt-adapter, o_pbits 0xFF means PCP value 0.
-                if(0xFF == classifier.o_pbits()){
-                    BCMOLT_FIELD_SET(&c_val, classifier, o_pbits, 0);
-                }
-                else{
+                // OpenOlt adapter will send 0xFF in case of no pbit classification
+                // If it is any other value (0 to 7), it is for outer pbit classification.
+                // OpenFlow protocol does not provide inner pbit classification (in case of double tagged packets),
+                // and VOLTHA has not used any workaround to solve this problem (for ex: use metadata field).
+                // Also there exists no use case for i-pbit classification, so we can safely ignore this for now.
+                if(0xFF != classifier.o_pbits()){
                     BCMOLT_FIELD_SET(&c_val, classifier, o_pbits, classifier.o_pbits());
                 }
             } else if (classifier.pkt_tag_type().compare("double_tag") == 0) {
                 BCMOLT_FIELD_SET(&c_val, classifier, pkt_tag_type, BCMOLT_PKT_TAG_TYPE_DOUBLE_TAG);
 
                 OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_pbits 0x%x\n", classifier.o_pbits());
-                if(0xFF == classifier.o_pbits()){
-                    BCMOLT_FIELD_SET(&c_val, classifier, o_pbits, 0);
-                }
-                else{
+                // Same comments as in case of "single_tag" packets.
+                // 0xFF means no pbit classification, otherwise a valid PCP (0 to 7).
+                if(0xFF != classifier.o_pbits()){
                     BCMOLT_FIELD_SET(&c_val, classifier, o_pbits, classifier.o_pbits());
                 }
             }
