@@ -49,17 +49,17 @@ OPENOLT_PROTO_VER ?= v3.1.0
 BUILD_DIR = build
 
 # Protobuf installation
-PROTOBUF_VER = 3.5.0
+PROTOBUF_VER ?= 3.5.0
 PROTOBUF_ADDR = https://github.com/protocolbuffers/protobuf/releases/download/v$(PROTOBUF_VER)/protobuf-cpp-$(PROTOBUF_VER).tar.gz
 PROTOBUF_DST = /tmp/protobuf-$(PROTOBUF_VER)
-protoc-bin = $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/bin/protoc
+protoc-bin = $(shell which protoc)
 
 #
 # GRPC installation
 GRPC_ADDR = https://github.com/grpc/grpc
 GRPC_DST = /tmp/grpc
 GRPC_VER = v1.10.x
-grpc-cpp-plugin-bin = $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/bin/grpc_cpp_plugin
+grpc-cpp-plugin-bin = $(shell which grpc_cpp_plugin)
 
 USER := $(shell echo $(USER))
 #
@@ -110,19 +110,17 @@ $(protoc-bin):
 	cd /tmp && wget $(PROTOBUF_ADDR)
 	cd /tmp && tar -zxvf protobuf-cpp-$(PROTOBUF_VER).tar.gz
 	cd $(PROTOBUF_DST) && ./autogen.sh
-	mkdir -p $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
-	cd $(PROTOBUF_DST) && ./configure --prefix=$(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
+	cd $(PROTOBUF_DST) && ./configure
 	make -C $(PROTOBUF_DST)
-	make -C $(PROTOBUF_DST) install
+	sudo make -C $(PROTOBUF_DST) install
 
 $(grpc-cpp-plugin-bin):
 	# Install GRPC, protoc
 	rm -rf $(GRPC_DST)
 	cd /tmp && git clone -b $(GRPC_VER) $(GRPC_ADDR) $(GRPC_DST)
 	cd $(GRPC_DST) && git submodule update --init
-	mkdir -p $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
 	make -C $(GRPC_DST)
-	make -C $(GRPC_DST) install prefix=$(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
+	sudo make -C $(GRPC_DST) install
 
 docker:
 	echo $(USER)

@@ -17,22 +17,42 @@
 # This Makefile provides hook for Jenkins to invoke the test target for
 # CI integration.
 # The main Makefile for product compilation is available at
-# agent/Makefile.in. Please see README.md for more details.
+# agent/Makefile. Please see ./README.md and ./agent/test/README.md for more
+# details.
 
-# The unit tests require certain pre-requisite software for compilation
-# and execution. Please see agent/test/README.md for more details.
+# set default shell options
+SHELL = bash -e -o pipefail
 
-.DEFAULT_GOAL := test
+## Variables
+OPENOLTDEVICE     ?= asfvolt16
+OPENOLT_PROTO_VER ?= v3.1.0
+GTEST_VER         ?= release-1.8.0
+CMOCK_VER         ?= 0207b30
+GMOCK_GLOBAL_VER  ?= 1.0.2
+GRPC_VER          ?= v1.27.1
 
-prereqs-system:
-	cd agent/test && ./configure
-	make -C agent/test prereqs-system
+DOCKER                     ?= docker
+DOCKER_REGISTRY            ?=
+DOCKER_REPOSITORY          ?= voltha/
+DOCKER_EXTRA_ARGS          ?=
+DOCKER_TAG                 ?= 1.0.0
+IMAGENAME                  = ${DOCKER_REGISTRY}${DOCKER_REPOSITORY}openolt-test:${DOCKER_TAG}
 
-prereqs-local:
-	cd agent/test && ./configure
-	make -C agent/test prereqs-local
+DOCKER_BUILD_ARGS ?= \
+	${DOCKER_EXTRA_ARGS} \
+	--build-arg OPENOLTDEVICE=${OPENOLTDEVICE} \
+	--build-arg OPENOLT_PROTO_VER=${OPENOLT_PROTO_VER} \
+	--build-arg GTEST_VER=${GTEST_VER} \
+	--build-arg CMOCK_VER=${CMOCK_VER} \
+	--build-arg GMOCK_GLOBAL_VER=${GMOCK_GLOBAL_VER} \
+	--build-arg GRPC_VER=${GRPC_VER}
 
-# Invoke unit-tests
 test:
-	cd agent/test && ./configure
-	make -C agent/test test
+	${DOCKER} run --rm -v $(shell pwd):/app $(shell test -t 0 && echo "-it") ${IMAGENAME} make -C agent/test test
+
+clean:
+	${DOCKER} run --rm -v $(shell pwd):/app $(shell test -t 0 && echo "-it") ${IMAGENAME} make -C agent/test clean
+
+cleanall:
+	${DOCKER} run --rm -v $(shell pwd):/app $(shell test -t 0 && echo "-it") ${IMAGENAME} make -C agent/test clean
+	${DOCKER} run --rm -v $(shell pwd):/app $(shell test -t 0 && echo "-it") ${IMAGENAME} make -C protos distclean

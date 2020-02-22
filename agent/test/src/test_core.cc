@@ -1122,6 +1122,7 @@ TEST_F(TestOmciMsgOut, OmciMsgOutFailure) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
+// TODO: VOL-2494
 #if 0
 ////////////////////////////////////////////////////////////////////////////
 // For testing FlowAdd functionality
@@ -1463,6 +1464,8 @@ TEST_F(TestOnuPacketOut, OnuPacketOutPortNo0) {
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
+// TODO: VOL-2494
+#if 0
 // Test 3 - OnuPacketOut success, Finding Flow ID from port no and Gem from Flow ID case
 TEST_F(TestOnuPacketOut, OnuPacketOutFindGemFromFlowSuccess) {
     uint32_t port_no = 16;
@@ -1474,6 +1477,7 @@ TEST_F(TestOnuPacketOut, OnuPacketOutFindGemFromFlowSuccess) {
     Status status = OnuPacketOut_(pon_id, onu_id, port_no, gemport_id, pkt);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
+#endif
 
 // Test 4 - OnuPacketOut success, Failure in finding Gem port case
 TEST_F(TestOnuPacketOut, OnuPacketOutFindGemFromFlowFailure) {
@@ -1487,6 +1491,7 @@ TEST_F(TestOnuPacketOut, OnuPacketOutFindGemFromFlowFailure) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
+// TODO: VOL-2494
 #if 0
 ////////////////////////////////////////////////////////////////////////////
 // For testing FlowRemove functionality
@@ -2054,6 +2059,8 @@ class TestRemoveTrafficSchedulers : public Test {
         }
 };
 
+// TODO: VOL-2494
+#if 0
 // Test 1 - RemoveTrafficSchedulers-Upstream success case
 TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersUpstreamSuccess) {
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
@@ -2077,6 +2084,7 @@ TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersUpstreamSuccess) {
     int res = push_alloc_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
+#endif
 
 // Test 2 - RemoveTrafficSchedulers-Upstream success case(alloc object is not reset)
 TEST_F(TestRemoveTrafficSchedulers, UpstreamAllocObjNotReset) {

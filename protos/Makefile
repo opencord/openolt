@@ -23,19 +23,18 @@ OPENOLT_PROTO_VER ?= v3.1.0
 GRPC_VER ?= v1.10.x
 
 CXX ?= g++
-#powerpc64-fsl-linux-g++
-CPPFLAGS += `PKG_CONFIG_PATH=$(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/lib/pkgconfig pkg-config --cflags protobuf grpc` -I googleapis/gens -I./
+CPPFLAGS += `pkg-config --cflags protobuf grpc` -I googleapis/gens -I./
 CXXFLAGS += -std=c++11
 #LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc` -ldl
-PROTOC = $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/bin/protoc
+PROTOC = $(shell which protoc)
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
-GRPC_CPP_PLUGIN_PATH ?= $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/bin/$(GRPC_CPP_PLUGIN)
+GRPC_CPP_PLUGIN_PATH ?= $(shell which grpc_cpp_plugin)
 
 OBJS = voltha_protos/tech_profile.pb.o voltha_protos/tech_profile.grpc.pb.o voltha_protos/openolt.pb.o voltha_protos/openolt.grpc.pb.o ./googleapis/gens/google/api/annotations.grpc.pb.o ./googleapis/gens/google/api/annotations.pb.o ./googleapis/gens/google/api/http.pb.o
 
 .DEFAULT_GOAL := all
 
-all: googleapis get_openolt_proto libopenoltapi.a
+all: googleapis get_openolt_proto grpc-target protobuf-target libopenoltapi.a
 
 libopenoltapi.a: $(OBJS)
 	ar cr $@ $^
@@ -58,16 +57,18 @@ get_openolt_proto:
 		wget -O voltha_protos/tech_profile.proto https://raw.githubusercontent.com/opencord/voltha-protos/$(OPENOLT_PROTO_VER)/protos/voltha_protos/tech_profile.proto; \
 	fi;
 
-.PRECIOUS: voltha_protos/%.grpc.pb.cc
-voltha_protos/%.grpc.pb.cc: voltha_protos/%.proto
-	$(PROTOC) --proto_path=. -I./googleapis --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) $<
+grpc-target:
+	$(PROTOC) --proto_path=. -I./googleapis --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) voltha_protos/openolt.proto
+	$(PROTOC) --proto_path=. -I./googleapis --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) voltha_protos/tech_profile.proto
 
-.PRECIOUS: voltha_protos/%.pb.cc
-voltha_protos/%.pb.cc: voltha_protos/%.proto
-	$(PROTOC) --proto_path=. -I./googleapis -I./ --cpp_out=. $<
+protobuf-target:
+	$(PROTOC) --proto_path=. -I./googleapis -I./ --cpp_out=. voltha_protos/openolt.proto
+	$(PROTOC) --proto_path=. -I./googleapis -I./ --cpp_out=. voltha_protos/tech_profile.proto
 
 clean:
-	rm -f *.a && cd voltha_protos/ && rm -f *.o *.pb.cc *.pb.h
+	rm -f *.a && cd voltha_protos/ && rm -f *.o *.pb.cc *.pb.h *.proto
 
 distclean: clean
 	rm -rf googleapis
+
+.PHONY = grpc-target protobuf-target

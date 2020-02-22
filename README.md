@@ -51,9 +51,9 @@ Accton/Edgecore makes available pre-built debian packages of OpenOLT agent to th
 Get access credentials for https://edgecore.quickconnect.to and then login and navigate to
 File_Station -> EdgecoreNAS, and then the folder /ASXvOLT16/OpenOLT_Agent/From_ONF_Distribution/
 and pick the right version of deb package required for your testing.
-voltha-2.2/openolt-2.2.0.deb is the latest version of package with support for BAL3.2.3.2
+voltha-2.3/openolt-2.3.0.deb is the latest version of package with support for BAL3.2.3.2
 The pre-built debian packages have been tested on ONL-4.14. The ONL Installer required for
-voltha-2.2/openolt-2.2.0.deb is also available at in the same patch, i.e., voltha-2.2/.
+voltha-2.3/openolt-2.3.0.deb is also available at in the same path, i.e., voltha-2.3/.
 
 More info on how to install ONL can be found on the official [ONL
 website](https://opennetlinux.org/).
@@ -245,12 +245,22 @@ make OPENOLTDEVICE=asfvolt16 deb
 If the build process succeeds, the *openolt.deb* package will be created as
 well in the *openolt/agent/build* directory.
 
+NOTE: To compile for ASGvOLT 64 port GPON OLT, set `OPENOLTDEVICE` to `asgvolt64` during build procedure like below.
+
+```shell
+make OPENOLTDEVICE=asgvolt64
+```
+
 ### Cleanup
 
 To cleanup the repository and start the build procedure again, run:
 
 ```shell
-make OPENOLTDEVICE=asfvolt16 clean-all
+# cleans up the agent objects, protos compiled artificats and openolt deb packages
+make OPENOLTDEVICE=asfvolt16 clean
+
+# cleans up the agent objects, protos compiled artificats, openolt deb packages and bal sources
+make OPENOLTDEVICE=asfvolt16 distclean
 ```
 
 ## FAQ
@@ -416,7 +426,8 @@ For more details about BW profile parameters, please refer below links.
 ## Known Issues
 
 * The Minimum BW that should be configured for ITU PON Alloc Object has changed from 16Kbps
-  to 32Kbps from BAL3.1 to BAL3.2 release. As per BAL3.x documents, when FEC is disabled,
-  the minimum BW is 16Kbps on the ITU PON Alloc Object. This seems to be a discrepency.
-  So, ensure that `cir` + `eir` value is greater than equal to *32000* for XGSPON use case.
+  to 32Kbps from BAL3.1 to BAL3.2 release if you are using ALPHA ONUs.
+  As per BAL3.x documents, when FEC is disabled, the minimum BW is 16Kbps on the ITU PON Alloc Object.
+  This seems to be a discrepency on the ALPHA ONU. So, ensure that `cir` + `eir` value is greater than
+  equal to *32000* for XGSPON use case for ALPHA ONU.
 

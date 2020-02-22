@@ -9,7 +9,25 @@ The goal of the unit tests for OpenOLT agent is to test the OpenOLT application 
 
 ## Building and Running Unit Test
 
+All the pre-requisite software for running the openolt agent unit tests are packaged, versioned
+and released as a docker container. See https://github.com/opencord/openolt-test for more details.
+
 Follow the below steps to build and run unit test
+
+```shell
+cd <openolt agent root directory>
+make test
+```
+
+The openolt agent source code will be mounted to docker container, compiled and unit tests will be run.
+Note that you will need access to internet to download the voltha/openolt-test docker container for the
+first time.
+
+If you choose not to use docker conainer packaged with pre-requisite software for building and running
+unit tests, you may install the pre-requisite software directly on the host system using procedure below.
+However this procedure is NOT RECOMMENDED as software being installed via this procedure may conflict or
+overwrite the software that may already exist on the host sytem.
+
 ```shell
 $ cd agent/test
 # Run Autoconfig to generate the appropriate makefile scaffolding for the desired target
@@ -22,15 +40,8 @@ $ make prereq-mock-lib
 $ make test
 ```
 
-If you need to use a specific version of voltha-protos, then specify the git tag/branch corresponding to
-tht specific version as below. For ex:
-
-```shell
-make OPENOLT_PROTO_VER=master test
-```
-
 Once you have successfully built and run the unit-test, the test report will be available in `test_openolt_report_xunit.xml` file in `agent/test`.
-To clean all build artifacts and test reports, do `make clean` in `agent/test`.
+To clean all build artifacts and test reports, do `make clean` from openolt agent root directory.
 
 ## Adding new Unit Test Cases
 

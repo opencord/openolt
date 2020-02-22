@@ -1,6 +1,5 @@
 # Autoconf files
 agent/Makefile
-agent/test/Makefile
 config.h
 config.log
 config.status

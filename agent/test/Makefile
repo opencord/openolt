@@ -21,35 +21,30 @@
 TOP_DIR=`pwd`
 OPENOLTDEVICE ?= asfvolt16
 
-# OpenOLT Proto version.
-# This specifies the GIT tag in https://github.com/opencord/voltha-protos
-# repo that we need to refer to, to pick the right version of
-# openolt.proto and tech_profile.proto
-OPENOLT_PROTO_VER ?= v1.0.3
+OPENOLT_PROTO_VER ?= v3.1.0
 
 GTEST_VER ?= release-1.8.0
-gtest-target = $(HOME)/openolt-agent-test-lib/gtest/$(GTEST_VER)/lib/libgtest.a
+gtest-target = /usr/local/lib/libgtest.a
 
 CMOCK_VER ?= 0207b30
-cmock-target = $(HOME)/openolt-agent-test-lib/cmock/$(CMOCK_VER)/include/cmock.h
+cmock-target = /usr/local/include/cmock/cmock.h
 
 GMOCK_GLOBAL_VER ?= 1.0.2
-gmock-global-target = $(HOME)/openolt-agent-test-lib/gmock-global/$(GMOCK_GLOBAL_VER)/gmock-global/gmock-global.h
+gmock-global-target = /usr/local/include/gmock-global/gmock-global.h
 
 
 # GRPC installation
 GRPC_ADDR = https://github.com/grpc/grpc
 GRPC_DST = /tmp/grpc
-GRPC_VER = v1.10.x
-grpc-cpp-plugin-bin = $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/bin/grpc_cpp_plugin
+GRPC_VER ?= v1.10.x
+grpc-cpp-plugin-bin = /usr/local/bin/grpc_cpp_plugin
 
 # Protobuf installation
-PROTOBUF_VER = 3.5.0
+PROTOBUF_VER ?= 3.5.0
 PROTOBUF_ADDR = https://github.com/protocolbuffers/protobuf/releases/download/v$(PROTOBUF_VER)/protobuf-cpp-$(PROTOBUF_VER).tar.gz
 PROTOBUF_DST = /tmp/protobuf-$(PROTOBUF_VER)
-protoc-bin = $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/bin/protoc
+protoc-bin = /usr/local/bin/protoc
 
-USER := $(shell echo $(USER))
 #
 ########################################################################
 ##
@@ -58,28 +53,24 @@ USER := $(shell echo $(USER))
 ##
 ##
 
-CXX = g++-4.9
+CXX = g++
 CXXFLAGS += -g -O2
-CXXFLAGS += $(shell PKG_CONFIG_PATH=$(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/lib/pkgconfig pkg-config --cflags-only-I grpc++)
-CPPFLAGS += `PKG_CONFIG_PATH=$(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/lib/pkgconfig pkg-config --cflags protobuf grpc`
+CXXFLAGS += `pkg-config --cflags-only-I grpc++`
+CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
 CXXFLAGS += -DTEST_MODE -DENABLE_LOG
-LDFLAGS +=
-LDFLAGS += `PKG_CONFIG_PATH=$(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)/lib/pkgconfig pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
+LDFLAGS += -lpthread -lm `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
 CXXFLAGSDEVICE = -I../device -I../device/$(OPENOLTDEVICE) -I../device/generic
 
 export CXX CXXFLAGS OPENOLT_PROTO_VER
 
-BAL_API_VER=bal-api-3.2.3.2
+BAL_API_VER ?= bal-api-3.2.3.2
 BAL_API_DIR=$(BAL_API_VER)
 BALLIBNAME=bcm_host_api_stubs
 BALLIBDIR=$(BAL_API_DIR)/stubs
 BAL_INC = -I$(BAL_API_DIR)/include \
           -I$(BAL_API_DIR)/include/object_model
-TEST_LIB_INC = -I$(HOME)/openolt-agent-test-lib/gtest/$(GTEST_VER)/include \
-			   -I$(HOME)/openolt-agent-test-lib/cmock/$(CMOCK_VER)/include \
-			   -I$(HOME)/openolt-agent-test-lib/gmock-global/$(GMOCK_GLOBAL_VER)
-CXXFLAGS += $(BAL_INC) $(TEST_LIB_INC)
+CXXFLAGS += $(BAL_INC)
 
 
 prereqs-system:
@@ -94,19 +85,17 @@ $(protoc-bin):
 	cd /tmp && wget $(PROTOBUF_ADDR)
 	cd /tmp && tar -zxvf protobuf-cpp-$(PROTOBUF_VER).tar.gz
 	cd $(PROTOBUF_DST) && ./autogen.sh
-	mkdir -p $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
-	cd $(PROTOBUF_DST) && ./configure --prefix=$(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
+	cd $(PROTOBUF_DST) && ./configure
 	make -C $(PROTOBUF_DST)
-	make -C $(PROTOBUF_DST) install
+	sudo make -C $(PROTOBUF_DST) install
 
 $(grpc-cpp-plugin-bin):
 	# Install GRPC, protoc
 	rm -rf $(GRPC_DST)
 	cd /tmp && git clone -b $(GRPC_VER) $(GRPC_ADDR) $(GRPC_DST)
 	cd $(GRPC_DST) && git submodule update --init
-	mkdir -p $(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
 	make -C $(GRPC_DST)
-	make -C $(GRPC_DST) install prefix=$(HOME)/openolt-agent-test-lib/grpc/$(GRPC_VER)
+	sudo make -C $(GRPC_DST) install
 
 prereqs-test-lib: $(gtest-target) $(cmock-target) $(gmock-global-target)
 
@@ -114,24 +103,21 @@ $(gtest-target):
 	# Install gtest
 	rm -rf /tmp/googletest && cd /tmp && git clone https://github.com/google/googletest.git
 	cd /tmp/googletest && git checkout $(GTEST_VER)
-	mkdir -p $(HOME)/openolt-agent-test-lib/gtest/$(GTEST_VER)
-	cd /tmp/googletest && cmake CMakeLists.txt -DCMAKE_INSTALL_PREFIX=$(HOME)/openolt-agent-test-lib/gtest/$(GTEST_VER)
+	cd /tmp/googletest && cmake CMakeLists.txt
 	make -C /tmp/googletest
-	make -C /tmp/googletest install
+	sudo make -C /tmp/googletest install
 
 $(cmock-target):
 	# Install c-mock
 	rm -rf /tmp/C-Mock && cd /tmp && git clone https://github.com/hjagodzinski/C-Mock.git
 	cd /tmp/C-Mock && git checkout $(CMOCK_VER)
-	mkdir -p $(HOME)/openolt-agent-test-lib/cmock/$(CMOCK_VER)
-	make -C /tmp/C-Mock install PREFIX=$(HOME)/openolt-agent-test-lib/cmock/$(CMOCK_VER)
+	sudo make -C /tmp/C-Mock install
 
 $(gmock-global-target):
 	# Install gmock-global
 	rm -rf /tmp/gmock-global && cd /tmp && git clone https://github.com/apriorit/gmock-global.git
 	cd /tmp/gmock-global && git checkout $(GMOCK_GLOBAL_VER)
-	mkdir -p $(HOME)/openolt-agent-test-lib/gmock-global/$(GMOCK_GLOBAL_VER)
-	cp -rf /tmp/gmock-global/include/gmock-global $(HOME)/openolt-agent-test-lib/gmock-global/$(GMOCK_GLOBAL_VER)
+	sudo cp -rf /tmp/gmock-global/include/gmock-global /usr/local/include/
 
 ########################################################################
 ##
@@ -142,28 +128,31 @@ $(gmock-global-target):
 
 .DEFAULT_GOAL := all
 
-.PHONY = bcm_host_api_stubs libopenoltapi.a libopenolt.a build clean prereqs-system prereqs-local
+.PHONY = bcm_host_api_stubs build clean prereqs-system prereqs-local
 
-all: bcm_host_api_stubs libopenoltapi.a libopenolt.a build
+OPENOLT_PROTOS_DIR = ../../protos
+OPENOLT_API_LIB = lib/libopenoltapi.a
+OPENOLT_LIB = lib/libopenolt.a
+
+all: bcm_host_api_stubs $(OPENOLT_API_LIB) $(OPENOLT_LIB) build
 
 # test
 TEST_OPENOLT_LIB_DIR=./lib
 TEST_BIN=test_openolt
 # The below way of getting source files is not working
 #TEST_SRCS = $($(filter-out src/bal_stub.cc, $(wildcard src/*.cc)))
-TEST_SRCS = src/main_test.cc src/bal_mocker.cc src/test_core.cc 
+TEST_SRCS = src/main_test.cc src/bal_mocker.cc src/test_core.cc
 TEST_OBJS = $(TEST_SRCS:.cc=.o)
 
 build: $(TEST_OBJS)
-	$(CXX) $(shell cmock-config --libs $(HOME)/openolt-agent-test-lib/gtest/$(GTEST_VER)/lib) -L$(TEST_OPENOLT_LIB_DIR) -L/usr/lib/ -I/usr/include -I./inc -I../src -o $(TEST_BIN) $(TEST_OBJS) -lgmock -lgtest -lopenolt -lopenoltapi $(LDFLAGS)
+	$(CXX) $(shell cmock-config --libs) -L$(TEST_OPENOLT_LIB_DIR) -L/usr/lib/ -I/usr/include -I./inc -I../src -o $(TEST_BIN) $(TEST_OBJS) -lgmock -lgtest -lopenolt -lopenoltapi $(LDFLAGS)
 src/%.o: src/%.cc
-	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) $(TEST_LIB_INC) -I./inc -I../common -I../src -I/usr/include -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I./inc -I../common -I../src -I/usr/include -c $< -o $@
 
 
 # bcm_host_api_stubs
 bcm_host_api_stubs:
-	# TODO: There is temporary hack below to introduce the definition of bcmos_mutex.
-	# This should ideally come as part of bal-api-x.x.x.x
+	# TODO: This is temporary hack below to introduce the definition BAL IEs that are missing in https://github.com/balapi/bal-api-<BAL-VER>
 	if [ -d $(BAL_API_DIR) ]; then \
 		echo "$(BAL_API_DIR) exists"; \
 	else \
@@ -173,26 +162,28 @@ bcm_host_api_stubs:
 		sed -i "\$$i extern void* bcmos_calloc(uint32_t size);"  ./$(BAL_API_DIR)/include/bcmos_common.h; \
 		sed -i "\$$i #define BCMOLT_INTERFACE_TYPE_EPON_1_G 3"  ./$(BAL_API_DIR)/include/bcmos_common.h; \
 		sed -i "\$$i #define BCMOLT_INTERFACE_TYPE_EPON_10_G 4"  ./$(BAL_API_DIR)/include/bcmos_common.h; \
+		sed -i "\$$i typedef struct \{ uint64_t rdi_errors;} bcmolt_onu_itu_pon_stats_data;" ./$(BAL_API_DIR)/include/object_model/bcmolt_api_model_api_structs.h; \
+		sed -i "\$$i typedef struct \{ bcmolt_onu_key key; bcmolt_onu_itu_pon_stats_data data;} bcmolt_onu_itu_pon_stats;" ./$(BAL_API_DIR)/include/object_model/bcmolt_api_model_api_structs.h; \
+		sed -i "\$$i #define bcmolt_onu_stat_subgroup_itu_pon_stats BCMOLT_ONU_STAT_SUBGROUP_ITU_PON_STATS" ./$(BAL_API_DIR)/include/object_model/bcmolt_api_model_api_structs.h; \
+		sed -i "\$$i #define BCMOLT_ONU_STAT_SUBGROUP_ITU_PON_STATS 0" ./$(BAL_API_DIR)/include/object_model/bcmolt_api_model_api_structs.h; \
 	fi
 
 # openoltapi
-OPENOLT_PROTOS_DIR = ../../protos
-OPENOLT_API_LIB = $(OPENOLT_PROTOS_DIR)/libopenoltapi.a
 CXXFLAGS += -I$(OPENOLT_PROTOS_DIR) -I$(OPENOLT_PROTOS_DIR)/googleapis/gens
-libopenoltapi.a:
+$(OPENOLT_API_LIB): $(wildcard $(OPENOLT_PROTOS_DIR)/*.proto)
 	make -C $(OPENOLT_PROTOS_DIR) all
 	mkdir -p lib
-	cp $(OPENOLT_PROTOS_DIR)/$@ lib/
+	cp $(OPENOLT_PROTOS_DIR)/libopenoltapi.a lib/
 libproto-clean:
 	make -C $(OPENOLT_PROTOS_DIR) clean
 
 # openolt
 OPENOLT_SRCS = $(wildcard ../src/*.cc) ../common/server.cc $(wildcard ../device/$(OPENOLTDEVICE)/*.cc) src/bal_stub.cc
 OPENOLT_OBJS = $(OPENOLT_SRCS:.cc=.o)
-libopenolt.a: $(OPENOLT_OBJS)
+$(OPENOLT_LIB): $(OPENOLT_OBJS)
 	mkdir -p lib
-	ar cr lib/$@ $^
-	ranlib lib/$@
+	ar cr $@ $^
+	ranlib $@
 ../common/%.o: ../common/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I../common -I./inc -I../src -c $< -o $@
 ../src/%.o: ../src/%.cc
