@@ -1002,7 +1002,7 @@ TEST_F(TestDeleteOnu, DeleteOnuSuccess) {
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
     onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
 
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(onu_cfg_clear_res));
@@ -1026,7 +1026,7 @@ TEST_F(TestDeleteOnu, DeleteOnuFailureClearOnuFail) {
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
     onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
 
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(onu_cfg_clear_res));
@@ -1050,7 +1050,7 @@ TEST_F(TestDeleteOnu, DeleteOnuFailureDeactivationFail) {
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
     onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
 
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
 
@@ -1073,7 +1073,7 @@ TEST_F(TestDeleteOnu, DeleteOnuFailureDeactivationTimeout) {
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
     onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
 
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
 
@@ -1083,6 +1083,44 @@ TEST_F(TestDeleteOnu, DeleteOnuFailureDeactivationTimeout) {
     ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
 }
 
+// Test 5 - DeleteOnu success case - Onu is Inactive so won't wait for onu deactivation response
+TEST_F(TestDeleteOnu, DeleteOnuSuccessDontwaitforDeactivationResp) {
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
+    bcmos_errno onu_cfg_clear_res = BCM_ERR_OK;
+
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
+    ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(onu_cfg_clear_res));
+
+    future<Status> future_res = async(launch::async, DeleteOnu_, pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str());
+
+    Status status = future_res.get();
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 6 - DeleteOnu failure case - Failed to fetch Onu status
+TEST_F(TestDeleteOnu, DeleteOnuFailureFetchOnuStatusFailed) {
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_INTERNAL;
+
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
+    future<Status> future_res = async(launch::async, DeleteOnu_, pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str());
+
+    Status status = future_res.get();
+    ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
+}
 
 ////////////////////////////////////////////////////////////////////////////
 // For testing OmciMsgOut functionality

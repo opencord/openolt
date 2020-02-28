@@ -77,7 +77,8 @@ bcmos_errno bcm_openolt_api_cli_init(bcmcli_entry *parent_dir, bcmcli_session *s
 bcmos_errno bcm_cli_quit(bcmcli_session *session, const bcmcli_cmd_parm parm[], uint16_t n_parms);
 int get_status_bcm_cli_quit(void);
 bcmos_errno bcmolt_apiend_cli_init();
-bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_state *state);
+bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_state *state, bcmolt_status *los_status);
+bcmos_errno get_onu_status(bcmolt_interface pon_ni, int onu_id, bcmolt_onu_state *onu_state);
 bcmos_errno bcmolt_cfg_get_mult_retry(bcmolt_oltid olt, bcmolt_cfg *cfg);
 unsigned NumNniIf_();
 unsigned NumPonIf_();

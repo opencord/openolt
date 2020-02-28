@@ -756,8 +756,9 @@ Status EnablePonIf_(uint32_t intf_id) {
     bcmolt_pon_interface_key intf_key = {.pon_ni = (bcmolt_interface)intf_id};
     bcmolt_pon_interface_set_pon_interface_state pon_interface_set_state;
     bcmolt_interface_state state;
+    bcmolt_status los_status;
 
-    err = get_pon_interface_status((bcmolt_interface)intf_id, &state);
+    err = get_pon_interface_status((bcmolt_interface)intf_id, &state, &los_status);
     if (err == BCM_ERR_OK) {
         if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
             OPENOLT_LOG(WARNING, openolt_log_id, "PON interface: %d already enabled\n", intf_id);
@@ -1062,6 +1063,7 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
                     OPENOLT_LOG(ERROR, openolt_log_id, "Failed to deactivate ONU %d on PON %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
                     return bcm_to_grpc_err(err, "Failed to deactivate ONU");
                 }
+                OPENOLT_LOG(INFO, openolt_log_id, "Deactivated ONU, onu_id %d on PON %d\n", onu_id, intf_id);
                 break;
         }
     }
@@ -1072,16 +1074,34 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
 Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific) {
     bcmos_errno err = BCM_ERR_OK;
+    bcmolt_onu_state onu_state;
 
     OPENOLT_LOG(INFO, openolt_log_id,  "DeleteOnu ONU %d on PON %d : vendor id %s, vendor specific %s\n",
         onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str());
 
     // Need to deactivate before removing it (BAL rules)
     DeactivateOnu_(intf_id, onu_id, vendor_id, vendor_specific);
-    err = wait_for_onu_deactivate_complete(intf_id, onu_id);
-    if (err) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "failed to delete onu intf_id %d, onu_id %d\n",
-                intf_id, onu_id);
+
+    err = get_onu_status((bcmolt_interface)intf_id, onu_id, &onu_state);
+    if (err == BCM_ERR_OK) {
+        if (onu_state == BCMOLT_ONU_STATE_ACTIVE) {
+            OPENOLT_LOG(INFO, openolt_log_id, "Onu is Active, onu_id: %d, waiting for onu deactivate complete response\n",
+                intf_id);
+            err = wait_for_onu_deactivate_complete(intf_id, onu_id);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "failed to delete onu intf_id %d, onu_id %d\n",
+                        intf_id, onu_id);
+                return bcm_to_grpc_err(err, "Failed to delete ONU");
+            }
+        }
+        else if (onu_state == BCMOLT_ONU_STATE_INACTIVE) {
+            OPENOLT_LOG(INFO, openolt_log_id, "Onu is Inactive, onu_id: %d, not waiting for onu deactivate complete response\n",
+                intf_id);
+        }
+    }
+    else {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch Onu status, onu_id = %d, intf_id = %d, err = %s\n",
+            onu_id, intf_id, bcmos_strerror(err));
         return bcm_to_grpc_err(err, "Failed to delete ONU");
     }
 
@@ -1102,6 +1122,7 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
         return Status(grpc::StatusCode::INTERNAL, "Failed to delete ONU");
     }
 
+    OPENOLT_LOG(INFO, openolt_log_id, "Deleted ONU, onu_id %d on PON %d\n", onu_id, intf_id);
     return Status::OK;
 }
 
@@ -2037,6 +2058,7 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
 
     bcmos_errno err;
     bcmolt_interface_state state;
+    bcmolt_status los_status;
     uint16_t sched_id;
 
     if (direction == upstream) {
@@ -2054,10 +2076,10 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
             return err;
         }
 
-        err = get_pon_interface_status((bcmolt_interface)intf_id, &state);
+        err = get_pon_interface_status((bcmolt_interface)intf_id, &state, &los_status);
         if (err == BCM_ERR_OK) {
-            if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING) {
-                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled, waiting for alloc cfg clear response\n",
+            if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_OFF) {
+                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled and LoS status is OFF, waiting for alloc cfg clear response\n",
                     intf_id);
                 err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_DELETE);
                 if (err) {
@@ -2066,13 +2088,16 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
                     return err;
                 }
             }
+            else if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_ON) {
+                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled but LoS status is ON, not waiting for alloc cfg clear response\n",
+                    intf_id);
+            }
             else if (state == BCMOLT_INTERFACE_STATE_INACTIVE) {
                 OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is disabled, not waiting for alloc cfg clear response\n",
                     intf_id);
             }
-        }
-        else {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch PON interface state, intf_id = %d, err = %s\n",
+        } else {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch PON interface status, intf_id = %d, err = %s\n",
                 intf_id, bcmos_strerror(err));
             return err;
         }

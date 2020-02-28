@@ -691,7 +691,31 @@ bcmos_errno bcmolt_apiend_cli_init() {
     }
 }
 
-bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_state *state) {
+bcmos_errno get_onu_status(bcmolt_interface pon_ni, int onu_id, bcmolt_onu_state *onu_state) {
+    bcmos_errno err;
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = pon_ni;
+    onu_key.onu_id = onu_id;
+
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
+    BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, itu);
+    #ifdef TEST_MODE
+    // It is impossible to mock the setting of onu_cfg.data.onu_state because
+    // the actual bcmolt_cfg_get passes the address of onu_cfg.hdr and we cannot
+    // set the onu_cfg.data.onu_state. So a new stub function is created and address
+    // of onu_cfg is passed. This is one-of case where we need to add test specific
+    // code in production code.
+    err = bcmolt_cfg_get__onu_state_stub(dev_id, &onu_cfg);
+    #else
+    err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
+    #endif
+    *onu_state = onu_cfg.data.onu_state;
+    return err;
+}
+
+bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_state *state, bcmolt_status *los_status) {
     bcmos_errno err;
     bcmolt_pon_interface_key pon_key;
     bcmolt_pon_interface_cfg pon_cfg;
@@ -699,6 +723,7 @@ bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_s
 
     BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
     BCMOLT_FIELD_SET_PRESENT(&pon_cfg.data, pon_interface_cfg_data, state);
+    BCMOLT_FIELD_SET_PRESENT(&pon_cfg.data, pon_interface_cfg_data, los_status);
     BCMOLT_FIELD_SET_PRESENT(&pon_cfg.data, pon_interface_cfg_data, itu);
     #ifdef TEST_MODE
     // It is impossible to mock the setting of pon_cfg.data.state because
@@ -711,6 +736,7 @@ bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_s
     err = bcmolt_cfg_get(dev_id, &pon_cfg.hdr);
     #endif
     *state = pon_cfg.data.state;
+    *los_status = pon_cfg.data.los_status;
     return err;
 }
 

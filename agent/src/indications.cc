@@ -233,6 +233,10 @@ static void IfIndication(bcmolt_devid olt, bcmolt_msg *msg) {
 
                     intf_ind->set_intf_id(key->pon_ni);
                     SET_OPER_STATE(intf_ind, data->new_state);
+
+                    OPENOLT_LOG(INFO, openolt_log_id, "intf indication, intf_type %s, intf_id %d, oper_state %s\n",
+                        bcmolt_to_grpc_intf_type(BCMOLT_INTERFACE_TYPE_PON).c_str(), key->pon_ni, intf_ind->oper_state().c_str());
+
                     ind.set_allocated_intf_ind(intf_ind);
                     break;
                 }
@@ -316,6 +320,11 @@ static void OnuAlarmIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                 {
                     bcmolt_onu_xgpon_alarm_data *data = &((bcmolt_onu_xgpon_alarm *)msg)->data;
                     bcmolt_onu_key *key = &((bcmolt_onu_xgpon_alarm *)msg)->key;
+
+                    int port_no = interface_key_to_port_no(key->pon_ni, BCMOLT_INTERFACE_TYPE_PON);
+
+                    OPENOLT_LOG(INFO, openolt_log_id, "onu alarm indication, pon_ni %d, onu_id %d, port_no %d, los_status %s, lob_status %s, lopc_miss_status %s, lopc_mic_error_status %s\n", key->pon_ni, key->onu_id, port_no, alarm_status_to_string(data->xgpon_onu_alarm.losi).c_str(), alarm_status_to_string(data->xgpon_onu_alarm.lobi).c_str(), alarm_status_to_string(data->xgpon_onu_alarm.lopci_miss).c_str(), alarm_status_to_string(data->xgpon_onu_alarm.lopci_mic_error).c_str());
+
                     onu_alarm_ind->set_los_status(alarm_status_to_string(data->xgpon_onu_alarm.losi));
                     onu_alarm_ind->set_lob_status(alarm_status_to_string(data->xgpon_onu_alarm.lobi));
                     onu_alarm_ind->set_lopc_miss_status(alarm_status_to_string(data->xgpon_onu_alarm.lopci_miss));
@@ -358,6 +367,11 @@ static void OnuDyingGaspIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                 {
                     bcmolt_onu_dgi* dgi_data = (bcmolt_onu_dgi *)msg;
                     bcmolt_onu_key *key = &((bcmolt_onu_dgi *)msg)->key;
+
+                    int port_no = interface_key_to_port_no(key->pon_ni, BCMOLT_INTERFACE_TYPE_PON);
+
+                    OPENOLT_LOG(INFO, openolt_log_id, "onu dyinggasp indication, pon_ni %d, onu_id %d, port_no %d, status %s\n",
+                        key->pon_ni, key->onu_id, port_no, alarm_status_to_string(dgi_data->data.alarm_status).c_str());
 
                     dgi_ind->set_status(alarm_status_to_string(dgi_data->data.alarm_status));
                     dgi_ind->set_intf_id(key->pon_ni);
@@ -886,7 +900,7 @@ static void OnuDeactivationCompletedIndication(bcmolt_devid olt, bcmolt_msg *msg
                     if (it == onu_deact_compltd_map.end()) {
                         // could be case of spurious aysnc response, OR, the application timed-out waiting for response and cleared the key.
                         bcmolt_msg_free(msg);
-                        OPENOLT_LOG(ERROR, openolt_log_id, "onu deactivate completed key not found for pon intf %u, onu_id %u\n",
+                        OPENOLT_LOG(WARNING, openolt_log_id, "onu deactivate completed key not found for pon intf %u, onu_id %u\n",
                             key->pon_ni, key->onu_id);
                         bcmos_fastlock_unlock(&onu_deactivate_wait_lock, 0);
                         return;
