@@ -899,13 +899,13 @@ static void OnuDeactivationCompletedIndication(bcmolt_devid olt, bcmolt_msg *msg
                     std::map<onu_deact_compltd_key,  Queue<onu_deactivate_complete_result> *>::iterator it = onu_deact_compltd_map.find(onu_key);
                     if (it == onu_deact_compltd_map.end()) {
                         // could be case of spurious aysnc response, OR, the application timed-out waiting for response and cleared the key.
-                        bcmolt_msg_free(msg);
+                        // OR most importantly, could be a case of ONU going down (reboot, PON cable plug-out) where
+                        // BCMOLT_ONU_AUTO_SUBGROUP_ONU_DEACTIVATION_COMPLETED is received without any explicit request from the application.
+                        // The application has to take care handling spurious indications.
                         OPENOLT_LOG(WARNING, openolt_log_id, "onu deactivate completed key not found for pon intf %u, onu_id %u\n",
                             key->pon_ni, key->onu_id);
-                        bcmos_fastlock_unlock(&onu_deactivate_wait_lock, 0);
-                        return;
                     }
-                    if (it->second) {
+                    else if (it->second) {
                         // Push the result
                         it->second->push(res);
                     }
