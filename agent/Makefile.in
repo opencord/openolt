@@ -27,13 +27,13 @@ OPENOLTDEVICE ?= generic
 # sdk-all-<SDK_VER>.tar.gz - Broadcom Qumran SDK.
 # ACCTON_BAL_<BAL_VER>-<DEV_VER>.patch - Accton/Edgecore's patch.
 BAL_MAJOR_VER = 3
-BAL_MINOR_VER = 2
+BAL_MINOR_VER = 4
 BAL_REV_A_VER = 3
-BAL_REV_B_VER = 2
+BAL_REV_B_VER = 3
 BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
 BAL_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
 SDK_VER = 6.5.13
-DEV_VER ?= 201912230101
+DEV_VER ?= 202002100101
 #
 # Version of Open Network Linux (ONL).
 ONL_KERN_VER_MAJOR = 4.14
@@ -183,6 +183,7 @@ BAL_INC = -I$(BAL_DIR)/host_driver/bal/bal_include \
           -I$(BAL_DIR)/host_driver/topology \
           -I$(BAL_DIR)/host_driver/utils \
           -I$(BAL_DIR)/host_driver/api \
+          -I$(BAL_DIR)/host_driver/metadata \
           -I$(BAL_DIR)/host_customized/os_abstraction \
           -I$(BAL_DIR)/host_customized/os_abstraction/posix \
           -I$(BAL_DIR)/host_customized/config \

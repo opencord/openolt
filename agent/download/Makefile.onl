@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-COMMIT_ID = b4af32e
+COMMIT_ID = 72b95a7
 
 onl-4.14:
 	cd OpenNetworkLinux && git checkout -b $@ $(COMMIT_ID) && docker/tools/onlbuilder --non-interactive -8 -c ./build-onl.sh

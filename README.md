@@ -46,7 +46,7 @@ A list of tested devices and optics can be found in the [CORD hardware
 requirements](https://guide.opencord.org/prereqs/hardware.html#recommended-hardware)
 guide, in the *R-CORD access equipment and optics* section.
 
-## Pre-built debian packages of OpenOLT agent for Accton/Edgecore ASFVOLT16
+## Pre-built debian packages of OpenOLT agent for Accton/Edgecore ASFVOLT16/ASGvOLT64
 
 Accton/Edgecore makes available pre-built debian packages of OpenOLT agent to
 their customers.  Get access credentials for
@@ -55,12 +55,12 @@ navigate to `File_Station -> EdgecoreNAS`, and then the folder
 `/ASXvOLT16/OpenOLT_Agent/From_ONF_Distribution/` and pick the right version of
 `.deb` package required for your testing.
 
-`voltha-2.3/openolt-2.3.0.deb` is the latest version of package with support
-for BAL3.2.3.2 .
+`voltha-2.3/openolt_<OPENOLTDEVICE>-2.3.0-<Last Commit ID>.deb` is the latest version of package with support
+for BAL v3.4.3.3 .
 
 The pre-built debian packages have been tested on [Open Networking Linux
 (ONL)](http://opennetlinux.org/) version 4.14. The ONL Installer required for
-voltha-2.3/openolt-2.3.0.deb is also available at in the same path, i.e.,
+`voltha-2.3/openolt_<OPENOLTDEVICE>-2.3.0-<Last Commit ID>.deb` is also available at in the same path, i.e.,
 voltha-2.3/.
 
 ## Install OpenOLT
@@ -74,10 +74,10 @@ scp openolt.deb root@10.6.0.201:~/.
 Install the *openolt.deb* package using *dpkg*:
 
 ```shell
-dpkg -i openolt.deb
+dpkg -i openolt_<OPENOLTDEVICE>-2.3.0-<Last Commit ID>.deb
 ```
 
-The ONL version required for BAL3.2.3.2 is ONL `4.14.109-OpenNetworkLinux`. This
+The ONL version required for BAL v3.4.3.3 is ONL `4.14.151-OpenNetworkLinux`. This
 will be built as part of build procedure described `Build OpenOLT` section.
 
 ## Run OpenOLT as a Linux service
@@ -165,7 +165,7 @@ At the VOLTHA CLI, preprovision and enable the OLT:
 
 ### Supported BAL API versions
 
-Currently, OpenOLT supports Broadcom's BAL API, version *3.2.3.2*.
+Currently, OpenOLT supports Broadcom's BAL API, version *3.4.3.3*.
 
 ### Proprietary software requirements
 
@@ -177,9 +177,9 @@ The following proprietary source code is required to build the OpenOLT agent.
 
 The versions currently supported by the OpenOLT agent are:
 
-* `SW-BCM686OLT_3_2_3_2.tgz`
+* `SW-BCM686OLT_3_4_3_3.tgz`
 * `sdk-all-6.5.13.tar.gz`
-* `ACCTON_BAL_3.2.3.2-V201912230101.patch`
+* `ACCTON_BAL_3.4.3.3-V202002100101.patch`
 
 > NOTE: the repository does not contain the above three source packages.  These
 > are needed to build the OpenOLT agent executable. Contact [Dave Baron at
@@ -222,7 +222,7 @@ Copy the Broadcom source and patch files to the openolt/agent/download directory
 
 ```shell
 cd <dir containing Broadcom source and patch files>
-cp ACCTON_BAL_3.2.3.2-V201912230101.patch SW-BCM686OLT_3_2_3_2.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
+cp ACCTON_BAL_3.4.3.3-V202002100101.patch SW-BCM686OLT_3_4_3_3.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
 ```
 
 Run the configure script to generate the appropriate Makefile scaffolding for
@@ -250,7 +250,7 @@ make OPENOLTDEVICE=asfvolt16
 
 Note that the required ONL version `4.14` is built as part of the above build
 procedure and is available at path
-`build/onl/OpenNetworkLinux/RELEASE/jessie/amd64/ONL-onl-4.14_ONL-OS8_2019-09-24.0446b4af32e_AMD64_INSTALLED_INSTALLER`.
+`build/onl/OpenNetworkLinux/RELEASE/jessie/amd64/ONL-onl-4.14_ONL-OS8_2020-01-30.0413-72b95a7_AMD64_INSTALLED_INSTALLER`.
 This ONL Installer should be used to flash the OS on the OLT.
 
 If you need to use a specific version of voltha-protos, then specify the git
