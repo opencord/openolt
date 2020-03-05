@@ -153,13 +153,13 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
 
                 pool = range->add_pools();
                 pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::ALLOC_ID);
-                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::SHARED_BY_ALL_INTF_SAME_TECH);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::DEDICATED_PER_INTF);
                 pool->set_start(1024);
                 pool->set_end(16383);
 
                 pool = range->add_pools();
                 pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::GEMPORT_ID);
-                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::SHARED_BY_ALL_INTF_ALL_TECH);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::DEDICATED_PER_INTF);
                 pool->set_start(1024);
                 pool->set_end(65535);
 
@@ -180,13 +180,13 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
 
                 pool = range->add_pools();
                 pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::ALLOC_ID);
-                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::SHARED_BY_ALL_INTF_SAME_TECH);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::DEDICATED_PER_INTF);
                 pool->set_start(256);
                 pool->set_end(757);
 
                 pool = range->add_pools();
                 pool->set_type(openolt::DeviceInfo::DeviceResourceRanges::Pool::GEMPORT_ID);
-                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::SHARED_BY_ALL_INTF_ALL_TECH);
+                pool->set_sharing(openolt::DeviceInfo::DeviceResourceRanges::Pool::DEDICATED_PER_INTF);
                 pool->set_start(256);
                 pool->set_end(4095);
 
