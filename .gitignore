@@ -33,3 +33,6 @@ build
 
 # IntelliJ Files
 .idea
+
+# vscode
+.vscode

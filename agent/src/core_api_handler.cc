@@ -770,7 +770,7 @@ Status EnablePonIf_(uint32_t intf_id) {
     BCMOLT_MSG_FIELD_SET(&interface_obj, discovery.control, BCMOLT_CONTROL_STATE_ENABLE);
     BCMOLT_MSG_FIELD_SET(&interface_obj, discovery.interval, 5000);
     BCMOLT_MSG_FIELD_SET(&interface_obj, discovery.onu_post_discovery_mode,
-        BCMOLT_ONU_POST_DISCOVERY_MODE_ACTIVATE);
+        BCMOLT_ONU_POST_DISCOVERY_MODE_NONE);
     BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.los, true);
     BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.onu_alarms, true);
     BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.tiwi, true);
@@ -981,50 +981,85 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     bcmolt_serial_number serial_number; /**< ONU serial number */
     bcmolt_bin_str_36 registration_id; /**< ONU registration ID */
 
+    bcmolt_onu_set_onu_state onu_oper; /* declare main API struct */
+    bcmolt_onu_state onu_state;
+
     onu_key.onu_id = onu_id;
     onu_key.pon_ni = intf_id;
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
     BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
-    #ifdef TEST_MODE
+#ifdef TEST_MODE
     // It is impossible to mock the setting of onu_cfg.data.onu_state because
     // the actual bcmolt_cfg_get passes the address of onu_cfg.hdr and we cannot
     // set the onu_cfg.data.onu_state. So a new stub function is created and address
     // of onu_cfg is passed. This is one-of case where we need to add test specific
     // code in production code.
     err = bcmolt_cfg_get__onu_state_stub(dev_id, &onu_cfg);
-    #else
+#else
     err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
-    #endif
+#endif
+    OPENOLT_LOG(INFO, openolt_log_id, "Activate ONU : old state = %d, current state = %d\n",
+            onu_cfg.data.onu_old_state, onu_cfg.data.onu_state);
     if (err == BCM_ERR_OK) {
-        if ((onu_cfg.data.onu_state == BCMOLT_ONU_STATE_PROCESSING ||
-             onu_cfg.data.onu_state == BCMOLT_ONU_STATE_ACTIVE) ||
-           (onu_cfg.data.onu_state == BCMOLT_ONU_STATE_INACTIVE &&
-             onu_cfg.data.onu_old_state == BCMOLT_ONU_STATE_NOT_CONFIGURED))
+        if (onu_cfg.data.onu_state == BCMOLT_ONU_STATE_ACTIVE) {
+            OPENOLT_LOG(INFO, openolt_log_id, "ONU is already in ACTIVE state, \
+not processing this request for pon_intf=%d onu_id=%d\n", intf_id, onu_id);
             return Status::OK;
+        } else if (onu_cfg.data.onu_state != BCMOLT_ONU_STATE_NOT_CONFIGURED &&
+                onu_cfg.data.onu_state != BCMOLT_ONU_STATE_INACTIVE) {
+            // We need the ONU to be in NOT_CONFIGURED or INACTIVE state to further process the request
+            OPENOLT_LOG(ERROR, openolt_log_id, "ONU in an invalid state to process the request, \
+state=%d pon_intf=%d onu_id=%d\n", onu_cfg.data.onu_state, intf_id, onu_id);
+            return bcm_to_grpc_err(err, "Failed to activate ONU, invalid ONU state");
+        }
+    } else {
+        // This should never happen. BAL GET should succeed for non-existant ONUs too. The state of such ONUs will be NOT_CONFIGURED
+        OPENOLT_LOG(ERROR, openolt_log_id, "ONU state query failed pon_intf=%d onu_id=%d\n", intf_id, onu_id);
+        return bcm_to_grpc_err(err, "onu get failed");
     }
 
-    OPENOLT_LOG(INFO, openolt_log_id,  "Enabling ONU %d on PON %d : vendor id %s, \
+    // If the ONU is not configured at all we need to first configure it
+    if (onu_cfg.data.onu_state == BCMOLT_ONU_STATE_NOT_CONFIGURED) {
+        OPENOLT_LOG(INFO, openolt_log_id,  "Configuring ONU %d on PON %d : vendor id %s, \
 vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id,
-        vendor_specific_to_str(vendor_specific).c_str(), pir);
+                vendor_specific_to_str(vendor_specific).c_str(), pir);
 
-    memcpy(serial_number.vendor_id.arr, vendor_id, 4);
-    memcpy(serial_number.vendor_specific.arr, vendor_specific, 4);
-    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.serial_number, serial_number);
-    BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.auto_learning, BCMOS_TRUE);
-    /*set burst and data profiles to fec disabled*/
-    if (board_technology == "XGS-PON") {
-        BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.ranging_burst_profile, 2);
-        BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.data_burst_profile, 1);
-    } else if (board_technology == "GPON") {
-        BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.gpon.ds_ber_reporting_interval, 1000000);
-        BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.gpon.omci_port_id, onu_id);
+        memcpy(serial_number.vendor_id.arr, vendor_id, 4);
+        memcpy(serial_number.vendor_specific.arr, vendor_specific, 4);
+        BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+        BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.serial_number, serial_number);
+        BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.auto_learning, BCMOS_TRUE);
+        /*set burst and data profiles to fec disabled*/
+        if (board_technology == "XGS-PON") {
+            BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.ranging_burst_profile, 2);
+            BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.data_burst_profile, 1);
+        } else if (board_technology == "GPON") {
+            BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.gpon.ds_ber_reporting_interval, 1000000);
+            BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.gpon.omci_port_id, onu_id);
+        }
+        err = bcmolt_cfg_set(dev_id, &onu_cfg.hdr);
+        if (err != BCM_ERR_OK) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to configure ONU %d on PON %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
+            return bcm_to_grpc_err(err, "Failed to configure ONU");
+        }
     }
-    err = bcmolt_cfg_set(dev_id, &onu_cfg.hdr);
+
+    // Now that the ONU is configured, move the ONU to ACTIVE state
+    memset(&onu_cfg, 0, sizeof(bcmolt_onu_cfg));
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
+    BCMOLT_OPER_INIT(&onu_oper, onu, set_onu_state, onu_key);
+    BCMOLT_FIELD_SET(&onu_oper.data, onu_set_onu_state_data,
+            onu_state, BCMOLT_ONU_OPERATION_ACTIVE);
+    err = bcmolt_oper_submit(dev_id, &onu_oper.hdr);
     if (err != BCM_ERR_OK) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to set activate ONU %d on PON %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to activate ONU %d on PON %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
         return bcm_to_grpc_err(err, "Failed to activate ONU");
     }
+    // ONU will eventually get activated after we have submitted the operation request. The adapter will receive an asynchronous
+    // ONU_ACTIVATION_COMPLETED_INDICATION
+
+    OPENOLT_LOG(INFO, openolt_log_id, "Activated ONU, onu_id %d on PON %d\n", onu_id, intf_id);
 
     return Status::OK;
 }
@@ -1084,9 +1119,9 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
 
     err = get_onu_status((bcmolt_interface)intf_id, onu_id, &onu_state);
     if (err == BCM_ERR_OK) {
-        if (onu_state == BCMOLT_ONU_STATE_ACTIVE) {
-            OPENOLT_LOG(INFO, openolt_log_id, "Onu is Active, onu_id: %d, waiting for onu deactivate complete response\n",
-                intf_id);
+        if (onu_state != BCMOLT_ONU_STATE_INACTIVE) {
+            OPENOLT_LOG(INFO, openolt_log_id, "waiting for onu deactivate complete response: intf_id=%d, onu_id=%d\n",
+                intf_id, onu_id);
             err = wait_for_onu_deactivate_complete(intf_id, onu_id);
             if (err) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "failed to delete onu intf_id %d, onu_id %d\n",
@@ -1094,7 +1129,7 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
                 return bcm_to_grpc_err(err, "Failed to delete ONU");
             }
         }
-        else if (onu_state == BCMOLT_ONU_STATE_INACTIVE) {
+        else {
             OPENOLT_LOG(INFO, openolt_log_id, "Onu is Inactive, onu_id: %d, not waiting for onu deactivate complete response\n",
                 intf_id);
         }

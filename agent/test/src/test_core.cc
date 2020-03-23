@@ -838,48 +838,30 @@ class TestActivateOnu : public Test {
         }
 };
 
-// Test 1 - ActivateOnu success case
-TEST_F(TestActivateOnu, ActivateOnuSuccess) {
-    bcmos_errno onu_cfg_get_res = BCM_ERR_INTERNAL;
-    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_INTERNAL;
+// Test 1 - ActivateOnu success case - ONU in BCMOLT_ONU_STATE_NOT_CONFIGURED state
+TEST_F(TestActivateOnu, ActivateOnuSuccessOnuNotConfigured) {
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
     bcmos_errno onu_cfg_set_res = BCM_ERR_OK;
+    bcmos_errno onu_oper_submit_res = BCM_ERR_OK;
 
     bcmolt_onu_cfg onu_cfg;
     bcmolt_onu_key onu_key;
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_NOT_CONFIGURED;
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
                      .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
 
     ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Return(onu_cfg_get_res));
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(onu_cfg_set_res));
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_submit_res));
 
     Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
-// Test 2 - ActivateOnu failure case
-TEST_F(TestActivateOnu, ActivateOnuFailure) {
-    bcmos_errno onu_cfg_get_res = BCM_ERR_INTERNAL;
-    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_INTERNAL;
-    bcmos_errno onu_cfg_set_res = BCM_ERR_INTERNAL;
-
-    bcmolt_onu_cfg onu_cfg;
-    bcmolt_onu_key onu_key;
-    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
-
-    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Return(onu_cfg_get_res));
-    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(onu_cfg_set_res));
-
-    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
-    ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
-}
-
-// Test 3 - ActivateOnu - Onu already under processing case
-TEST_F(TestActivateOnu, ActivateOnuProcessing) {
+// Test 2 - ActivateOnu success case - ONU already in BCMOLT_ONU_STATE_ACTIVE state
+TEST_F(TestActivateOnu, ActivateOnuSuccessOnuAlreadyActive) {
     bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
     bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
 
@@ -889,10 +871,87 @@ TEST_F(TestActivateOnu, ActivateOnuProcessing) {
     onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
                      .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
     ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Return(onu_cfg_get_res));
 
     Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 3 - ActivateOnu success case - ONU in BCMOLT_ONU_STATE_INACTIVE state
+TEST_F(TestActivateOnu, ActivateOnuSuccessOnuInactive) {
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno onu_oper_submit_res = BCM_ERR_OK;
+
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Return(onu_cfg_get_res));
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_submit_res));
+
+
+    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 4 - ActivateOnu failure case - ONU in invalid state (for this ex: BCMOLT_ONU_STATE_LOW_POWER_DOZE)
+TEST_F(TestActivateOnu, ActivateOnuFailOnuInvalidState) {
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
+
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_LOW_POWER_DOZE; // some invalid state which we dont recognize or process
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Return(onu_cfg_get_res));
+
+    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
+    ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 5 - ActivateOnu failure case - cfg_get failure
+TEST_F(TestActivateOnu, ActivateOnuFailCfgGetFail) {
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_INTERNAL;// return cfg_get failure
+
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
+    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
+    ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 6 - ActivateOnu failure case - oper_submit failure
+TEST_F(TestActivateOnu, ActivateOnuFailOperSubmitFail) {
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno onu_cfg_set_res = BCM_ERR_OK;
+    bcmos_errno onu_oper_submit_res = BCM_ERR_INTERNAL; // return oper_submit failure
+
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_NOT_CONFIGURED;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Return(onu_cfg_get_res));
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(onu_cfg_set_res));
+    ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_submit_res));
+
+    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
+    ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
 }
 
 ////////////////////////////////////////////////////////////////////////////
