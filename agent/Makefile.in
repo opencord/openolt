@@ -305,7 +305,7 @@ deb:
 	cp $(BUILD_DIR)/libbal_host_api.so device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp -a scripts/init.d device/$(OPENOLTDEVICE)/mkdebian/debian
 	cd device/$(OPENOLTDEVICE)/mkdebian && ./build_$(OPENOLTDEVICE)_deb.sh
-	mv device/$(OPENOLTDEVICE)/*.deb $(BUILD_DIR)/openolt_$(OPENOLTDEVICE).deb
+	mv device/$(OPENOLTDEVICE)/*.deb $(BUILD_DIR)/openolt_$(OPENOLTDEVICE)-$(VERSION)-$(LABEL_VCS_REF).deb
 	make deb-cleanup
 
 src/%.o: %.cpp
@@ -336,7 +336,7 @@ clean: protos-clean deb-cleanup
 	@rm -f $(BUILD_DIR)/openolt
 	@rm -f $(BUILD_DIR)/dev_mgmt_daemon
 	@rm -f $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz
-	@rm -f $(BUILD_DIR)/openolt_$(OPENOLTDEVICE).deb
+	@rm -f $(BUILD_DIR)/openolt_$(OPENOLTDEVICE)-$(VERSION)-$(LABEL_VCS_REF).deb
 
 clean-src: protos-clean
 	@rm -f $(OBJS) $(DEPS)
