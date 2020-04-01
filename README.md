@@ -7,7 +7,7 @@ The OpenOLT agent is used by [VOLTHA](https://github.com/opencord/voltha)
 through the [OpenOLT
 adapter](https://github.com/opencord/voltha/tree/master/voltha/adapters/openolt).
 
-OpenOLT agent uses Broadcom's BAL (Broadband Access Layer) software for
+OpenOLT agent uses Broadcom's BAL (Broadband Adaptation Layer) software for
 interfacing with the Maple/Qumran chipsets in OLTs such as the Edgecore/Accton
 ASXvOLT16.
 
@@ -131,11 +131,19 @@ terminal and run `openolt`:
 
 ```shell
 cd /broadcom
-./openolt
+./openolt --interface <interface-name> (or)
+./openolt --intf <interface-name>
 ```
 
-> **NOTE**: the two executables will remain open in the terminals, unless they
-> are put in background.
+> **NOTE**:
+
+* In the commands above, you should specify OLT management interface name or
+  inband interface name if OLT is used in inband mode. Openolt gRPC server
+  will start listening on given interface's IP address. If no interface
+  specified gRPC server will listen on "0.0.0.0:9191" which will accpet
+  requests from any of the interfaces present in OLT.
+* The two executables will remain open in the terminals, unless they are put
+  in background.
 
 ### Connect from VOLTHA
 
@@ -148,9 +156,10 @@ At the VOLTHA CLI, preprovision and enable the OLT:
 
 ### Additional notes
 
-* *9191* is the TCP port that the *OpenOLT* agent uses for its gRPC channel
-* In the commands above, you can either use the loopback IP address (127.0.0.1)
-  or substitute all its occurrences with the management IP of your OLT
+* *9191* is the TCP port that the *OpenOLT* agent uses for its gRPC channel.
+* In the commands above, you should use OLT inband interface IP address if OLT
+  is used in inband mode, otherwise substitute all its occurrences with the
+  management IP of your OLT.
 
 ## Build OpenOLT
 

@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
     }
     else
         pushOltOperInd(0, "nni", "up");
-    RunServer();
+    RunServer(argc, argv);
 
     return 0;
 }

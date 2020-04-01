@@ -238,6 +238,7 @@ uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t data_id)
 void stats_collection();
 Status check_connection();
 Status check_bal_ready();
+std::string get_ip_address(const char* nw_intf);
 
 // Stubbed defntions of bcmolt_cfg_get required for unit-test
 #ifdef TEST_MODE

@@ -17,6 +17,6 @@
 #ifndef OPENOLT_SERVER_H_
 #define OPENOLT_SERVER_H_
 
-void RunServer();
+void RunServer(int argc, char** argv);
 
 #endif

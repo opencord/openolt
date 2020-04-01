@@ -19,6 +19,12 @@ APPARGS=""
 USER="root"
 GROUP="root"
 
+# If OLT is used in inband mode, inband interface name will be copied
+# to /etc/default/openolt file. Here inband interface is passed as argument
+# while running openolt service
+[ -r /etc/default/openolt ] && . /etc/default/openolt
+[ -z "gRPC_interface" ] || APPARGS="--interface $gRPC_interface"
+
 # Include functions 
 set -e
 . /lib/lsb/init-functions

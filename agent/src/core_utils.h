@@ -17,6 +17,8 @@
 #define OPENOLT_CORE_UTILS_H_
 #include <string>
 #include <unistd.h>
+#include <ifaddrs.h>
+#include <arpa/inet.h>
 
 #include "core.h"
 #include "core_data.h"
@@ -98,6 +100,5 @@ void clear_gem_port(int gemport_id, int access_intf_id);
 Status handle_acl_rule_cleanup(int16_t acl_id, int32_t gemport_id, int32_t intf_id, const std::string flow_type);
 Status check_bal_ready();
 Status check_connection();
+std::string get_ip_address(const char* nw_intf);
 #endif // OPENOLT_CORE_UTILS_H_
-
-

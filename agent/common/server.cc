@@ -309,23 +309,32 @@ class OpenoltService final : public openolt::Openolt::Service {
     };
 };
 
-void RunServer() {
-  OpenoltService service;
-  std::string server_address(serverPort);
-  ServerBuilder builder;
+void RunServer(int argc, char** argv) {
+    std::string ipAddress = "0.0.0.0";
 
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(&service);
+    for (int i = 1; i < argc; ++i) {
+        if(strcmp(argv[i-1], "--interface") == 0 || (strcmp(argv[i-1], "--intf") == 0)) {
+            ipAddress = get_ip_address(argv[i]);
+            break;
+        }
+    }
 
-  std::unique_ptr<Server> server(builder.BuildAndStart());
+    serverPort = ipAddress.append(":9191").c_str();
+    OpenoltService service;
+    std::string server_address(serverPort);
+    ServerBuilder builder;
 
-  time_t now;
-  time(&now);
-  signature = (int)now;
+    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    builder.RegisterService(&service);
 
-  std::cout << "Server listening on " << server_address
-  << ", connection signature : " << signature << std::endl;
+    std::unique_ptr<Server> server(builder.BuildAndStart());
 
+    time_t now;
+    time(&now);
+    signature = (int)now;
 
-  server->Wait();
+    std::cout << "Server listening on " << server_address
+    << ", connection signature : " << signature << std::endl;
+
+    server->Wait();
 }
