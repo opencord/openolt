@@ -7,7 +7,9 @@ The OpenOLT agent is used by [VOLTHA](https://github.com/opencord/voltha)
 through the [OpenOLT
 adapter](https://github.com/opencord/voltha/tree/master/voltha/adapters/openolt).
 
-OpenOLT agent uses Broadcom's BAL (Broadband Access Layer) software for Maple/Qumran chipsets based OLT such as the Edgecore/Accton ASXvOLT16.
+OpenOLT agent uses Broadcom's BAL (Broadband Access Layer) software for
+interfacing with the Maple/Qumran chipsets in OLTs such as the Edgecore/Accton
+ASXvOLT16.
 
 ```text
 
@@ -36,7 +38,6 @@ OpenOLT agent uses Broadcom's BAL (Broadband Access Layer) software for Maple/Qu
 |                                     |
 |           White box OLT             |
 +-------------------------------------+
-
 ```
 
 ## Hardware requirements
@@ -47,16 +48,20 @@ guide, in the *R-CORD access equipment and optics* section.
 
 ## Pre-built debian packages of OpenOLT agent for Accton/Edgecore ASFVOLT16
 
-Accton/Edgecore makes available pre-built debian packages of OpenOLT agent to their customers.
-Get access credentials for https://edgecore.quickconnect.to and then login and navigate to
-File_Station -> EdgecoreNAS, and then the folder /ASXvOLT16/OpenOLT_Agent/From_ONF_Distribution/
-and pick the right version of deb package required for your testing.
-voltha-2.3/openolt-2.3.0.deb is the latest version of package with support for BAL3.2.3.2
-The pre-built debian packages have been tested on ONL-4.14. The ONL Installer required for
-voltha-2.3/openolt-2.3.0.deb is also available at in the same path, i.e., voltha-2.3/.
+Accton/Edgecore makes available pre-built debian packages of OpenOLT agent to
+their customers.  Get access credentials for
+[edgecore.quickconnect.to](https://edgecore.quickconnect.to) and then login and
+navigate to `File_Station -> EdgecoreNAS`, and then the folder
+`/ASXvOLT16/OpenOLT_Agent/From_ONF_Distribution/` and pick the right version of
+`.deb` package required for your testing.
 
-More info on how to install ONL can be found on the official [ONL
-website](https://opennetlinux.org/).
+`voltha-2.3/openolt-2.3.0.deb` is the latest version of package with support
+for BAL3.2.3.2 .
+
+The pre-built debian packages have been tested on [Open Networking Linux
+(ONL)](http://opennetlinux.org/) version 4.14. The ONL Installer required for
+voltha-2.3/openolt-2.3.0.deb is also available at in the same path, i.e.,
+voltha-2.3/.
 
 ## Install OpenOLT
 
@@ -72,17 +77,20 @@ Install the *openolt.deb* package using *dpkg*:
 dpkg -i openolt.deb
 ```
 
-Note that ONL required for BAL3.2.3.2 is ONL `4.14.109-OpenNetworkLinux`. This will be built as part of build procedure described `Build OpenOLT` section.
+The ONL version required for BAL3.2.3.2 is ONL `4.14.109-OpenNetworkLinux`. This
+will be built as part of build procedure described `Build OpenOLT` section.
 
 ## Run OpenOLT as a Linux service
 
-Rebooting the OLT (after the installation) will start dev_mgmt_daemon and openolt as init.d services:
+Rebooting the OLT (after the installation) will start `dev_mgmt_daemon` and
+`openolt` as system services:
 
-Rebooting the OLT will start the dev_mgmt_daemon and openolt services:
 ```shell
 reboot
 ```
+
 The services can also be stopped/started manually:
+
 ```shell
 service dev_mgmt_daemon stop
 service openolt stop
@@ -91,25 +99,35 @@ service openolt start
 ```
 
 Check the status of the services:
+
 ```shell
 service dev_mgmt_daemon status
 service openolt status
 ```
 
-## Run OpenOLT in foreground
+## Run OpenOLT in foreground for development and debugging
 
-Running the dev_mgmt_daemon and/or openolt services in the forground is useful for development and debugging. Make sure to first stop the services if they are running in background.
+Running the `dev_mgmt_daemon` and/or `openolt` services in the foreground is
+useful for development and debugging. Make sure to first stop the services if
+they are running in background.
 
-Open a terminal and run the Broadcom BAL software (*dev_mgmt_daemon*):
+```shell
+service dev_mgmt_daemon stop
+service openolt stop
+```
+
+Open a terminal and run the Broadcom BAL software (`dev_mgmt_daemon`):
 
 ```shell
 cd /broadcom
 ./dev_mgmt_daemon -d -pcie
 ```
-The `dev_mgmt_daemon` executable, when run in foreground, presents the CLI for Broadcom's BAL - Broadband Access Layer which is useful for debugging.
+
+The `dev_mgmt_daemon` executable presents the CLI for Broadcom's BAL when run
+in the foreground which is useful for debugging.
 
 While the first executable still runs (even in background), open another
-terminal and run *openolt*:
+terminal and run `openolt`:
 
 ```shell
 cd /broadcom
@@ -150,13 +168,13 @@ The following proprietary source code is required to build the OpenOLT agent.
 
 The versions currently supported by the OpenOLT agent are:
 
-* SW-BCM686OLT_3_2_3_2.tgz
-* sdk-all-6.5.13.tar.gz
-* ACCTON_BAL_3.2.3.2-V201912230101.patch
+* `SW-BCM686OLT_3_2_3_2.tgz`
+* `sdk-all-6.5.13.tar.gz`
+* `ACCTON_BAL_3.2.3.2-V201912230101.patch`
 
 > NOTE: the repository does not contain the above three source packages.  These
-> are needed to build the OpenOLT agent executable. Contact
-> [Broadcom](mailto:dave.baron@broadcom.com) to access the source packages.
+> are needed to build the OpenOLT agent executable. Contact [Dave Baron at
+> Broadcom](mailto:dave.baron@broadcom.com) to access the source packages.
 
 ### System Requirements
 
@@ -164,9 +182,9 @@ The versions currently supported by the OpenOLT agent are:
 
 CPU: Dual-core (4 Threads) up.
 
-Memory: 6G bytes.
+Memory: 6GB
 
-Hard Disk: 40G of disk free space.
+Storage: 40GB of free space.
 
 **Software** :
 
@@ -176,20 +194,18 @@ Hard Disk: 40G of disk free space.
 
 3. Essential tools for building packages
 
-       `sudo apt-get install build-essential ccache`
+   `sudo apt-get install build-essential ccache`
 
-4. Install cmake version 3.5.0 or above. Download cmake-3.5.0.tar.gz and install it by untaring cmake tar file.
-   Go to cmake-3.5.0 directory after untaring and execute
+4. Install cmake version 3.5.0 or above. Download cmake-3.5.0.tar.gz and untar
+   it, then in the cmake-3.5.0 directory install by running:
 
-       `./bootstrap && make && make install`
+   `./bootstrap && make && make install`
 
 ### Build procedure
 
-Clone the *openolt* repository either from GitHub or from OpenCORD Gerrit:
+Clone the `openolt` repository either from OpenCORD Gerrit:
 
 ```shell
-git clone git@github.com:opencord/openolt.git
-or
 git clone https://gerrit.opencord.org/openolt
 ```
 
@@ -200,14 +216,15 @@ cd <dir containing Broadcom source and patch files>
 cp ACCTON_BAL_3.2.3.2-V201912230101.patch SW-BCM686OLT_3_2_3_2.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
 ```
 
-Run Autoconfig to generate the appropriate makefile scaffolding for the desired target
+Run the configure script to generate the appropriate Makefile scaffolding for
+the desired target:
 
 ```shell
 cd openolt/agent
 ./configure
 ```
 
-Run *make prereq* to install the package dependencies.
+Run `make prereq` to install the package dependencies.
 This is usually a one-time thing, unless there is a change in the dependencies.
 
 ```shell
@@ -222,16 +239,21 @@ build the OpenOLT agent source.
 make OPENOLTDEVICE=asfvolt16
 ```
 
-Note that the required ONL vesion `4.14` is built as part of the above build procedure and is available at path `build/onl/OpenNetworkLinux/RELEASE/jessie/amd64/ONL-onl-4.14_ONL-OS8_2019-09-24.0446 b4af32e_AMD64_INSTALLED_INSTALLER`. This ONL Installer should be used to flash the OS on the OLT. 
+Note that the required ONL version `4.14` is built as part of the above build
+procedure and is available at path
+`build/onl/OpenNetworkLinux/RELEASE/jessie/amd64/ONL-onl-4.14_ONL-OS8_2019-09-24.0446b4af32e_AMD64_INSTALLED_INSTALLER`.
+This ONL Installer should be used to flash the OS on the OLT.
 
-If you need to use a specific version of voltha-protos, then specify the git tag/branch corresponding to
-tht specific version as below. For ex:
+If you need to use a specific version of voltha-protos, then specify the git
+tag/branch corresponding to that specific version:
 
 ```shell
 make OPENOLTDEVICE=asfvolt16 OPENOLT_PROTO_VER=master
 ```
 
-By default, the OPENOLT_PROTO_VER defaults to git tag *v3.1.0* of https://github.com/opencord/voltha-protos repo.
+By default, the `OPENOLT_PROTO_VER` defaults to git tag *v3.1.0* of the
+[voltha-protos](https://gerrit.opencord.org/gitweb?p=voltha-protos.git;a=summary)
+repo.
 
 If the build process succeeds, libraries and executables will be created in the
 *openolt/agent/build* directory.
@@ -242,10 +264,11 @@ Optionally, build the debian package that will be installed on the OLT.
 make OPENOLTDEVICE=asfvolt16 deb
 ```
 
-If the build process succeeds, the *openolt.deb* package will be created as
-well in the *openolt/agent/build* directory.
+If the build process succeeds, a `.deb` package will be created as well in the
+`openolt/agent/build` directory.
 
-NOTE: To compile for ASGvOLT 64 port GPON OLT, set `OPENOLTDEVICE` to `asgvolt64` during build procedure like below.
+NOTE: To compile for ASGvOLT 64 port GPON OLT, set `OPENOLTDEVICE` to
+`asgvolt64` during build procedure like below.
 
 ```shell
 make OPENOLTDEVICE=asgvolt64
@@ -265,26 +288,39 @@ make OPENOLTDEVICE=asfvolt16 distclean
 
 ## FAQ
 
-The information here may be specific to specific OLT and ONU hardware such as Edgecore ASFVOLT16 OLT and Broadcom based ONUs.
+The information here may be specific to specific OLT and ONU hardware such as
+Edgecore ASFVOLT16 OLT and Broadcom based ONUs.
 
 ### How to change speed of ASFVOLT16 NNI interface?
 
-Auto-negotiation on the NNI (uplink) interfaces is not tested. By default, the OpenOLT agent sets the speed of the NNI interfaces to 100G. To downgrade the network interface speed to 40G, add the following lines at the end of the qax.soc (/broadcom/qax.soc) configuration file. A restart of the dev_mgmt_daemon and openolt executables is required after the change.
+Auto-negotiation on the NNI (Network to Network Interface) uplink ports is not
+tested.
 
-```shell
+By default, the OpenOLT agent sets the speed of the NNI interfaces to 100G. To
+downgrade the network interface speed to 40G, add the following lines at the
+end of the `/broadcom/qax.soc` configuration file.
+
+```text
 port ce128 sp=40000
 ```
 
+A restart of the `dev_mgmt_daemon` and `openolt` services is required after
+making this change.
+
+
 ### Why does the Broadcom ONU not forward eapol packets?
 
-The firmware on the ONU is likely not setup to forward 802.1x on the linux bridge. Drop down to the shell in the Broadcom ONU's console and configure the Linux bridge to forward 802.1x.
+The firmware on the ONU is likely not setup to forward 802.1x EAPOL traffic on
+the Linux bridge. Drop down to the shell in the Broadcom ONU's console and
+configure the Linux bridge to forward 802.1x.
 
 ```shell
 > sh
 # echo 8 > /sys/class/net/bronu513/bridge/group_fwd_mask
 ```
 
-Version 1.7 of VOLTHA has a known issue where the ONU is only able to pass EAPOL packets from a specific LAN port (e.g. LAN port 1 on ALPHA ONUs)
+Version 1.7 of VOLTHA has a known issue where the ONU is only able to pass
+EAPOL packets from a specific LAN port (e.g. LAN port 1 on ALPHA ONUs)
 
 ### How do I check packet counters on the ONU?
 
@@ -294,12 +330,16 @@ LAN port packet counters:
 bs /b/e port/index=lan{0,1,2,3,4,5,6}
 ```
 
-WAN port packt counters:
+WAN port packet counters:
+
 ```shell
 bs /b/e port/index=wan0
 ```
+
 ### How to get access to MAPLE CLI on OLT box
-To get access to the `BCM.0>` maple console please ssh into the OLT and then execute:
+
+To get access to the `BCM.0>` maple console, SSH into the OLT and then execute:
+
 ```shell
 cd /broadcom
 ./example_user_appl
@@ -307,7 +347,10 @@ cd /broadcom
 
 ### How do I check packet counters on the OLT's PON interface?
 
-Following is an example of retrieving the interface description for PON intf_id 0 (TODO: document PON interface numbering for Edgecore OLT).
+Following is an example of retrieving the interface description for PON
+`intf_id 0`
+
+(TODO: document PON interface numbering for Edgecore OLT).
 
 ```shell
 BCM.0> a/t clear=no object=pon_interface sub=itu_pon_stats pon_ni=0
@@ -361,7 +404,7 @@ data={
 
 ### How do I check packet counters on the OLT's NNI interface?
 
-Following command retrieves NNI intf_id 0:
+Following command retrieves NNI `intf_id 0`:
 
 ```shell
 BCM.0> a/t clear=no object=nni_interface sub=stats id=0
@@ -396,15 +439,17 @@ Following command lists the flows installed on the OLT.
 BCM.0> a/m max_msgs=100 filter_invert=no object=flow
 ```
 
-### How do I access device CLI when running dev_mgmt_daemon and openolt agent binary in background?
+### How do I access device CLI when running `dev_mgmt_daemon` and `openolt` agent binary as services?
 
-Navigate to `/opt/bcm68620` and execute the command `/broadcom/dev_mgmt_attach` to access the QAX
-diag shell. Note that you will not be able to access the QAX diag shell, you need to recompile the
-BAL SDK with `SW_UTIL_SHELL=y` option.
+Navigate to `/opt/bcm68620` and execute the command `/broadcom/dev_mgmt_attach`
+to access the QAX diagnostic shell. If you are not able to access the shell,
+you need to recompile the BAL SDK with `SW_UTIL_SHELL=y` option set.
 
 ### DBA Scheduler fail to create on the OLT with errors related to Bandwidth configuration
 
-Ensure that `additional_bw` indicator in the Technology Profile and the `bandwidthprofile` configured in ONOS netcfg for the subscriber are following the below guideline.
+Ensure that `additional_bw` indicator in the Technology Profile and the
+`bandwidthprofile` configured in ONOS netcfg for the subscriber are following
+the below guideline.
 
 * When `additional_bw` is configured as `AdditionalBW_BestEffort`, ensure `cir` + `eir`
   values in ONOS netcfg BW profile for the subscriber are greater than or equal to *16000*
@@ -419,8 +464,10 @@ Ensure that `additional_bw` indicator in the Technology Profile and the `bandwid
 
 For more details about BW profile parameters, please refer below links.
 
-[MEF Whitepaper - Bandwidth-Profiles-for-Ethernet-Services](https://www.mef.net/Assets/White_Papers/Bandwidth-Profiles-for-Ethernet-Services.pdf)
-[Technology Profile Implementation Note](https://www.opennetworking.org/wp-content/uploads/2019/09/2pm-Shaun-Missett-Technology-Profile-and-Speed-Profile-Implementation.pdf)
+[MEF Whitepaper -
+Bandwidth-Profiles-for-Ethernet-Services](https://www.mef.net/Assets/White_Papers/Bandwidth-Profiles-for-Ethernet-Services.pdf)
+[Technology Profile Implementation
+Note](https://www.opennetworking.org/wp-content/uploads/2019/09/2pm-Shaun-Missett-Technology-Profile-and-Speed-Profile-Implementation.pdf)
 
 
 ## Known Issues
@@ -428,6 +475,5 @@ For more details about BW profile parameters, please refer below links.
 * The Minimum BW that should be configured for ITU PON Alloc Object has changed from 16Kbps
   to 32Kbps from BAL3.1 to BAL3.2 release if you are using ALPHA ONUs.
   As per BAL3.x documents, when FEC is disabled, the minimum BW is 16Kbps on the ITU PON Alloc Object.
-  This seems to be a discrepency on the ALPHA ONU. So, ensure that `cir` + `eir` value is greater than
+  This seems to be a discrepancy on the ALPHA ONU. So, ensure that `cir` + `eir` value is greater than
   equal to *32000* for XGSPON use case for ALPHA ONU.
-

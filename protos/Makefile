@@ -34,7 +34,7 @@ OBJS = voltha_protos/tech_profile.pb.o voltha_protos/tech_profile.grpc.pb.o volt
 
 .DEFAULT_GOAL := all
 
-all: googleapis get_openolt_proto grpc-target protobuf-target libopenoltapi.a
+all: googleapis voltha_protos grpc-target protobuf-target libopenoltapi.a
 
 libopenoltapi.a: $(OBJS)
 	ar cr $@ $^
@@ -49,7 +49,8 @@ googleapis:
 		make -C googleapis LANGUAGE=cpp GRPCPLUGIN=$(GRPC_CPP_PLUGIN_PATH) all; \
 	fi;
 
-get_openolt_proto:
+voltha_protos:
+	mkdir voltha_protos
 	if [ ! -e "voltha_protos/openolt.proto" ]; then \
 		wget -O voltha_protos/openolt.proto https://raw.githubusercontent.com/opencord/voltha-protos/$(OPENOLT_PROTO_VER)/protos/voltha_protos/openolt.proto; \
 	fi; \
@@ -61,12 +62,12 @@ grpc-target:
 	$(PROTOC) --proto_path=. -I./googleapis --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) voltha_protos/openolt.proto
 	$(PROTOC) --proto_path=. -I./googleapis --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) voltha_protos/tech_profile.proto
 
-protobuf-target:
+protobuf-target: voltha_protos
 	$(PROTOC) --proto_path=. -I./googleapis -I./ --cpp_out=. voltha_protos/openolt.proto
 	$(PROTOC) --proto_path=. -I./googleapis -I./ --cpp_out=. voltha_protos/tech_profile.proto
 
 clean:
-	rm -f *.a && cd voltha_protos/ && rm -f *.o *.pb.cc *.pb.h *.proto
+	rm -rf *.a voltha_protos
 
 distclean: clean
 	rm -rf googleapis
