@@ -108,13 +108,6 @@ bcmos_errno bcmolt_stat_cfg_get(bcmolt_oltid olt, bcmolt_stat_cfg *cfg)
     return BCM_ERR_OK;
 }
 
-/* Set statistics configuration */
-bcmos_errno bcmolt_stat_cfg_set(bcmolt_oltid olt, bcmolt_stat_cfg *cfg)
-{
-    printf("-- entering :stubbed %s\n", __FUNCTION__);
-    return BCM_ERR_OK;
-}
-
 /* Register Autonomous Indication Message Handler */
 bcmos_errno bcmolt_ind_subscribe(bcmolt_oltid olt, bcmolt_rx_cfg *rx_cfg)
 {

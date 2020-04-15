@@ -1,4 +1,4 @@
-# Copyright 2018-present Open Networking Foundation
+ # Copyright 2018-present Open Networking Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 TOP_DIR=`pwd`
 OPENOLTDEVICE ?= asfvolt16
 
-OPENOLT_PROTO_VER ?= v3.3.5
+OPENOLT_PROTO_VER ?= v3.3.6
 
 GTEST_VER ?= release-1.8.0
 gtest-target = /usr/local/lib/libgtest.a
@@ -134,6 +134,11 @@ OPENOLT_PROTOS_DIR = ../../protos
 OPENOLT_API_LIB = lib/libopenoltapi.a
 OPENOLT_LIB = lib/libopenolt.a
 
+# Set the OPENOLT_ROOT_DIR variable to "/app" folder inside the docker container, if not already set.
+ifeq ($(OPENOLT_ROOT_DIR),)
+OPENOLT_ROOT_DIR := /app
+endif
+
 all: bcm_host_api_stubs $(OPENOLT_API_LIB) $(OPENOLT_LIB) build
 
 # test
@@ -152,20 +157,15 @@ src/%.o: src/%.cc
 
 # bcm_host_api_stubs
 bcm_host_api_stubs:
+	echo $(OPENOLT_ROOT_DIR); \
 	# TODO: This is temporary hack below to introduce the definition BAL IEs that are missing in https://github.com/balapi/bal-api-<BAL-VER>
 	if [ -d $(BAL_API_DIR) ]; then \
 		echo "$(BAL_API_DIR) exists"; \
 	else \
 		git clone https://github.com/balapi/$(BAL_API_VER).git ;\
-		sed -i "\$$i #define BCMOLT_TM_QUEUE_KEY_TM_Q_SET_ID_DEFAULT 0" ./$(BAL_API_DIR)/include/bcmos_system.h; \
-		sed -i "\$$i struct bcmos_mutex \{ pthread_mutex_t m; };" ./$(BAL_API_DIR)/include/bcmos_system.h; \
-		sed -i "\$$i extern void* bcmos_calloc(uint32_t size);"  ./$(BAL_API_DIR)/include/bcmos_common.h; \
-		sed -i "\$$i #define BCMOLT_INTERFACE_TYPE_EPON_1_G 3"  ./$(BAL_API_DIR)/include/bcmos_common.h; \
-		sed -i "\$$i #define BCMOLT_INTERFACE_TYPE_EPON_10_G 4"  ./$(BAL_API_DIR)/include/bcmos_common.h; \
-		sed -i "\$$i typedef struct \{ uint64_t rdi_errors;} bcmolt_onu_itu_pon_stats_data;" ./$(BAL_API_DIR)/include/object_model/bcmolt_api_model_api_structs.h; \
-		sed -i "\$$i typedef struct \{ bcmolt_onu_key key; bcmolt_onu_itu_pon_stats_data data;} bcmolt_onu_itu_pon_stats;" ./$(BAL_API_DIR)/include/object_model/bcmolt_api_model_api_structs.h; \
-		sed -i "\$$i #define bcmolt_onu_stat_subgroup_itu_pon_stats BCMOLT_ONU_STAT_SUBGROUP_ITU_PON_STATS" ./$(BAL_API_DIR)/include/object_model/bcmolt_api_model_api_structs.h; \
-		sed -i "\$$i #define BCMOLT_ONU_STAT_SUBGROUP_ITU_PON_STATS 0" ./$(BAL_API_DIR)/include/object_model/bcmolt_api_model_api_structs.h; \
+		sed -i "\$$i #include \"$(OPENOLT_ROOT_DIR)/agent/test/inc/bcmos_system_test.h\"" ./$(BAL_API_DIR)/include/bcmos_system.h; \
+		sed -i "\$$i #include \"$(OPENOLT_ROOT_DIR)/agent/test/inc/bcmos_common_test.h\"" ./$(BAL_API_DIR)/include/bcmos_common.h; \
+		sed -i "\$$i #include \"$(OPENOLT_ROOT_DIR)/agent/test/inc/bcmolt_api_model_api_structs_test.h\"" ./$(BAL_API_DIR)/include/object_model/bcmolt_api_model_api_structs.h; \
 	fi
 
 # openoltapi

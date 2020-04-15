@@ -34,7 +34,7 @@ extern "C"
 #define FLOWS_COUNT 100
 
 bcmolt_flow_key* flows_keys = new bcmolt_flow_key[FLOWS_COUNT];
-bcmolt_odid device_id = 0;    
+bcmolt_odid device_id = 0;
 
 void init_stats() {
     memset(flows_keys, 0, FLOWS_COUNT * sizeof(bcmolt_flow_key));
@@ -84,7 +84,6 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
     bcmolt_onu_itu_pon_stats pon_stats;
     bcmolt_pon_interface_itu_pon_stats itu_pon_stats;
 
-
     switch (intf_ref.intf_type) {
         case BCMOLT_INTERFACE_TYPE_NNI:
         {
@@ -111,7 +110,7 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
             {
                 //std::cout << "Interface statistics retrieved"
                 //          << " intf_id:" << intf_id << std::endl;
-            
+
                 port_stats->set_rx_bytes(nni_stats.data.rx_bytes);
                 port_stats->set_rx_packets(nni_stats.data.rx_packets);
                 port_stats->set_rx_ucast_packets(nni_stats.data.rx_ucast_packets);
@@ -124,7 +123,7 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
                 port_stats->set_tx_mcast_packets(nni_stats.data.tx_mcast_packets);
                 port_stats->set_tx_bcast_packets(nni_stats.data.tx_bcast_packets);
                 port_stats->set_tx_error_packets(nni_stats.data.tx_error_packets);
-            
+
             } else {
                 OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d, err = %s\n",
                     (int)intf_ref.intf_id, (int)intf_ref.intf_type, bcmos_strerror(err));
@@ -171,7 +170,7 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
             }
             break;
         }
-    } 
+    }
 
     port_stats->set_intf_id(interface_key_to_port_no((bcmolt_interface_id)intf_ref.intf_id, (bcmolt_interface_type)intf_ref.intf_type));
     time_t now;
@@ -222,7 +221,6 @@ openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_fl
 }
 #endif
 
-
 void stats_collection() {
 
     if (!state.is_connected()) {
@@ -233,7 +231,6 @@ void stats_collection() {
         OPENOLT_LOG(INFO, openolt_log_id, "The OLT is not up, do not collect stats\n");
         return;
     }
-
 
     OPENOLT_LOG(DEBUG, openolt_log_id, "Collecting statistics\n");
 
@@ -258,7 +255,7 @@ void stats_collection() {
         intf_ref.intf_type = BCMOLT_INTERFACE_TYPE_PON;
         intf_ref.intf_id = i;
 
-        openolt::PortStatistics* port_stats = 
+        openolt::PortStatistics* port_stats =
             collectPortStatistics(intf_ref);
 
         openolt::Indication ind;

@@ -90,6 +90,117 @@ inline const char *get_flow_acton_command(uint32_t command) {
     return s_actions_ptr;
 }
 
+bcmolt_stat_alarm_config set_stat_alarm_config(const openolt::OnuItuPonAlarm* request) {
+    bcmolt_stat_alarm_config alarm_cfg = {};
+    bcmolt_stat_alarm_trigger_config trigger_obj = {};
+    bcmolt_stat_alarm_soak_config soak_obj = {};
+
+    switch (request->alarm_reporting_condition()) {
+        case openolt::OnuItuPonAlarm::RATE_THRESHOLD:
+            trigger_obj.type = BCMOLT_STAT_CONDITION_TYPE_RATE_THRESHOLD;
+            BCMOLT_FIELD_SET(&trigger_obj.u.rate_threshold, stat_alarm_trigger_config_rate_threshold,
+                    rising, request->rate_threshold_config().rate_threshold_rising());
+            BCMOLT_FIELD_SET(&trigger_obj.u.rate_threshold, stat_alarm_trigger_config_rate_threshold,
+                    falling, request->rate_threshold_config().rate_threshold_falling());
+            BCMOLT_FIELD_SET(&soak_obj, stat_alarm_soak_config, active_soak_time,
+                    request->rate_threshold_config().soak_time().active_soak_time());
+            BCMOLT_FIELD_SET(&soak_obj, stat_alarm_soak_config, clear_soak_time,
+                    request->rate_threshold_config().soak_time().clear_soak_time());
+            break;
+        case openolt::OnuItuPonAlarm::RATE_RANGE:
+            trigger_obj.type = BCMOLT_STAT_CONDITION_TYPE_RATE_RANGE;
+            BCMOLT_FIELD_SET(&trigger_obj.u.rate_range, stat_alarm_trigger_config_rate_range, upper,
+                    request->rate_range_config().rate_range_upper());
+            BCMOLT_FIELD_SET(&trigger_obj.u.rate_range, stat_alarm_trigger_config_rate_range, lower,
+                    request->rate_range_config().rate_range_lower());
+            BCMOLT_FIELD_SET(&soak_obj, stat_alarm_soak_config, active_soak_time,
+                    request->rate_range_config().soak_time().active_soak_time());
+            BCMOLT_FIELD_SET(&soak_obj, stat_alarm_soak_config, clear_soak_time,
+                    request->rate_range_config().soak_time().clear_soak_time());
+            break;
+        case openolt::OnuItuPonAlarm::VALUE_THRESHOLD:
+            trigger_obj.type = BCMOLT_STAT_CONDITION_TYPE_VALUE_THRESHOLD;
+            BCMOLT_FIELD_SET(&trigger_obj.u.value_threshold, stat_alarm_trigger_config_value_threshold,
+                    limit, request->value_threshold_config().threshold_limit());
+            BCMOLT_FIELD_SET(&soak_obj, stat_alarm_soak_config, active_soak_time,
+                    request->value_threshold_config().soak_time().active_soak_time());
+            BCMOLT_FIELD_SET(&soak_obj, stat_alarm_soak_config, clear_soak_time,
+                    request->value_threshold_config().soak_time().clear_soak_time());
+            break;
+        default:
+            OPENOLT_LOG(ERROR, openolt_log_id, "unsupported alarm reporting condition = %u\n", request->alarm_reporting_condition());
+            // For now just log the error and not return error. We can handle this scenario in the future.
+            break;
+    }
+
+    BCMOLT_FIELD_SET(&alarm_cfg, stat_alarm_config, trigger, trigger_obj);
+    BCMOLT_FIELD_SET(&alarm_cfg, stat_alarm_config, soak, soak_obj);
+
+    return alarm_cfg;
+}
+
+Status OnuItuPonAlarmSet_(const openolt::OnuItuPonAlarm* request) {
+    bcmos_errno err;
+    bcmolt_onu_itu_pon_stats_cfg stat_cfg; /* declare main API struct */
+    bcmolt_onu_key key = {}; /* declare key */
+    bcmolt_stat_alarm_config errors_cfg = {};
+
+    key.pon_ni = request->pon_ni();
+    key.onu_id = request->onu_id();
+
+    /* Initialize the API struct. */
+    BCMOLT_STAT_CFG_INIT(&stat_cfg, onu, itu_pon_stats, key);
+
+    /*
+       1. BCMOLT_STAT_CONDITION_TYPE_NONE = 0, The alarm is disabled.
+       2. BCMOLT_STAT_CONDITION_TYPE_RATE_THRESHOLD = 1, The alarm is triggered if the stats delta value between samples
+                                                   crosses the configured threshold boundary.
+           rising: The alarm is raised if the stats delta value per second becomes greater than this threshold level.
+           falling: The alarm is cleared if the stats delta value per second becomes less than this threshold level.
+       3. BCMOLT_STAT_CONDITION_TYPE_RATE_RANGE = 2, The alarm is triggered if the stats delta value between samples
+                                               deviates from the configured range.
+           upper: The alarm is raised if the stats delta value per second becomes greater than this upper level.
+           lower: The alarm is raised if the stats delta value per second becomes less than this lower level.
+       4. BCMOLT_STAT_CONDITION_TYPE_VALUE_THRESHOLD = 3, The alarm is raised if the stats sample value becomes greater
+                                                    than this level.  The alarm is cleared when the host read the stats.
+           limit: The alarm is raised if the stats sample value becomes greater than this level.
+                  The alarm is cleared when the host clears the stats.
+
+       active_soak_time: If the alarm condition is raised and stays in the raised state for at least this amount
+                         of time (unit=seconds), the alarm indication is sent to the host.
+                         The OLT delays the alarm indication no less than this delay period.
+                         It can be delayed more than this period because of the statistics sampling interval.
+       clear_soak_time: After the alarm is raised, if it is cleared and stays in the cleared state for at least
+                        this amount of time (unit=seconds), the alarm indication is sent to the host.
+                        The OLT delays the alarm indication no less than this delay period. It can be delayed more
+                        than this period because of the statistics sampling interval.
+    */
+
+    errors_cfg = set_stat_alarm_config(request);
+
+    switch (request->alarm_id()) {
+        case openolt::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS:
+            //set the rdi_errors alarm
+            BCMOLT_FIELD_SET(&stat_cfg.data, onu_itu_pon_stats_cfg_data, rdi_errors, errors_cfg);
+            break;
+        default:
+            OPENOLT_LOG(ERROR, openolt_log_id, "could not find the alarm id %d\n", request->alarm_id());
+            return bcm_to_grpc_err(BCM_ERR_PARM, "the alarm id is wrong");
+    }
+
+    err = bcmolt_stat_cfg_set(dev_id, &stat_cfg.hdr);
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to set onu itu pon stats, alarm id %d, pon_ni %d, onu_id %d, err = %s\n",
+                request->alarm_id(), key.pon_ni, key.onu_id, bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "set Onu ITU PON stats alarm faild");
+    } else {
+        OPENOLT_LOG(INFO, openolt_log_id, "set onu itu pon stats alarm %d successfully, pon_ni %d, onu_id %d\n",
+                request->alarm_id(), key.pon_ni, key.onu_id);
+    }
+
+    return Status::OK;
+}
+
 Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
     device_info->set_vendor(VENDOR_ID);
     device_info->set_model(MODEL_ID);

@@ -308,6 +308,13 @@ class OpenoltService final : public openolt::Openolt::Service {
             openolt::Empty* response) override {
         return PerformGroupOperation_(request);
     };
+
+    Status OnuItuPonAlarmSet(
+            ServerContext* context,
+            const openolt::OnuItuPonAlarm* request,
+            openolt::Empty* response) override {
+        return OnuItuPonAlarmSet_(request);
+    };
 };
 
 void RunServer(int argc, char** argv) {

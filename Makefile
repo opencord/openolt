@@ -23,9 +23,11 @@
 # set default shell options
 SHELL = bash -e -o pipefail
 
+export OPENOLT_ROOT_DIR=$(shell pwd)
+
 ## Variables
 OPENOLTDEVICE     ?= asfvolt16
-OPENOLT_PROTO_VER ?= v3.3.5
+OPENOLT_PROTO_VER ?= v3.3.6
 GTEST_VER         ?= release-1.8.0
 CMOCK_VER         ?= 0207b30
 GMOCK_GLOBAL_VER  ?= 1.0.2

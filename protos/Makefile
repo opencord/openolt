@@ -19,7 +19,7 @@ SYSTEM ?= $(HOST_SYSTEM)
 # This specifies the GIT tag in https://github.com/opencord/voltha-protos
 # repo that we need to refer to, to pick the right version of
 # openolt.proto and tech_profile.proto
-OPENOLT_PROTO_VER ?= v3.3.5
+OPENOLT_PROTO_VER ?= v3.3.6
 GRPC_VER ?= v1.10.x
 
 CXX ?= g++

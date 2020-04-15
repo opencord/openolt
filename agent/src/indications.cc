@@ -38,7 +38,6 @@ extern Queue<openolt::Indication> oltIndQ;
 extern std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *> alloc_cfg_compltd_map;
 extern bcmos_fastlock alloc_cfg_wait_lock;
 
-
 bool subscribed = false;
 uint32_t nni_intf_id = 0;
 #define current_device 0
@@ -91,6 +90,43 @@ std::string bcmolt_to_grpc_interface_rf__intf_type(bcmolt_interface_type intf_ty
         return "host";
     }
     return "unknown";
+}
+
+inline uint64_t get_pon_stats_alarms_data(bcmolt_interface pon_ni, bcmolt_onu_id onu_id, bcmolt_onu_itu_pon_stats_data_id stat) {
+    bcmos_errno err;
+    bcmolt_onu_itu_pon_stats itu_pon_stat; /* declare main API struct */
+    bcmolt_onu_key key = {}; /* declare key */
+    bcmolt_stat_flags clear_on_read = BCMOLT_STAT_FLAGS_NONE; /* declare 'clear on read' flag */
+
+    key.pon_ni = pon_ni;
+    key.onu_id = onu_id;
+
+    /* Initialize the API struct. */
+    BCMOLT_STAT_INIT(&itu_pon_stat, onu, itu_pon_stats, key);
+    switch (stat) {
+        case BCMOLT_ONU_ITU_PON_STATS_DATA_ID_RDI_ERRORS:
+            BCMOLT_FIELD_SET_PRESENT(&itu_pon_stat.data, onu_itu_pon_stats_data, rdi_errors);
+            err = bcmolt_stat_get(dev_id, &itu_pon_stat.hdr, clear_on_read ? BCMOLT_STAT_FLAGS_CLEAR_ON_READ : BCMOLT_STAT_FLAGS_NONE);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get rdi_errors, err = %s\n", bcmos_strerror(err));
+                return err;
+            }
+            return itu_pon_stat.data.rdi_errors;
+        /* It is a further requirement
+        case BCMOLT_ONU_ITU_PON_STATS_DATA_ID_BIP_ERRORS:
+            BCMOLT_FIELD_SET_PRESENT(&itu_pon_stat.data, onu_itu_pon_stats_data, bip_errors);
+            err = bcmolt_stat_get(dev_id, &itu_pon_stat.hdr, clear_on_read ? BCMOLT_STAT_FLAGS_CLEAR_ON_READ : BCMOLT_STAT_FLAGS_NONE);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get bip_errors, err = %s\n", bcmos_strerror(err));
+                return err;
+            }
+            return itu_pon_stat.data.bip_errors;
+        */
+        default:
+            return BCM_ERR_INTERNAL;
+    }
+
+    return err;
 }
 
 /*std::string getOnuRegistrationId(uint32_t intf_id, uint32_t onu_id){
@@ -828,7 +864,7 @@ static void OnuLossOfKeySyncFailureIndication(bcmolt_devid olt, bcmolt_msg *msg)
     bcmolt_msg_free(msg);
 }
 
-static void OnuItuPonStatsIndication(bcmolt_devid olt, bcmolt_msg *msg) {
+static void OnuItuPonStatsAlarmRaisedIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
     openolt::OnuItuPonStatsIndication* onu_itu_pon_stats_ind = new openolt::OnuItuPonStatsIndication;
@@ -836,20 +872,41 @@ static void OnuItuPonStatsIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     switch (msg->obj_type) {
         case BCMOLT_OBJ_ID_ONU:
             switch (msg->subgroup) {
-                case BCMOLT_ONU_STAT_SUBGROUP_ITU_PON_STATS:
+                case BCMOLT_ONU_AUTO_SUBGROUP_ITU_PON_STATS_ALARM_RAISED:
                 {
-                    bcmolt_onu_key *key = &((bcmolt_onu_itu_pon_stats*)msg)->key;
-                    bcmolt_onu_itu_pon_stats_data *data = &((bcmolt_onu_itu_pon_stats*)msg)->data;
+                    bcmolt_onu_key *onu_key = &((bcmolt_onu_itu_pon_stats_alarm_raised*)msg)->key;
+                    bcmolt_onu_itu_pon_stats_alarm_raised_data *data = &((bcmolt_onu_itu_pon_stats_alarm_raised*)msg)->data;
 
-                    OPENOLT_LOG(INFO, openolt_log_id, "Got onu rdi erros, intf_id %d, onu_id %d, rdi_errors %"PRIu64"\n",
-                        key->pon_ni, key->onu_id, data->rdi_errors);
-
-                    onu_itu_pon_stats_ind->set_intf_id(key->pon_ni);
-                    onu_itu_pon_stats_ind->set_onu_id(key->onu_id);
-                    onu_itu_pon_stats_ind->set_rdi_errors(data->rdi_errors);
-                    alarm_ind->set_allocated_onu_itu_pon_stats_ind(onu_itu_pon_stats_ind);
-
-                    ind.set_allocated_alarm_ind(alarm_ind);
+                    if (_BCMOLT_FIELD_MASK_BIT_IS_SET(data->presence_mask, BCMOLT_ONU_ITU_PON_STATS_ALARM_RAISED_DATA_ID_STAT)) {
+                        switch (data->stat)
+                        {
+                            case BCMOLT_ONU_ITU_PON_STATS_DATA_ID_RDI_ERRORS:
+                                uint64_t rdi_errors;
+                                openolt::RdiErrorIndication* rdi_err_ind = new openolt::RdiErrorIndication;
+                                rdi_errors = get_pon_stats_alarms_data(onu_key->pon_ni, onu_key->onu_id, data->stat);
+                                onu_itu_pon_stats_ind->set_intf_id(onu_key->pon_ni);
+                                onu_itu_pon_stats_ind->set_onu_id(onu_key->onu_id);
+                                rdi_err_ind->set_rdi_error_count(rdi_errors);
+                                rdi_err_ind->set_status("on");
+                                onu_itu_pon_stats_ind->set_allocated_rdi_error_ind(rdi_err_ind);
+                                OPENOLT_LOG(INFO, openolt_log_id, "Got onu raised alarm indication, intf_id %d, onu_id %d, \
+                                        rdi_errors %"PRIu64"\n", onu_key->pon_ni, onu_key->onu_id, rdi_errors);
+                                alarm_ind->set_allocated_onu_itu_pon_stats_ind(onu_itu_pon_stats_ind);
+                                break;
+                            /* It is a further requirement
+                            case BCMOLT_ONU_ITU_PON_STATS_DATA_ID_BIP_ERRORS:
+                                uint64_t bip_errors;
+                                bip_errors = get_pon_stats_alarms_data(onu_key->pon_ni, onu_key->onu_id, data->stat);
+                                onu_itu_pon_stats_ind->set_intf_id(onu_key->pon_ni);
+                                onu_itu_pon_stats_ind->set_onu_id(onu_key->onu_id);
+                                OPENOLT_LOG(INFO, openolt_log_id, "Got onu raised alarm indication, intf_id %d, onu_id %d, \
+                                        bip_errors %"PRIu64"\n", onu_key->pon_ni, onu_key->onu_id, bip_errors);
+                                alarm_ind->set_allocated_onu_itu_pon_stats_ind(onu_itu_pon_stats_ind);
+                                break;
+                            */
+                        }
+                        ind.set_allocated_alarm_ind(alarm_ind);
+                    }
                 }
             }
     }
@@ -858,7 +915,58 @@ static void OnuItuPonStatsIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     bcmolt_msg_free(msg);
 }
 
+static void OnuItuPonStatsAlarmClearedIndication(bcmolt_devid olt, bcmolt_msg *msg) {
+    openolt::Indication ind;
+    openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
+    openolt::OnuItuPonStatsIndication* onu_itu_pon_stats_ind = new openolt::OnuItuPonStatsIndication;
 
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_ITU_PON_STATS_ALARM_CLEARED:
+                {
+                    bcmolt_onu_key *onu_key = &((bcmolt_onu_itu_pon_stats_alarm_cleared*)msg)->key;
+                    bcmolt_onu_itu_pon_stats_alarm_cleared_data *data = &((bcmolt_onu_itu_pon_stats_alarm_cleared*)msg)->data;
+
+                    if (_BCMOLT_FIELD_MASK_BIT_IS_SET(data->presence_mask, BCMOLT_ONU_ITU_PON_STATS_ALARM_CLEARED_DATA_ID_STAT)) {
+                        switch (data->stat)
+                        {
+                            case BCMOLT_ONU_ITU_PON_STATS_DATA_ID_RDI_ERRORS:
+                                uint64_t rdi_errors;
+                                openolt::RdiErrorIndication* rdi_err_ind = new openolt::RdiErrorIndication;
+
+                                rdi_errors = get_pon_stats_alarms_data(onu_key->pon_ni, onu_key->onu_id, data->stat);
+                                onu_itu_pon_stats_ind->set_intf_id(onu_key->pon_ni);
+                                onu_itu_pon_stats_ind->set_onu_id(onu_key->onu_id);
+                                rdi_err_ind->set_rdi_error_count(rdi_errors);
+                                rdi_err_ind->set_status("off");
+                                onu_itu_pon_stats_ind->set_allocated_rdi_error_ind(rdi_err_ind);
+                                OPENOLT_LOG(INFO, openolt_log_id, "Got onu cleared alarm indication, intf_id %d, onu_id %d, \
+                                        rdi_errors %"PRIu64"\n", onu_key->pon_ni, onu_key->onu_id, rdi_errors);
+                                alarm_ind->set_allocated_onu_itu_pon_stats_ind(onu_itu_pon_stats_ind);
+                                break;
+                            /* It is a further requirement
+                            case BCMOLT_ONU_ITU_PON_STATS_DATA_ID_BIP_ERRORS:
+                                uint64_t bip_errors;
+                                bip_errors = get_pon_stats_alarms_data(onu_key->pon_ni, onu_key->onu_id, data->stat);
+                                onu_itu_pon_stats_ind->set_intf_id(onu_key->pon_ni);
+                                onu_itu_pon_stats_ind->set_onu_id(onu_key->onu_id);
+                                onu_itu_pon_stats_ind->set_bip_errors(bip_errors);
+                                OPENOLT_LOG(INFO, openolt_log_id, "Got onu cleared alarm indication, intf_id %d, onu_id %d, \
+                                        bip_errors %"PRIu64"\n", onu_key->pon_ni, onu_key->onu_id, bip_errors);
+                                alarm_ind->set_allocated_onu_itu_pon_stats_ind(onu_itu_pon_stats_ind);
+                                break;
+                            */
+                        }
+                        ind.set_allocated_alarm_ind(alarm_ind);
+                    }
+                }
+            }
+    }
+
+    oltIndQ.push(ind);
+    bcmolt_msg_free(msg);
+}
 
 static void OnuDeactivationCompletedIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
@@ -929,7 +1037,6 @@ bcmos_errno OnuProcessingErrorIndication(bcmbal_obj *obj) {
 
     OPENOLT_LOG(WARNING, openolt_log_id, "onu processing error indication, intf_id %d, onu_id %d\n",
         key->intf_id, key->sub_term_id);
-
 
     onu_proc_error_ind->set_intf_id(key->intf_id);
     onu_proc_error_ind->set_onu_id(key->sub_term_id);
@@ -1139,14 +1246,23 @@ Status SubscribeIndication() {
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu loss of key sync indication subscribe failed");
 
-    /* ONU ITU-PON Stats Indiction */
+    /* ONU ITU-PON Raised Stats Indiction */
     rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
-    rx_cfg.rx_cb = OnuItuPonStatsIndication;
+    rx_cfg.rx_cb = OnuItuPonStatsAlarmRaisedIndication;
     rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
-    rx_cfg.subgroup = bcmolt_onu_stat_subgroup_itu_pon_stats;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_itu_pon_stats_alarm_raised;
     rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
     if(rc != BCM_ERR_OK)
-        return Status(grpc::StatusCode::INTERNAL, "onu itu-pon stats indication subscribe failed");
+        return Status(grpc::StatusCode::INTERNAL, "onu itu-pon raised stats indication subscribe failed");
+
+    /* ONU ITU-PON Cleared Stats Indiction */
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuItuPonStatsAlarmClearedIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_itu_pon_stats_alarm_cleared;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, "onu itu-pon cleared stats indication subscribe failed");
 
     /* Packet-In by Access_Control */
     rx_cfg.obj_type = BCMOLT_OBJ_ID_ACCESS_CONTROL;

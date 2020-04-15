@@ -1,4 +1,5 @@
 /*
+
  * Copyright 2018-present Open Networking Foundation
 
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,13 +15,15 @@
  * limitations under the License.
  */
 
-#include "bal_mocker.h"
-extern "C" {
-CMOCK_MOCK_FUNCTION1(BalMocker, bcmolt_host_init, bcmos_errno(bcmolt_host_init_parms*));
-CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_cfg_get, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
-CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_oper_submit, bcmos_errno(bcmolt_oltid, bcmolt_oper*));
-CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_cfg_set, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
-CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_cfg_clear, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
-CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_stat_cfg_set, bcmos_errno(bcmolt_oltid, bcmolt_stat_cfg*));
-}
+#ifndef BCMOS_COMMON_TEST_H_
+#define BCMOS_COMMON_TEST_H_
 
+/**
+This header file provides missing BAL API definitions required for unit test compilation.
+*/
+
+extern void* bcmos_calloc(uint32_t size);
+#define BCMOLT_INTERFACE_TYPE_EPON_1_G 3
+#define BCMOLT_INTERFACE_TYPE_EPON_10_G 4
+
+#endif // BCMOS_COMMON_TEST_H_

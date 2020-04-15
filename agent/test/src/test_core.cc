@@ -2633,3 +2633,179 @@ TEST_F(TestRemoveTrafficQueues, RemoveUpstreamPriorityQueueErrorRemovingTMQMP) {
     Status status = RemoveTrafficQueues_(traffic_queues);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
+
+////////////////////////////////////////////////////////////////////////////
+// For testing OnuItuPonAlarmSet functionality
+////////////////////////////////////////////////////////////////////////////
+
+class TestOnuItuPonAlarmSet : public Test {
+    protected:
+        bcmolt_pon_ni pon_ni = 0;
+        bcmolt_onu_id onu_id = 1;
+
+        openolt::OnuItuPonAlarm *onu_itu_pon_alarm_rt;
+        openolt::OnuItuPonAlarm::RateThresholdConfig *rate_threshold_config;
+        openolt::OnuItuPonAlarm::SoakTime *soak_time_rt;
+
+        openolt::OnuItuPonAlarm *onu_itu_pon_alarm_rr;
+        openolt::OnuItuPonAlarm::RateRangeConfig *rate_range_config;
+        openolt::OnuItuPonAlarm::SoakTime *soak_time_rr;
+
+        openolt::OnuItuPonAlarm *onu_itu_pon_alarm_tc;
+        openolt::OnuItuPonAlarm::ValueThresholdConfig *value_threshold_config;
+        openolt::OnuItuPonAlarm::SoakTime *soak_time_tc;
+
+        NiceMock<BalMocker> balMock;
+
+        virtual void SetUp() {
+            onu_itu_pon_alarm_rt = new openolt::OnuItuPonAlarm;
+            rate_threshold_config = new openolt::OnuItuPonAlarm::RateThresholdConfig;
+            soak_time_rt = new openolt::OnuItuPonAlarm::SoakTime;
+            onu_itu_pon_alarm_rt->set_pon_ni(0);
+            onu_itu_pon_alarm_rt->set_onu_id(1);
+            onu_itu_pon_alarm_rt->set_alarm_id(openolt::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS);
+            onu_itu_pon_alarm_rt->set_alarm_reporting_condition(openolt::OnuItuPonAlarm_AlarmReportingCondition::OnuItuPonAlarm_AlarmReportingCondition_RATE_THRESHOLD);
+            rate_threshold_config->set_rate_threshold_rising(1);
+            rate_threshold_config->set_rate_threshold_falling(4);
+            soak_time_rt->set_active_soak_time(2);
+            soak_time_rt->set_clear_soak_time(2);
+            rate_threshold_config->set_allocated_soak_time(soak_time_rt);
+            onu_itu_pon_alarm_rt->set_allocated_rate_threshold_config(rate_threshold_config);
+
+            onu_itu_pon_alarm_rr = new openolt::OnuItuPonAlarm;
+            rate_range_config = new openolt::OnuItuPonAlarm::RateRangeConfig;
+            soak_time_rr = new openolt::OnuItuPonAlarm::SoakTime;
+            onu_itu_pon_alarm_rr->set_pon_ni(0);
+            onu_itu_pon_alarm_rr->set_onu_id(1);
+            onu_itu_pon_alarm_rr->set_alarm_id(openolt::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS);
+            onu_itu_pon_alarm_rr->set_alarm_reporting_condition(openolt::OnuItuPonAlarm_AlarmReportingCondition::OnuItuPonAlarm_AlarmReportingCondition_RATE_RANGE);
+            rate_range_config->set_rate_range_lower(1);
+            rate_range_config->set_rate_range_upper(4);
+            soak_time_rr->set_active_soak_time(2);
+            soak_time_rr->set_clear_soak_time(2);
+            rate_range_config->set_allocated_soak_time(soak_time_rr);
+            onu_itu_pon_alarm_rr->set_allocated_rate_range_config(rate_range_config);
+
+            onu_itu_pon_alarm_tc = new openolt::OnuItuPonAlarm;
+            value_threshold_config = new openolt::OnuItuPonAlarm::ValueThresholdConfig;
+            soak_time_tc = new openolt::OnuItuPonAlarm::SoakTime;
+            onu_itu_pon_alarm_tc->set_pon_ni(0);
+            onu_itu_pon_alarm_tc->set_onu_id(1);
+            onu_itu_pon_alarm_tc->set_alarm_id(openolt::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS);
+            onu_itu_pon_alarm_tc->set_alarm_reporting_condition(openolt::OnuItuPonAlarm_AlarmReportingCondition::OnuItuPonAlarm_AlarmReportingCondition_VALUE_THRESHOLD);
+            value_threshold_config->set_threshold_limit(6);
+            soak_time_tc->set_active_soak_time(2);
+            soak_time_tc->set_clear_soak_time(2);
+            value_threshold_config->set_allocated_soak_time(soak_time_tc);
+            onu_itu_pon_alarm_tc->set_allocated_value_threshold_config(value_threshold_config);
+        }
+
+        virtual void TearDown() {
+        }
+};
+
+// Test 1 - OnuItuPonAlarmSet-Set RDI_errors to rate threshold type success case
+// rate_threshold: The alarm is triggered if the stats delta value between samples crosses
+//                 the configured threshold boundary.
+TEST_F(TestOnuItuPonAlarmSet, OnuItuPonAlarmSetRdiErrorsRateThresholdTypeSuccess) {
+    bcmolt_onu_itu_pon_stats_cfg stat_cfg;
+    bcmolt_onu_key key = {};
+    BCMOLT_STAT_CFG_INIT(&stat_cfg, onu, itu_pon_stats, key);
+    stat_cfg.data.rdi_errors.trigger.type = BCMOLT_STAT_CONDITION_TYPE_RATE_THRESHOLD;
+    stat_cfg.data.rdi_errors.trigger.u.rate_threshold.rising = 50;
+    stat_cfg.data.rdi_errors.trigger.u.rate_threshold.falling = 100;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+
+    ON_CALL(balMock, bcmolt_stat_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = OnuItuPonAlarmSet_(onu_itu_pon_alarm_rt);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 2 - OnuItuPonAlarmSet-Set RDI_errors to rate threshold type failure case
+// rate_threshold: The alarm is triggered if the stats delta value between samples crosses
+//                 the configured threshold boundary.
+TEST_F(TestOnuItuPonAlarmSet, OnuItuPonAlarmSetRdiErrorsRateThresholdTypeFailure) {
+    bcmolt_onu_itu_pon_stats_cfg stat_cfg;
+    bcmolt_onu_key key = {};
+    BCMOLT_STAT_CFG_INIT(&stat_cfg, onu, itu_pon_stats, key);
+    stat_cfg.data.rdi_errors.trigger.type = BCMOLT_STAT_CONDITION_TYPE_RATE_THRESHOLD;
+    stat_cfg.data.rdi_errors.trigger.u.rate_threshold.rising = 50;
+    stat_cfg.data.rdi_errors.trigger.u.rate_threshold.falling = 100;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_INTERNAL;
+
+    ON_CALL(balMock, bcmolt_stat_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = OnuItuPonAlarmSet_(onu_itu_pon_alarm_rt);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 3 - OnuItuPonAlarmSet-Set RDI_errors to rate range type success case
+// rate_range: The alarm is triggered if the stats delta value between samples deviates
+//             from the configured range.
+TEST_F(TestOnuItuPonAlarmSet, OnuItuPonAlarmSetRdiErrorsRateRangeTypeSuccess) {
+    bcmolt_onu_itu_pon_stats_cfg stat_cfg;
+    bcmolt_onu_key key = {};
+    BCMOLT_STAT_CFG_INIT(&stat_cfg, onu, itu_pon_stats, key);
+    stat_cfg.data.rdi_errors.trigger.type = BCMOLT_STAT_CONDITION_TYPE_RATE_RANGE;
+    stat_cfg.data.rdi_errors.trigger.u.rate_range.upper = 100;
+    stat_cfg.data.rdi_errors.trigger.u.rate_range.lower = 50;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+
+    ON_CALL(balMock, bcmolt_stat_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = OnuItuPonAlarmSet_(onu_itu_pon_alarm_rr);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 4 - OnuItuPonAlarmSet-Set RDI_errors to rate range type failure case
+// rate_range: The alarm is triggered if the stats delta value between samples deviates
+//             from the configured range.
+TEST_F(TestOnuItuPonAlarmSet, OnuItuPonAlarmSetRdiErrorsRateRangeTypeFailure) {
+    bcmolt_onu_itu_pon_stats_cfg stat_cfg;
+    bcmolt_onu_key key = {};
+    BCMOLT_STAT_CFG_INIT(&stat_cfg, onu, itu_pon_stats, key);
+    stat_cfg.data.rdi_errors.trigger.type = BCMOLT_STAT_CONDITION_TYPE_RATE_RANGE;
+    stat_cfg.data.rdi_errors.trigger.u.rate_range.upper = 50;
+    stat_cfg.data.rdi_errors.trigger.u.rate_range.lower = 100;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_INTERNAL;
+
+    ON_CALL(balMock, bcmolt_stat_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = OnuItuPonAlarmSet_(onu_itu_pon_alarm_rr);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 5 - OnuItuPonAlarmSet-Set RDI_errors to value threshold type success case
+// value_threshold: The alarm is raised if the stats sample value becomes greater than this
+//                  level.  The alarm is cleared when the host read the stats.
+TEST_F(TestOnuItuPonAlarmSet, OnuItuPonAlarmSetRdiErrorsValueThresholdTypeSuccess) {
+    bcmolt_onu_itu_pon_stats_cfg stat_cfg;
+    bcmolt_onu_key key = {};
+    BCMOLT_STAT_CFG_INIT(&stat_cfg, onu, itu_pon_stats, key);
+    stat_cfg.data.rdi_errors.trigger.type = BCMOLT_STAT_CONDITION_TYPE_VALUE_THRESHOLD;
+    stat_cfg.data.rdi_errors.trigger.u.value_threshold.limit = 100;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+
+    ON_CALL(balMock, bcmolt_stat_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = OnuItuPonAlarmSet_(onu_itu_pon_alarm_tc);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 6 - OnuItuPonAlarmSet-Set RDI_errors to value threshold type failure case
+// value_threshold: The alarm is raised if the stats sample value becomes greater than this
+//                  level.  The alarm is cleared when the host read the stats.
+TEST_F(TestOnuItuPonAlarmSet, OnuItuPonAlarmSetRdiErrorsValueThresholdTypeFailure) {
+    bcmolt_onu_itu_pon_stats_cfg stat_cfg;
+    bcmolt_onu_key key = {};
+    BCMOLT_STAT_CFG_INIT(&stat_cfg, onu, itu_pon_stats, key);
+    stat_cfg.data.rdi_errors.trigger.type = BCMOLT_STAT_CONDITION_TYPE_VALUE_THRESHOLD;
+    stat_cfg.data.rdi_errors.trigger.u.value_threshold.limit = -1;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_INTERNAL;
+
+    ON_CALL(balMock, bcmolt_stat_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = OnuItuPonAlarmSet_(onu_itu_pon_alarm_tc);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}

@@ -14,13 +14,17 @@
  * limitations under the License.
  */
 
-#include "bal_mocker.h"
-extern "C" {
-CMOCK_MOCK_FUNCTION1(BalMocker, bcmolt_host_init, bcmos_errno(bcmolt_host_init_parms*));
-CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_cfg_get, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
-CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_oper_submit, bcmos_errno(bcmolt_oltid, bcmolt_oper*));
-CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_cfg_set, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
-CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_cfg_clear, bcmos_errno(bcmolt_oltid, bcmolt_cfg*));
-CMOCK_MOCK_FUNCTION2(BalMocker, bcmolt_stat_cfg_set, bcmos_errno(bcmolt_oltid, bcmolt_stat_cfg*));
-}
+#ifndef BCMOS_SYSTEM_TEST_H_
+#define BCMOS_SYSTEM_TEST_H_
+
+#include <pthread.h>
+
+/**
+This header file provides missing BAL API definitions required for unit test compilation.
+*/
+
+#define BCMOLT_TM_QUEUE_KEY_TM_Q_SET_ID_DEFAULT 0
+struct bcmos_mutex { pthread_mutex_t m; };
+
+#endif
 
