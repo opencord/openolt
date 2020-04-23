@@ -13,6 +13,11 @@
 # limitations under the License.
 
 COMMIT_ID = 72b95a7
+INBAND = "n"
 
 onl-4.14:
-	cd OpenNetworkLinux && git checkout -b $@ $(COMMIT_ID) && docker/tools/onlbuilder --non-interactive -8 -c ./build-onl.sh
+	if [ $(INBAND) = y ]; then \
+	    cd OpenNetworkLinux && git checkout -B $@ $(COMMIT_ID) && git apply inband-$(COMMIT_ID).patch && docker/tools/onlbuilder --non-interactive -8 -c ./build-onl.sh; \
+	else \
+	    cd OpenNetworkLinux && git stash && git checkout -B $@ $(COMMIT_ID) && docker/tools/onlbuilder --non-interactive -8 -c ./build-onl.sh; \
+	fi;

@@ -44,6 +44,10 @@ ONL_KERN_VER_MAJOR = 4.14
 # openolt.proto and tech_profile.proto
 OPENOLT_PROTO_VER ?= v3.3.4
 
+# Variables used for Inband build
+INBAND = "n"
+VLAN_ID = 4093
+
 #
 # Build directory
 BUILD_DIR = build
@@ -143,7 +147,11 @@ onl:
 		git clone https://github.com/opencomputeproject/OpenNetworkLinux.git $(ONL_DIR)/OpenNetworkLinux; \
 		cp download/Makefile.onl $(ONL_DIR)/Makefile; \
 		install -m 755 download/build-onl.sh $(ONL_DIR)/OpenNetworkLinux; \
-		make -C $(ONL_DIR) onl-$(ONL_KERN_VER_MAJOR); \
+		make -C $(ONL_DIR) onl-$(ONL_KERN_VER_MAJOR) INBAND=n; \
+	else \
+		if [ "$(INBAND)" = n -a "$$(grep "inband" $(ONL_DIR)/onl_build.mode | cut -d= -f 2)" = y ]; then \
+			make -C $(ONL_DIR) onl-$(ONL_KERN_VER_MAJOR) INBAND=n; \
+		fi; \
 	fi;
 onl-force:
 	make -C $(ONL_DIR) $(OPENOLTDEVICE)-$(ONL_KERN_VER_MAJOR)
@@ -294,6 +302,13 @@ $(BUILD_DIR)/openolt: sdk protos $(OBJS)
 	ln -sf $(LIBGRPC_PATH)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++.so.1
 	ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 $(BUILD_DIR)/libstdc++.so.6
 	strip $(BUILD_DIR)/openolt
+	echo "inband=n" > $(ONL_DIR)/onl_build.mode
+	if [ $(INBAND) = y ]; then \
+	    echo "Building ONL+BAL+OpenoltAgent allinone image"; \
+	    make deb; \
+	    make inband-onl; \
+	fi;
+
 src/%.o: src/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) $(CPPFLAGS) -I./common -c $< -o $@
 
@@ -308,6 +323,40 @@ deb:
 	cd device/$(OPENOLTDEVICE)/mkdebian && ./build_$(OPENOLTDEVICE)_deb.sh
 	mv device/$(OPENOLTDEVICE)/*.deb $(BUILD_DIR)/openolt_$(OPENOLTDEVICE)-$(VERSION)-$(LABEL_VCS_REF).deb
 	make deb-cleanup
+
+inband-onl:
+	# Clean previous ONL build and build freshly
+	sudo rm -rf $(ONL_DIR)
+	mkdir -p $(ONL_DIR)
+	git clone https://github.com/opencomputeproject/OpenNetworkLinux.git $(ONL_DIR)/OpenNetworkLinux
+	cp download/Makefile.onl $(ONL_DIR)/Makefile
+	install -m 755 download/build-onl.sh $(ONL_DIR)/OpenNetworkLinux
+
+	# Check ONL commit equals to Inband patch commit
+	ONL_COMMIT_ID=$(awk \'/COMMIT_ID = /{print $0}\' $(ONL_DIR)/Makefile | awk -F \"=\" \'{print $2}\')
+	INBAND_PATCH_COMMIT_ID=$(echo cp $(TOP_DIR)/inband/patch/*.patch | cut -d- -f 2 | cut -d. -f 1)
+	if [ "$(ONL_COMMIT_ID)" = "$(INBAND_PATCH_COMMIT_ID)" ]; then \
+	    echo "ONL commit and inband patch commit matched."; \
+	    cp $(TOP_DIR)/inband/patch/*.patch $(ONL_DIR)/OpenNetworkLinux; \
+	else \
+	    echo "ONL commit and inband patch commit does not match. Exiting."; \
+	    exit 1; \
+	fi;
+
+	# Update vlan.config file with VLAN ID argument passed
+	sed -i 's/asfvolt16_vlan_id_eth2=.*/asfvolt16_vlan_id_eth2=$(VLAN_ID)/' $(TOP_DIR)/inband/config/vlan.config
+	sed -i 's/asgvolt64_vlan_id_eth1=.*/asgvolt64_vlan_id_eth1=$(VLAN_ID)/' $(TOP_DIR)/inband/config/vlan.config
+
+	# Copy Inband config files and olt startup scripts to ONL source code and build
+	cd $(TOP_DIR)  && mkdir -p $(ONL_DIR)/OpenNetworkLinux/bal_packages
+	cp $(TOP_DIR)/inband/scripts/* $(ONL_DIR)/OpenNetworkLinux/bal_packages
+	cp $(TOP_DIR)/inband/config/vlan.config $(ONL_DIR)/OpenNetworkLinux/bal_packages
+	cp $(BUILD_DIR)/openolt_$(OPENOLTDEVICE)-$(VERSION)-$(LABEL_VCS_REF).deb $(ONL_DIR)/OpenNetworkLinux/bal_packages/openolt_$(OPENOLTDEVICE).deb
+
+	# Rebuild ONL packed with already built BAL+Openolt debian package
+	make -C $(ONL_DIR) onl-$(ONL_KERN_VER_MAJOR) INBAND=y
+	echo "inband=y" > $(ONL_DIR)/onl_build.mode
+	make inband-onl-cleanup
 
 src/%.o: %.cpp
 	$(CXX) -MMD -c $< -o $@
@@ -329,6 +378,10 @@ deb-cleanup:
 	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/tmp/
 	@rm -f device/$(OPENOLTDEVICE)/$(OPENOLTDEVICE)_$(BAL_VER)+edgecore-V$(DEV_VER)_amd64.changes
 
+inband-onl-cleanup:
+	@rm -f $(ONL_DIR)/OpenNetworkLinux/*.patch
+	@rm -rf $(ONL_DIR)/OpenNetworkLinux/bal_packages
+
 clean: protos-clean deb-cleanup
 	@rm -f $(OBJS) $(DEPS)
 	@rm -rf $(OPENOLT_PROTOS_DIR)/googleapis
@@ -345,4 +398,4 @@ clean-src: protos-clean
 distclean: clean-src clean
 	@rm -rf $(BUILD_DIR)
 
-.PHONY: onl sdk bal protos prereqs-system prereqs-local sim .FORCE
+.PHONY: onl sdk bal protos prereqs-system prereqs-local sim inband-onl .FORCE

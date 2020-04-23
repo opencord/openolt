@@ -1,0 +1,94 @@
+diff --git a/builds/any/rootfs/jessie/common/all-base-packages.yml b/builds/any/rootfs/jessie/common/all-base-packages.yml
+index bbeab6b4..ca5a45cd 100644
+--- a/builds/any/rootfs/jessie/common/all-base-packages.yml
++++ b/builds/any/rootfs/jessie/common/all-base-packages.yml
+@@ -81,3 +81,7 @@
+ - sysstat
+ - ipmitool
+ - lm-sensors
++- python3.4
++- python3-yaml
++- cron
++- logrotate
+diff --git a/packages/base/all/initrds/loader-initrd-files/src/bin/swiprep b/packages/base/all/initrds/loader-initrd-files/src/bin/swiprep
+index d5a72f8e..0b0583e1 100755
+--- a/packages/base/all/initrds/loader-initrd-files/src/bin/swiprep
++++ b/packages/base/all/initrds/loader-initrd-files/src/bin/swiprep
+@@ -173,7 +173,46 @@ if test "$mode_install"; then
+     echo "*** invalid squashfs contents" 1>&2
+     exit 1
+   fi
++  cp "$swipath" "$workdir"/
++  cd "$workdir"
++  unzip "$swipath"
++  target=$(find . -name bal_packages)
++  for f in "$target"/*
++  do
++     main_file_name=$(basename $f)
++     full_path_name=$(echo $f | cut -c 3-)
++     cp $full_path_name "$workdir"/$main_file_name
++  done
++  echo "Moving validation script to /root/"
++  mv  "$workdir"/validate_onl_installation.sh "$destdir"/root/
++  mv  "$workdir"/fetch_olt_sw_hw_details.py "$destdir"/root/
++  mv  "$workdir"/openolt* "$destdir"/
++  echo "INFO: Copying init scripts to init.d"
++  cp  "$workdir"/start_inband_oltservices.sh "$destdir"/etc/init.d/
++  cp "$workdir"/vlan.config "$destdir"/
++  cd -
+ fi
++cat > "$destdir"/etc/rc.local  <<- EOF
++#!/bin/sh -e
++#
++# rc.local
++#
++# This script is executed at the end of each multiuser runlevel.
++# Make sure that the script will "exit 0" on success or any other
++# value on error.
++#
++# In order to enable or disable this script just change the execution
++# bits.
++#
++# By default this script does nothing.
++
++chmod 0777 /etc/init.d/start_inband_oltservices.sh
++chmod 0777 /root/validate_onl_installation.sh
++nohup sh /etc/init.d/start_inband_oltservices.sh > /var/log/startup.log &
++exit 0
++
++EOF
++
+ if test "$mode_overlay"; then
+   # keep the squashfs file around
+   mv $workdir/rootfs.sqsh /tmp/.rootfs
+diff --git a/tools/switool.py b/tools/switool.py
+index 26eb2fb1..6c783c3d 100755
+--- a/tools/switool.py
++++ b/tools/switool.py
+@@ -79,6 +79,26 @@ if ops.create or ops.overwrite:
+     swi = OnlSwitchImage(ops.swi, 'w')
+     swi.add_rootfs(ops.rootfs)
+     swi.add_manifest(ops.manifest)
++
++    try:
++       bal_files = []
++       onl_path = os.environ.get("ONL")
++       bal_package_path=onl_path+"/bal_packages"
++       cwd = os.getcwd()
++       if os.path.isdir(bal_package_path):
++           os.chdir(bal_package_path)
++           for root, dirs, files in os.walk(bal_package_path):
++               for file_name in files:
++                   file_real_path = os.path.realpath(file_name)
++                   bal_files.append(file_real_path)
++
++       os.chdir(cwd)
++       for f_name in bal_files:
++           print("INFO: File Name - ", f_name)
++           swi.add(f_name)
++    except KeyError:
++       print("Not exist environment value for %s" % "key_maybe_not_exist")
++
+     for f in ops.add_files:
+         swi.add(f, arcname=f)
+ 

@@ -145,6 +145,18 @@ cd /broadcom
 * The two executables will remain open in the terminals, unless they are put
   in background.
 
+## Inband ONL Note
+
+* Inband ONL image built by packaging Openolt debian package and some startup
+  scripts. The startup scripts serve to enable inband channels, create inband
+  tagged interfaces, install Openolt debian package and run dev_mgmt_daemon
+  and Openolt services.
+* Startup script named "start_inband_oltservices.sh" will be executed in
+  background after ONL installation. Script execution could be watched in a
+  log file located in /var/log/startup.log.
+* Follow the procedure specified below in Build OpenOLT section to build
+  integrated Inband ONL image.
+
 ### Connect from VOLTHA
 
 At the VOLTHA CLI, preprovision and enable the OLT:
@@ -275,6 +287,27 @@ make OPENOLTDEVICE=asfvolt16 deb
 
 If the build process succeeds, a `.deb` package will be created as well in the
 `openolt/agent/build` directory.
+
+Run make with inband option as specified below to build all-in-one ONL image
+packed with Openolt debian package and Inband OLT startup scripts(Scripts
+to enable Inband channel and start dev_mgmt_daemon and openolt services).
+This can take a while to complete the first time, since it builds
+ONL and the Broadcom SDKs. Following runs will be much faster, as they try to
+build OpenOLT agent source and Inband ONL with modified Openolt deb package.
+
+```shell
+make OPENOLTDEVICE=asfvolt16 INBAND=y VLAN_ID=<INBAND_VLAN>
+e.g:
+make OPENOLTDEVICE=asfvolt16 INBAND=y VLAN_ID=5
+```
+
+If no VLAN_ID is specified in above command it defaults to 4093.
+
+Note that the required INBAND ONL version `4.14` is built as part of the above
+build procedure and is available at path
+`build/onl/OpenNetworkLinux/RELEASE/jessie/amd64/ONL-onl-4.14_ONL-OS8_2020-04-22.
+2206-b4af32e_AMD64_INSTALLED_INSTALLER\.
+This ONL Installer should be used to flash the OS on the OLT.
 
 NOTE: To compile for ASGvOLT 64 port GPON OLT, set `OPENOLTDEVICE` to
 `asgvolt64` during build procedure like below.
