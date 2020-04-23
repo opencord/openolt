@@ -98,8 +98,8 @@ std::map<uint32_t, uint32_t> flowid_to_gemport; // For mapping downstream flows 
 std::map<uint32_t, std::set<uint32_t> > port_to_flows; // For mapping logical ports to downstream flows
 
 /* This represents the Key to 'sched_map' map.
- Represents (pon_intf_id, onu_id, uni_id, direction) */
-typedef std::tuple<uint32_t, uint32_t, uint32_t, std::string> sched_map_key_tuple;
+ Represents (pon_intf_id, onu_id, uni_id, direction, tech_profile_id) */
+typedef std::tuple<uint32_t, uint32_t, uint32_t, std::string, uint32_t> sched_map_key_tuple;
 /* 'sched_map' maps sched_map_key_tuple to DBA (Upstream) or
  Subscriber (Downstream) Scheduler ID */
 std::map<sched_map_key_tuple, int> sched_map;

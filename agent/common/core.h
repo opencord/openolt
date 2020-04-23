@@ -219,7 +219,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
                 int32_t alloc_id, int32_t network_intf_id,
                 int32_t gemport_id, const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action, int32_t priority_value,
-                uint64_t cookie, int32_t group_id);
+                uint64_t cookie, int32_t group_id, uint32_t tech_profile_id);
 Status FlowRemove_(uint32_t flow_id, const std::string flow_type);
 Status Disable_();
 Status Reenable_();

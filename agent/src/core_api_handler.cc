@@ -67,12 +67,12 @@ static std::string firmware_version = "Openolt.2019.07.01";
 static bcmos_errno CreateSched(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, \
                           uint32_t port_no, uint32_t alloc_id, tech_profile::AdditionalBW additional_bw, uint32_t weight, \
                           uint32_t priority, tech_profile::SchedulingPolicy sched_policy,
-                          tech_profile::TrafficShapingInfo traffic_shaping_info);
-static bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::string direction);
+                          tech_profile::TrafficShapingInfo traffic_shaping_info, uint32_t tech_profile_id);
+static bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::string direction, int tech_profile_id);
 static bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, \
-                               bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id);
+                               bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id, uint32_t tech_profile_id);
 static bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, \
-                               bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id);
+                               bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id, uint32_t tech_profile_id);
 static bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction);
 static bcmos_errno CreateDefaultQueue(uint32_t intf_id, const std::string direction);
 
@@ -1341,7 +1341,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
                 int32_t alloc_id, int32_t network_intf_id,
                 int32_t gemport_id, const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action, int32_t priority_value, uint64_t cookie,
-                int32_t group_id) {
+                int32_t group_id, uint32_t tech_profile_id) {
     bcmolt_flow_cfg cfg;
     bcmolt_flow_key key = { }; /**< Object key. */
     int32_t o_vid = -1;
@@ -1563,7 +1563,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
     if ((access_intf_id >= 0) && (onu_id >= 0)) {
         qos_type = get_qos_type(access_intf_id, onu_id, uni_id);
         if (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM) {
-            tm_val.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, downstream);
+            tm_val.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, downstream, tech_profile_id);
 
             if (qos_type == BCMOLT_EGRESS_QOS_TYPE_FIXED_QUEUE) {
                 // Queue 0 on DS subscriber scheduler
@@ -1866,14 +1866,15 @@ bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction) {
 
 bcmos_errno CreateSched(std::string direction, uint32_t intf_id, uint32_t onu_id, uint32_t uni_id, uint32_t port_no,
                  uint32_t alloc_id, tech_profile::AdditionalBW additional_bw, uint32_t weight, uint32_t priority,
-                 tech_profile::SchedulingPolicy sched_policy, tech_profile::TrafficShapingInfo tf_sh_info) {
+                 tech_profile::SchedulingPolicy sched_policy, tech_profile::TrafficShapingInfo tf_sh_info,
+                 uint32_t tech_profile_id) {
 
     bcmos_errno err;
 
     if (direction == downstream) {
         bcmolt_tm_sched_cfg tm_sched_cfg;
         bcmolt_tm_sched_key tm_sched_key = {.id = 1};
-        tm_sched_key.id = get_tm_sched_id(intf_id, onu_id, uni_id, direction);
+        tm_sched_key.id = get_tm_sched_id(intf_id, onu_id, uni_id, direction, tech_profile_id);
 
         // bcmbal_tm_sched_owner
         // In downstream it is sub_term scheduler
@@ -2063,6 +2064,7 @@ Status CreateTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
     uint32_t weight;
     tech_profile::SchedulingPolicy sched_policy;
     tech_profile::TrafficShapingInfo traffic_shaping_info;
+    uint32_t tech_profile_id;
     bcmos_errno err;
 
     for (int i = 0; i < traffic_scheds->traffic_scheds_size(); i++) {
@@ -2079,8 +2081,9 @@ Status CreateTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
         weight = sched_config.weight();
         sched_policy = sched_config.sched_policy();
         traffic_shaping_info = traffic_sched.traffic_shaping_info();
+        tech_profile_id = traffic_sched.tech_profile_id();
         err =  CreateSched(direction, intf_id, onu_id, uni_id, port_no, alloc_id, additional_bw, weight, priority,
-                           sched_policy, traffic_shaping_info);
+                           sched_policy, traffic_shaping_info, tech_profile_id);
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create scheduler, err = %s\n", bcmos_strerror(err));
             return bcm_to_grpc_err(err, "Failed to create scheduler");
@@ -2089,7 +2092,7 @@ Status CreateTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
     return Status::OK;
 }
 
-bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::string direction) {
+bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::string direction, int tech_profile_id) {
 
     bcmos_errno err;
     bcmolt_interface_state state;
@@ -2140,8 +2143,8 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
         bcmolt_tm_sched_cfg cfg;
         bcmolt_tm_sched_key key = { };
 
-        if (is_tm_sched_id_present(intf_id, onu_id, uni_id, direction)) {
-            key.id = get_tm_sched_id(intf_id, onu_id, uni_id, direction);
+        if (is_tm_sched_id_present(intf_id, onu_id, uni_id, direction, tech_profile_id)) {
+            key.id = get_tm_sched_id(intf_id, onu_id, uni_id, direction, tech_profile_id);
             sched_id = key.id;
         } else {
             OPENOLT_LOG(INFO, openolt_log_id, "schduler not present in %s, err %d\n", direction.c_str(), err);
@@ -2152,14 +2155,14 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
         err = bcmolt_cfg_clear(dev_id, &(cfg.hdr));
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler, direction = %s, sched_id %d, \
-intf_id %d, onu_id %d, err = %s\n", direction.c_str(), key.id, intf_id, onu_id, bcmos_strerror(err));
+intf_id %d, onu_id %d, tech_profile_id %d, err = %s\n", direction.c_str(), key.id, intf_id, onu_id, tech_profile_id, bcmos_strerror(err));
             return err;
         }
     }
 
-    OPENOLT_LOG(INFO, openolt_log_id, "Removed sched, direction = %s, id %d, intf_id %d, onu_id %d\n",
-                direction.c_str(), sched_id, intf_id, onu_id);
-    free_tm_sched_id(intf_id, onu_id, uni_id, direction);
+    OPENOLT_LOG(INFO, openolt_log_id, "Removed sched, direction = %s, id %d, intf_id %d, onu_id %d, tech_profile_id %d\n",
+                direction.c_str(), sched_id, intf_id, onu_id, tech_profile_id);
+    free_tm_sched_id(intf_id, onu_id, uni_id, direction, tech_profile_id);
     return BCM_ERR_OK;
 }
 
@@ -2168,6 +2171,7 @@ Status RemoveTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
     uint32_t onu_id = traffic_scheds->onu_id();
     uint32_t uni_id = traffic_scheds->uni_id();
     std::string direction;
+    uint32_t tech_profile_id;
     bcmos_errno err;
 
     for (int i = 0; i < traffic_scheds->traffic_scheds_size(); i++) {
@@ -2178,7 +2182,8 @@ Status RemoveTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
             return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
 
         int alloc_id = traffic_sched.alloc_id();
-        err = RemoveSched(intf_id, onu_id, uni_id, alloc_id, direction);
+        int tech_profile_id = traffic_sched.tech_profile_id();
+        err = RemoveSched(intf_id, onu_id, uni_id, alloc_id, direction, tech_profile_id);
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Error-removing-traffic-scheduler, err = %s\n",bcmos_strerror(err));
             return bcm_to_grpc_err(err, "error-removing-traffic-scheduler");
@@ -2273,15 +2278,15 @@ bcmos_errno CreateDefaultQueue(uint32_t intf_id, const std::string direction) {
 }
 
 bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id,
-                        bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id) {
+                        bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id, uint32_t tech_profile_id) {
     bcmos_errno err;
     bcmolt_tm_queue_cfg cfg;
     bcmolt_tm_queue_key key = { };
     OPENOLT_LOG(INFO, openolt_log_id, "creating %s queue. access_intf_id = %d, onu_id = %d, uni_id = %d \
-gemport_id = %d\n", direction.c_str(), access_intf_id, onu_id, uni_id, gemport_id);
+gemport_id = %d, tech_profile_id = %d\n", direction.c_str(), access_intf_id, onu_id, uni_id, gemport_id, tech_profile_id);
 
     key.sched_id = (direction.compare(upstream) == 0) ? get_default_tm_sched_id(nni_intf_id, direction) : \
-        get_tm_sched_id(access_intf_id, onu_id, uni_id, direction);
+        get_tm_sched_id(access_intf_id, onu_id, uni_id, direction, tech_profile_id);
 
     if (priority > 7) {
         return BCM_ERR_RANGE;
@@ -2317,13 +2322,13 @@ gemport_id = %d\n", direction.c_str(), access_intf_id, onu_id, uni_id, gemport_i
     err = bcmolt_cfg_set(dev_id, &cfg.hdr);
     if (err) {
         OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create subscriber tm queue, direction = %s, queue_id %d, \
-sched_id %d, tm_q_set_id %d, intf_id %d, onu_id %d, uni_id %d, err = %s\n", \
-            direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id, bcmos_strerror(err));
+sched_id %d, tm_q_set_id %d, intf_id %d, onu_id %d, uni_id %d, tech_profile_id %d, err = %s\n", \
+            direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id, tech_profile_id, bcmos_strerror(err));
         return err;
     }
 
     OPENOLT_LOG(INFO, openolt_log_id, "Created tm_queue, direction %s, id %d, sched_id %d, tm_q_set_id %d, \
-intf_id %d, onu_id %d, uni_id %d\n", direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id);
+intf_id %d, onu_id %d, uni_id %d, tech_profiled_id %d\n", direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id, tech_profile_id);
     return BCM_ERR_OK;
 }
 
@@ -2331,6 +2336,7 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
     uint32_t intf_id = traffic_queues->intf_id();
     uint32_t onu_id = traffic_queues->onu_id();
     uint32_t uni_id = traffic_queues->uni_id();
+    uint32_t tech_profile_id = traffic_queues->tech_profile_id();
     uint32_t sched_id;
     std::string direction;
     bcmos_errno err;
@@ -2354,7 +2360,7 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
         tmq_map_profile = get_tmq_map_profile(get_valid_queues_pbit_map(queues_pbit_map, COUNT_OF(queues_pbit_map)), \
                                               queues_priority_q, COUNT_OF(queues_priority_q));
         sched_id = (direction.compare(upstream) == 0) ? get_default_tm_sched_id(nni_intf_id, direction) : \
-            get_tm_sched_id(intf_id, onu_id, uni_id, direction);
+            get_tm_sched_id(intf_id, onu_id, uni_id, direction, tech_profile_id);
 
         int tm_qmp_id = get_tm_qmp_id(tmq_map_profile);
         if (tm_qmp_id == -1) {
@@ -2376,7 +2382,7 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
         if (direction.compare("direction-not-supported") == 0)
             return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
 
-        err = CreateQueue(direction, intf_id, onu_id, uni_id, qos_type, traffic_queue.priority(), traffic_queue.gemport_id());
+        err = CreateQueue(direction, intf_id, onu_id, uni_id, qos_type, traffic_queue.priority(), traffic_queue.gemport_id(), tech_profile_id);
 
         // If the queue exists already, lets not return failure and break the loop.
         if (err && err != BCM_ERR_ALREADY) {
@@ -2388,14 +2394,14 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
 }
 
 bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id,
-                        bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id) {
+                        bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id, uint32_t tech_profile_id) {
     bcmolt_tm_queue_cfg cfg;
     bcmolt_tm_queue_key key = { };
     bcmos_errno err;
 
     if (direction == downstream) {
-        if (is_tm_sched_id_present(access_intf_id, onu_id, uni_id, direction)) {
-            key.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, direction);
+        if (is_tm_sched_id_present(access_intf_id, onu_id, uni_id, direction, tech_profile_id)) {
+            key.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, direction, tech_profile_id);
             key.id = queue_id_list[priority];
         } else {
             OPENOLT_LOG(INFO, openolt_log_id, "queue not present in DS. Not clearing, access_intf_id %d, onu_id %d, uni_id %d, gemport_id %d, direction %s\n", access_intf_id, onu_id, uni_id, gemport_id, direction.c_str());
@@ -2439,6 +2445,7 @@ Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
     uint32_t onu_id = traffic_queues->onu_id();
     uint32_t uni_id = traffic_queues->uni_id();
     uint32_t port_no = traffic_queues->port_no();
+    uint32_t tech_profile_id = traffic_queues->tech_profile_id();
     uint32_t sched_id;
     std::string direction;
     bcmos_errno err;
@@ -2451,16 +2458,16 @@ Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues) {
         if (direction.compare("direction-not-supported") == 0)
             return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
 
-        err = RemoveQueue(direction, intf_id, onu_id, uni_id, qos_type, traffic_queue.priority(), traffic_queue.gemport_id());
+        err = RemoveQueue(direction, intf_id, onu_id, uni_id, qos_type, traffic_queue.priority(), traffic_queue.gemport_id(), tech_profile_id);
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove queue, err = %s\n",bcmos_strerror(err));
             return bcm_to_grpc_err(err, "Failed to remove queue");
         }
     }
 
-    if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE && (direction.compare(upstream) == 0 || direction.compare(downstream) == 0 && is_tm_sched_id_present(intf_id, onu_id, uni_id, direction))) {
+    if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE && (direction.compare(upstream) == 0 || direction.compare(downstream) == 0 && is_tm_sched_id_present(intf_id, onu_id, uni_id, direction, tech_profile_id))) {
         sched_id = (direction.compare(upstream) == 0) ? get_default_tm_sched_id(nni_intf_id, direction) : \
-            get_tm_sched_id(intf_id, onu_id, uni_id, direction);
+            get_tm_sched_id(intf_id, onu_id, uni_id, direction, tech_profile_id);
 
         int tm_qmp_id = get_tm_qmp_id(sched_id, intf_id, onu_id, uni_id);
         if (free_tm_qmp_id(sched_id, intf_id, onu_id, uni_id, tm_qmp_id)) {

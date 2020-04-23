@@ -25,7 +25,7 @@ SHELL = bash -e -o pipefail
 
 ## Variables
 OPENOLTDEVICE     ?= asfvolt16
-OPENOLT_PROTO_VER ?= v3.3.4
+OPENOLT_PROTO_VER ?= v3.3.5
 GTEST_VER         ?= release-1.8.0
 CMOCK_VER         ?= 0207b30
 GMOCK_GLOBAL_VER  ?= 1.0.2

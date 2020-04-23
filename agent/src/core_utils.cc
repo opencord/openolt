@@ -83,18 +83,20 @@ int get_default_tm_sched_id(int intf_id, std::string direction) {
 /**
 * Gets a unique tm_sched_id for a given intf_id, onu_id, uni_id, gemport_id, direction
 * The tm_sched_id is locally cached in a map, so that it can rendered when necessary.
-* VOLTHA replays whole configuration on OLT reboot, so caching locally is not a problem
+* VOLTHA replays whole configuration on OLT reboot, so caching locally is not a problem.
+* Note that tech_profile_id is used to differentiate service schedulers in downstream direction.
 *
 * @param intf_id NNI or PON intf ID
 * @param onu_id ONU ID
 * @param uni_id UNI ID
 * @param gemport_id GEM Port ID
 * @param direction Upstream or downstream
+* @param tech_profile_id Technology Profile ID
 *
 * @return tm_sched_id
 */
-uint32_t get_tm_sched_id(int pon_intf_id, int onu_id, int uni_id, std::string direction) {
-    sched_map_key_tuple key(pon_intf_id, onu_id, uni_id, direction);
+uint32_t get_tm_sched_id(int pon_intf_id, int onu_id, int uni_id, std::string direction, int tech_profile_id) {
+    sched_map_key_tuple key(pon_intf_id, onu_id, uni_id, direction, tech_profile_id);
     int sched_id = -1;
 
     std::map<sched_map_key_tuple, int>::const_iterator it = sched_map.find(key);
@@ -126,16 +128,17 @@ uint32_t get_tm_sched_id(int pon_intf_id, int onu_id, int uni_id, std::string di
 }
 
 /**
-* Free tm_sched_id for a given intf_id, onu_id, uni_id, gemport_id, direction
+* Free tm_sched_id for a given intf_id, onu_id, uni_id, gemport_id, direction, tech_profile_id
 *
 * @param intf_id NNI or PON intf ID
 * @param onu_id ONU ID
 * @param uni_id UNI ID
 * @param gemport_id GEM Port ID
 * @param direction Upstream or downstream
+* @param tech_profile_id Technology Profile ID
 */
-void free_tm_sched_id(int pon_intf_id, int onu_id, int uni_id, std::string direction) {
-    sched_map_key_tuple key(pon_intf_id, onu_id, uni_id, direction);
+void free_tm_sched_id(int pon_intf_id, int onu_id, int uni_id, std::string direction, int tech_profile_id) {
+    sched_map_key_tuple key(pon_intf_id, onu_id, uni_id, direction, tech_profile_id);
     std::map<sched_map_key_tuple, int>::const_iterator it;
     bcmos_fastlock_lock(&data_lock);
     it = sched_map.find(key);
@@ -146,8 +149,8 @@ void free_tm_sched_id(int pon_intf_id, int onu_id, int uni_id, std::string direc
     bcmos_fastlock_unlock(&data_lock, 0);
 }
 
-bool is_tm_sched_id_present(int pon_intf_id, int onu_id, int uni_id, std::string direction) {
-    sched_map_key_tuple key(pon_intf_id, onu_id, uni_id, direction);
+bool is_tm_sched_id_present(int pon_intf_id, int onu_id, int uni_id, std::string direction, int tech_profile_id) {
+    sched_map_key_tuple key(pon_intf_id, onu_id, uni_id, direction, tech_profile_id);
     std::map<sched_map_key_tuple, int>::const_iterator it = sched_map.find(key);
     if (it != sched_map.end()) {
         return true;

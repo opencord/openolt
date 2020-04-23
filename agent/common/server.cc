@@ -141,7 +141,8 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->action(),
             request->priority(),
             request->cookie(),
-            request->group_id());
+            request->group_id(),
+            request->tech_profile_id());
     }
 
     Status FlowRemove(

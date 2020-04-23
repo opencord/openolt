@@ -21,7 +21,7 @@
 TOP_DIR=`pwd`
 OPENOLTDEVICE ?= asfvolt16
 
-OPENOLT_PROTO_VER ?= v3.3.4
+OPENOLT_PROTO_VER ?= v3.3.5
 
 GTEST_VER ?= release-1.8.0
 gtest-target = /usr/local/lib/libgtest.a

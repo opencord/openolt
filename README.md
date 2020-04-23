@@ -272,7 +272,7 @@ tag/branch corresponding to that specific version:
 make OPENOLTDEVICE=asfvolt16 OPENOLT_PROTO_VER=master
 ```
 
-By default, the `OPENOLT_PROTO_VER` defaults to git tag *v3.3.4* of the
+By default, the `OPENOLT_PROTO_VER` defaults to git tag *v3.3.5* of the
 [voltha-protos](https://gerrit.opencord.org/gitweb?p=voltha-protos.git;a=summary)
 repo.
 
