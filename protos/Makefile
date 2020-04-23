@@ -19,7 +19,7 @@ SYSTEM ?= $(HOST_SYSTEM)
 # This specifies the GIT tag in https://github.com/opencord/voltha-protos
 # repo that we need to refer to, to pick the right version of
 # openolt.proto and tech_profile.proto
-OPENOLT_PROTO_VER ?= v3.1.0
+OPENOLT_PROTO_VER ?= v3.3.4
 GRPC_VER ?= v1.10.x
 
 CXX ?= g++
@@ -30,7 +30,7 @@ PROTOC = $(shell which protoc)
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGIN_PATH ?= $(shell which grpc_cpp_plugin)
 
-OBJS = voltha_protos/tech_profile.pb.o voltha_protos/tech_profile.grpc.pb.o voltha_protos/openolt.pb.o voltha_protos/openolt.grpc.pb.o ./googleapis/gens/google/api/annotations.grpc.pb.o ./googleapis/gens/google/api/annotations.pb.o ./googleapis/gens/google/api/http.pb.o
+OBJS = voltha_protos/common.pb.o voltha_protos/common.grpc.pb.o voltha_protos/tech_profile.pb.o voltha_protos/tech_profile.grpc.pb.o voltha_protos/openolt.pb.o voltha_protos/openolt.grpc.pb.o ./googleapis/gens/google/api/annotations.grpc.pb.o ./googleapis/gens/google/api/annotations.pb.o ./googleapis/gens/google/api/http.pb.o
 
 .DEFAULT_GOAL := all
 
@@ -51,6 +51,9 @@ googleapis:
 
 voltha_protos:
 	mkdir voltha_protos
+	if [ ! -e "voltha_protos/common.proto" ]; then \
+		wget -O voltha_protos/common.proto https://raw.githubusercontent.com/opencord/voltha-protos/$(OPENOLT_PROTO_VER)/protos/voltha_protos/common.proto; \
+	fi; \
 	if [ ! -e "voltha_protos/openolt.proto" ]; then \
 		wget -O voltha_protos/openolt.proto https://raw.githubusercontent.com/opencord/voltha-protos/$(OPENOLT_PROTO_VER)/protos/voltha_protos/openolt.proto; \
 	fi; \
@@ -59,10 +62,12 @@ voltha_protos:
 	fi;
 
 grpc-target:
+	$(PROTOC) --proto_path=. -I./googleapis --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) voltha_protos/common.proto
 	$(PROTOC) --proto_path=. -I./googleapis --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) voltha_protos/openolt.proto
 	$(PROTOC) --proto_path=. -I./googleapis --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) voltha_protos/tech_profile.proto
 
 protobuf-target: voltha_protos
+	$(PROTOC) --proto_path=. -I./googleapis -I./ --cpp_out=. voltha_protos/common.proto
 	$(PROTOC) --proto_path=. -I./googleapis -I./ --cpp_out=. voltha_protos/openolt.proto
 	$(PROTOC) --proto_path=. -I./googleapis -I./ --cpp_out=. voltha_protos/tech_profile.proto
 
