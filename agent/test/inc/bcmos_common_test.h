@@ -25,5 +25,7 @@ This header file provides missing BAL API definitions required for unit test com
 extern void* bcmos_calloc(uint32_t size);
 #define BCMOLT_INTERFACE_TYPE_EPON_1_G 3
 #define BCMOLT_INTERFACE_TYPE_EPON_10_G 4
+#define BCMOLT_PON_POWER_LEVEL_PLS_MAXIMUM_ALLOCATION_SIZE_DEFAULT 10
+#define BCMOLT_PON_POWER_LEVEL_MODE_DEFAULT 0
 
 #endif // BCMOS_COMMON_TEST_H_

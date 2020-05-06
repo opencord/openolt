@@ -888,6 +888,14 @@ Status EnablePonIf_(uint32_t intf_id) {
     BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.ack_timeout, true);
     BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.sfi, true);
     BCMOLT_MSG_FIELD_SET(&interface_obj, itu.automatic_onu_deactivation.loki, true);
+
+    // On GPON, power level mode is not set to its default value (i.e. 0) as documented in Broadcom documentation.
+    // Instead, it is set to 2 which means -6 dbM attenuation. Therefore, we explicitly set it to the default value below.
+    if (board_technology == "GPON") {
+        BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.power_level.pls_maximum_allocation_size, BCMOLT_PON_POWER_LEVEL_PLS_MAXIMUM_ALLOCATION_SIZE_DEFAULT);
+        BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.power_level.mode, BCMOLT_PON_POWER_LEVEL_MODE_DEFAULT);
+    }
+
     BCMOLT_FIELD_SET(&pon_interface_set_state.data, pon_interface_set_pon_interface_state_data,
         operation, BCMOLT_INTERFACE_OPERATION_ACTIVE_WORKING);
 
