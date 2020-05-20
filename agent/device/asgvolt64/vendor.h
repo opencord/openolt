@@ -20,4 +20,6 @@
 #define ASGVOLT64
 #define MODEL_ID  "asgvolt64"
 #define MAX_SUPPORTED_PON 64
+#define ONU_BIT_TRANSMISSION_DELAY 0.8038585/1000 /* unit: ns to us */
+#define MINIMUM_ONU_RESPONSE_RANGING_TIME 198075 /* hardcore: this is ranging time for the shortest distance, typically 35us */
 #endif

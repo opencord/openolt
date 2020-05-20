@@ -2869,3 +2869,72 @@ Status DeleteGroup_(uint32_t group_id) {
     OPENOLT_LOG(INFO, openolt_log_id, "Group %d has been deleted successfully.\n", group_id);
     return Status::OK;
 }
+
+Status GetLogicalOnuDistanceZero_(uint32_t intf_id, openolt::OnuLogicalDistance* response) {
+    bcmos_errno err = BCM_ERR_OK;
+    uint32_t mld = 0;
+    double LD0;
+
+    err = getOnuMaxLogicalDistance(intf_id, &mld);
+    if (err != BCM_ERR_OK) {
+        return bcm_to_grpc_err(err, "Failed to retrieve ONU maximum logical distance");
+    }
+
+    LD0 = LOGICAL_DISTANCE(mld*1000, MINIMUM_ONU_RESPONSE_RANGING_TIME, ONU_BIT_TRANSMISSION_DELAY);
+    OPENOLT_LOG(INFO, openolt_log_id, "The ONU logical distance zero is %f, (PON %d)\n", LD0, intf_id);
+    response->set_intf_id(intf_id);
+    response->set_logical_onu_distance_zero(LD0);
+
+    return Status::OK;
+}
+
+Status GetLogicalOnuDistance_(uint32_t intf_id, uint32_t onu_id, openolt::OnuLogicalDistance* response) {
+    bcmos_errno err = BCM_ERR_OK;
+    bcmolt_itu_onu_params itu = {};
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key = {};
+    uint32_t mld = 0;
+    double LDi;
+
+    onu_key.pon_ni = intf_id;
+    onu_key.onu_id = onu_id;
+
+    err = getOnuMaxLogicalDistance(intf_id, &mld);
+    if (err != BCM_ERR_OK) {
+        return bcm_to_grpc_err(err, "Failed to retrieve ONU maximum logical distance");
+    }
+
+    /* Initialize the API struct. */
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
+    BCMOLT_FIELD_SET_PRESENT(&itu, itu_onu_params, ranging_time);
+    BCMOLT_FIELD_SET(&onu_cfg.data, onu_cfg_data, itu, itu);
+    #ifdef TEST_MODE
+    // It is impossible to mock the setting of onu_cfg.data.onu_state because
+    // the actual bcmolt_cfg_get passes the address of onu_cfg.hdr and we cannot
+    // set the onu_cfg.data.onu_state. So a new stub function is created and address
+    // of onu_cfg is passed. This is one-of case where we need to add test specific
+    // code in production code.
+    err = bcmolt_cfg_get__onu_state_stub(dev_id, &onu_cfg);
+    #else
+    /* Call API function. */
+    err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
+    #endif
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to retrieve ONU ranging time for PON %d/ONU id %d, err = %s (%d)\n", intf_id, onu_id, bcmos_strerror(err), err);
+        return bcm_to_grpc_err(err, "Failed to retrieve ONU ranging time");
+    }
+
+    if (onu_cfg.data.onu_state != BCMOLT_ONU_STATE_ACTIVE) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "ONU is not yet activated (PON %d, ONU id %d)\n", intf_id, onu_id);
+        return bcm_to_grpc_err(BCM_ERR_PARM, "ONU is not yet activated\n");
+    }
+
+    LDi = LOGICAL_DISTANCE(mld*1000, onu_cfg.data.itu.ranging_time, ONU_BIT_TRANSMISSION_DELAY);
+    OPENOLT_LOG(INFO, openolt_log_id, "The ONU logical distance is %f, (PON %d, ONU id %d)\n", LDi, intf_id, onu_id);
+    response->set_intf_id(intf_id);
+    response->set_onu_id(onu_id);
+    response->set_logical_onu_distance(LDi);
+
+    return Status::OK;
+}

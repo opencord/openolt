@@ -20,4 +20,6 @@
 #define ASFVOLT16
 #define MODEL_ID  "asfvolt16"
 #define MAX_SUPPORTED_PON 16
+#define ONU_BIT_TRANSMISSION_DELAY 0.1004823/1000 /* unit: ns to us */
+#define MINIMUM_ONU_RESPONSE_RANGING_TIME 1572135 /* hardcore: this is ranging time for the shortest distance, typically 35us */
 #endif

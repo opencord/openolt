@@ -101,4 +101,5 @@ Status handle_acl_rule_cleanup(int16_t acl_id, int32_t gemport_id, int32_t intf_
 Status check_bal_ready();
 Status check_connection();
 std::string get_ip_address(const char* nw_intf);
+bcmos_errno getOnuMaxLogicalDistance(uint32_t intf_id, uint32_t *mld);
 #endif // OPENOLT_CORE_UTILS_H_

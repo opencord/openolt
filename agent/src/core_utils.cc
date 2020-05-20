@@ -1295,3 +1295,39 @@ std::string get_ip_address(const char* nw_intf){
     freeifaddrs(interfaces);
     return ipAddress;
 }
+
+bcmos_errno getOnuMaxLogicalDistance(uint32_t intf_id, uint32_t *mld) {
+    bcmos_errno err = BCM_ERR_OK;
+    bcmolt_pon_distance pon_distance = {};
+    bcmolt_pon_interface_cfg pon_cfg; /* declare main API struct */
+    bcmolt_pon_interface_key key = {}; /* declare key */
+
+    key.pon_ni = intf_id;
+
+    if (!state.is_activated()) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "ONU maximum logical distance is not available since OLT is not activated yet\n");
+        return BCM_ERR_STATE;
+    }
+
+    /* Initialize the API struct. */
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, key);
+        BCMOLT_FIELD_SET_PRESENT(&pon_distance, pon_distance, max_log_distance);
+    BCMOLT_FIELD_SET(&pon_cfg.data, pon_interface_cfg_data, pon_distance, pon_distance);
+    #ifdef TEST_MODE
+    // It is impossible to mock the setting of pon_cfg.data.state because
+    // the actual bcmolt_cfg_get passes the address of pon_cfg.hdr and we cannot
+    // set the pon_cfg.data.state. So a new stub function is created and address
+    // of pon_cfg is passed. This is one-of case where we need to add test specific
+    // code in production code.
+    err = bcmolt_cfg_get__pon_intf_stub(dev_id, &pon_cfg);
+    #else
+    err = bcmolt_cfg_get(dev_id, &pon_cfg.hdr);
+    #endif
+        if (err != BCM_ERR_OK) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to retrieve ONU maximum logical distance for PON %d, err = %s (%d)\n", intf_id, bcmos_strerror(err), err);
+            return err;
+        }
+        *mld = pon_distance.max_log_distance;
+
+    return BCM_ERR_OK;
+}

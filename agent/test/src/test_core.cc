@@ -69,7 +69,6 @@ MOCK_GLOBAL_FUNC2(bcmolt_cfg_get__pon_intf_stub, bcmos_errno(bcmolt_oltid, void*
 MOCK_GLOBAL_FUNC2(bcmolt_cfg_get__nni_intf_stub, bcmos_errno(bcmolt_oltid, void*));
 MOCK_GLOBAL_FUNC2(bcmolt_cfg_get__flow_stub, bcmos_errno(bcmolt_oltid, void*));
 
-
 // Test Fixture for OltEnable
 
 // Test 1: OltEnableSuccess case
@@ -2821,9 +2820,6 @@ class TestDeleteGroup : public Test {
 
         virtual void SetUp() {
         }
-
-        virtual void TearDown() {
-        }
 };
 
 // Test 1 - DeleteGroup success case
@@ -2892,5 +2888,170 @@ TEST_F(TestDeleteGroup, DeleteGroupFailure_CannotDelete) {
     EXPECT_CALL(balMock, bcmolt_cfg_clear(_, _)).WillOnce(Return(group_cfg_clear_res));
 
     Status status = DeleteGroup_(group_id);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+////////////////////////////////////////////////////////////////////////////
+// For testing OnuLogicalDistanceZero functionality
+////////////////////////////////////////////////////////////////////////////
+class TestOnuLogicalDistanceZero : public Test {
+    protected:
+        NiceMock<BalMocker> balMock;
+        bcmolt_pon_ni pon_ni = 0;
+        openolt::OnuLogicalDistance *onu_logical_distance_zero;
+
+        virtual void SetUp() {
+            onu_logical_distance_zero = new openolt::OnuLogicalDistance;
+            onu_logical_distance_zero->set_intf_id(pon_ni);
+        }
+        virtual void TearDown() {
+        }
+};
+
+//
+// Test 1 - GetLogicalOnuDistanceZero-Get 0KM logical ONU distance success case
+//
+TEST_F(TestOnuLogicalDistanceZero, OnuLogicalDistanceZeroSuccess) {
+    bcmolt_pon_distance pon_distance = {};
+    bcmolt_pon_interface_cfg pon_cfg;
+    bcmolt_pon_interface_key key = {};
+
+    key.pon_ni = pon_ni;
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, key);
+    state.activate();
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
+
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+
+    Status status = GetLogicalOnuDistanceZero_(pon_ni, onu_logical_distance_zero);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 2 - GetLogicalOnuDistanceZero-Get 0KM logical ONU distance failure case
+// The PON state is not ready for failure case
+//
+TEST_F(TestOnuLogicalDistanceZero, OnuLogicalDistanceZeroPonStateFailure) {
+    bcmolt_pon_distance pon_distance = {};
+    bcmolt_pon_interface_cfg pon_cfg;
+    bcmolt_pon_interface_key key = {};
+
+    key.pon_ni = pon_ni;
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, key);
+    state.deactivate();
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_INTERNAL;
+
+    Status status = GetLogicalOnuDistanceZero_(pon_ni, onu_logical_distance_zero);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+class TestOnuLogicalDistance : public Test {
+    protected:
+        NiceMock<BalMocker> balMock;
+        bcmolt_pon_ni pon_ni = 0;
+        bcmolt_onu_id onu_id = 1;
+        openolt::OnuLogicalDistance *onu_logical_distance;
+
+        virtual void SetUp() {
+            onu_logical_distance = new openolt::OnuLogicalDistance;
+            onu_logical_distance->set_intf_id(pon_ni);
+            onu_logical_distance->set_onu_id(onu_id);
+        }
+        virtual void TearDown() {
+        }
+};
+
+//
+// Test 1 - GetLogicalOnuDistance-Get logical ONU distance success case
+//
+TEST_F(TestOnuLogicalDistance, OnuLogicalDistanceSuccess) {
+    bcmolt_pon_distance pon_distance = {};
+    bcmolt_pon_interface_cfg pon_cfg;
+    bcmolt_pon_interface_key key = {};
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
+
+    key.pon_ni = pon_ni;
+    state.activate();
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, key);
+
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key = {};
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
+
+    onu_key.pon_ni = pon_ni;
+    onu_key.onu_id = onu_id;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
+    Status status = GetLogicalOnuDistance_(pon_ni, onu_id, onu_logical_distance);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 2 - GetLogicalOnuDistance-Get logical ONU distance failure case
+// The failure case is for retrieving ONU ranging time
+//
+TEST_F(TestOnuLogicalDistance, OnuLogicalDistanceRetrieveOnuRangingTimeFailure) {
+    bcmolt_pon_distance pon_distance = {};
+    bcmolt_pon_interface_cfg pon_cfg;
+    bcmolt_pon_interface_key key = {};
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
+
+    key.pon_ni = pon_ni;
+    state.activate();
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, key);
+
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key = {};
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_INTERNAL;
+
+    onu_key.pon_ni = pon_ni;
+    onu_key.onu_id = onu_id;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
+    Status status = GetLogicalOnuDistance_(pon_ni, onu_id, onu_logical_distance);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 3 - GetLogicalOnuDistance-Get logical ONU distance failure case
+// The failure case is for ONU is not yet activated
+//
+TEST_F(TestOnuLogicalDistance, OnuLogicalDistanceOnuNotActivatedFailure) {
+    bcmolt_pon_distance pon_distance = {};
+    bcmolt_pon_interface_cfg pon_cfg;
+    bcmolt_pon_interface_key key = {};
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
+
+    key.pon_ni = pon_ni;
+    state.activate();
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, key);
+
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_onu_key onu_key = {};
+    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
+
+    onu_key.pon_ni = pon_ni;
+    onu_key.onu_id = onu_id;
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+
+    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
+    Status status = GetLogicalOnuDistance_(pon_ni, onu_id, onu_logical_distance);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }

@@ -192,6 +192,7 @@ extern "C"
        (type == BCMOLT_INTERFACE_TYPE_NNI) ? "NNI" : \
        (type == BCMOLT_INTERFACE_TYPE_HOST) ? "HOST" : "unknown"
 
+#define LOGICAL_DISTANCE(MLD,EQD,TD) (MLD-(EQD*TD)*102) /* Round-trip time of 102 meters is 1us */
 extern State state;
 
 //***************************************//
@@ -232,6 +233,8 @@ Status PerformGroupOperation_(const openolt::Group *group_cfg);
 Status DeleteGroup_(uint32_t group_id);
 Status OnuItuPonAlarmSet_(const openolt::OnuItuPonAlarm* request);
 uint32_t GetPortNum_(uint32_t flow_id);
+Status GetLogicalOnuDistanceZero_(uint32_t intf_id, openolt::OnuLogicalDistance* response);
+Status GetLogicalOnuDistance_(uint32_t intf_id, uint32_t onu_id, openolt::OnuLogicalDistance* response);
 int get_status_bcm_cli_quit(void);
 uint16_t get_dev_id(void);
 Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state);

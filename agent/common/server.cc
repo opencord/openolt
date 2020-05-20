@@ -322,6 +322,25 @@ class OpenoltService final : public openolt::Openolt::Service {
             openolt::Empty* response) override {
         return OnuItuPonAlarmSet_(request);
     };
+
+    Status GetLogicalOnuDistanceZero(
+            ServerContext* context,
+            const openolt::Onu* request,
+            openolt::OnuLogicalDistance* response) override {
+        return GetLogicalOnuDistanceZero_(
+            request->intf_id(),
+            response);
+    };
+
+    Status GetLogicalOnuDistance(
+            ServerContext* context,
+            const openolt::Onu* request,
+            openolt::OnuLogicalDistance* response) override {
+        return GetLogicalOnuDistance_(
+            request->intf_id(),
+            request->onu_id(),
+            response);
+    };
 };
 
 void RunServer(int argc, char** argv) {
