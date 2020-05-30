@@ -39,9 +39,9 @@ extern "C"
 // #include <bcm_dev_log_task.h>
 }
 
-#define ALLOC_CFG_COMPLETE_WAIT_TIMEOUT 1000 // in milli-seconds
+#define ALLOC_CFG_COMPLETE_WAIT_TIMEOUT 5000 // in milli-seconds
 
-#define ONU_DEACTIVATE_COMPLETE_WAIT_TIMEOUT 1000 // in milli-seconds
+#define ONU_DEACTIVATE_COMPLETE_WAIT_TIMEOUT 5000 // in milli-seconds
 
 #define MIN_ALLOC_ID_GPON 256
 #define MIN_ALLOC_ID_XGSPON 1024
