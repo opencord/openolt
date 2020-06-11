@@ -25,12 +25,11 @@ GROUP="root"
 [ -r /etc/default/openolt ] && . /etc/default/openolt
 [ -z "gRPC_interface" ] || APPARGS="--interface $gRPC_interface"
 
-# Include functions 
+# Include functions
 set -e
 . /lib/lsb/init-functions
 
 start() {
-  rm -f /var/log/$NAME.log
   printf "Starting '$NAME'... "
   export USER=$USER
   start-stop-daemon --verbose --start --chuid "$USER:$GROUP" --background --no-close --make-pidfile --pidfile /var/run/$NAME.pid --chdir "$APPDIR" --exec "$APPBIN" -- $APPARGS < /dev/tty1 >> /var/log/$NAME.log 2>&1 || true
