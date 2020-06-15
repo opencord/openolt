@@ -309,6 +309,13 @@ class OpenoltService final : public openolt::Openolt::Service {
         return PerformGroupOperation_(request);
     };
 
+    Status DeleteGroup(
+            ServerContext* context,
+            const openolt::Group* request,
+            openolt::Empty* response) override {
+        return DeleteGroup_(request->group_id());
+    };
+
     Status OnuItuPonAlarmSet(
             ServerContext* context,
             const openolt::OnuItuPonAlarm* request,

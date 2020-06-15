@@ -229,6 +229,7 @@ Status RemoveTrafficSchedulers_(const tech_profile::TrafficSchedulers *traffic_s
 Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues);
 Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues);
 Status PerformGroupOperation_(const openolt::Group *group_cfg);
+Status DeleteGroup_(uint32_t group_id);
 Status OnuItuPonAlarmSet_(const openolt::OnuItuPonAlarm* request);
 uint32_t GetPortNum_(uint32_t flow_id);
 int get_status_bcm_cli_quit(void);

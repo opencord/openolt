@@ -2809,3 +2809,88 @@ TEST_F(TestOnuItuPonAlarmSet, OnuItuPonAlarmSetRdiErrorsValueThresholdTypeFailur
     Status status = OnuItuPonAlarmSet_(onu_itu_pon_alarm_tc);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
+
+////////////////////////////////////////////////////////////////////////////
+// For testing DeleteGroup functionality
+////////////////////////////////////////////////////////////////////////////
+
+class TestDeleteGroup : public Test {
+    protected:
+        uint32_t group_id = 1;
+        NiceMock<BalMocker> balMock;
+
+        virtual void SetUp() {
+        }
+
+        virtual void TearDown() {
+        }
+};
+
+// Test 1 - DeleteGroup success case
+TEST_F(TestDeleteGroup, DeleteGroupSuccess) {
+    bcmos_errno group_cfg_get_res = BCM_ERR_OK;
+    bcmos_errno group_cfg_clear_res = BCM_ERR_OK;
+    bcmolt_group_cfg grp_cfg_out;
+    bcmolt_group_key grp_key = {};
+
+    grp_key.id = group_id;
+    BCMOLT_CFG_INIT(&grp_cfg_out, group, grp_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([group_cfg_get_res, &grp_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                     bcmolt_group_cfg* grp_cfg = (bcmolt_group_cfg*)cfg;
+                     grp_cfg->data.state = BCMOLT_GROUP_STATE_CONFIGURED;
+                     memcpy(&grp_cfg_out, grp_cfg, sizeof(bcmolt_group_cfg));
+                     return group_cfg_get_res;
+                 }
+    ));
+
+    EXPECT_CALL(balMock, bcmolt_cfg_clear(_, _)).WillOnce(Return(group_cfg_clear_res));
+
+    Status status = DeleteGroup_(group_id);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 2 - DeleteGroup failure case: Group does not exist
+TEST_F(TestDeleteGroup, DeleteGroupFailure_NotFound) {
+    bcmos_errno group_cfg_get_res = BCM_ERR_OK;
+    bcmolt_group_cfg grp_cfg_out;
+    bcmolt_group_key grp_key = {};
+
+    grp_key.id = group_id;
+    BCMOLT_CFG_INIT(&grp_cfg_out, group, grp_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([group_cfg_get_res, &grp_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_group_cfg* grp_cfg = (bcmolt_group_cfg*)cfg;
+                                                                   grp_cfg->data.state = BCMOLT_GROUP_STATE_NOT_CONFIGURED;
+                                                                   memcpy(&grp_cfg_out, grp_cfg, sizeof(bcmolt_group_cfg));
+                                                                   return group_cfg_get_res;
+                                                               }
+    ));
+
+    Status status = DeleteGroup_(group_id);
+    ASSERT_TRUE( status.error_code() == grpc::StatusCode::NOT_FOUND );
+}
+
+// Test 3 - DeleteGroup failure case: Group exists but cannot be deleted (due to flow association etc.)
+TEST_F(TestDeleteGroup, DeleteGroupFailure_CannotDelete) {
+    bcmos_errno group_cfg_get_res = BCM_ERR_OK;
+    bcmos_errno group_cfg_clear_res = BCM_ERR_INTERNAL;
+    bcmolt_group_cfg grp_cfg_out;
+    bcmolt_group_key grp_key = {};
+
+    grp_key.id = group_id;
+    BCMOLT_CFG_INIT(&grp_cfg_out, group, grp_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([group_cfg_get_res, &grp_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_group_cfg* grp_cfg = (bcmolt_group_cfg*)cfg;
+                                                                   grp_cfg->data.state = BCMOLT_GROUP_STATE_CONFIGURED;
+                                                                   memcpy(&grp_cfg_out, grp_cfg, sizeof(bcmolt_group_cfg));
+                                                                   return group_cfg_get_res;
+                                                               }
+    ));
+
+    EXPECT_CALL(balMock, bcmolt_cfg_clear(_, _)).WillOnce(Return(group_cfg_clear_res));
+
+    Status status = DeleteGroup_(group_id);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}

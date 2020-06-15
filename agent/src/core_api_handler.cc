@@ -2823,3 +2823,49 @@ Status PerformGroupOperation_(const openolt::Group *group_cfg) {
 
     return Status::OK;
 }
+
+Status DeleteGroup_(uint32_t group_id) {
+
+    bcmos_errno err = BCM_ERR_OK;
+    bcmolt_group_cfg grp_cfg_obj;
+    bcmolt_group_key key = {};
+
+
+    OPENOLT_LOG(INFO, openolt_log_id, "Delete request received for group %d\n", group_id);
+
+    if (group_id >= 0) {
+        key.id = group_id;
+    } else {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Invalid group id %d.\n", group_id);
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid group id");
+    }
+
+    /* init the BAL INIT API */
+    BCMOLT_CFG_INIT(&grp_cfg_obj, group, key);
+
+    OPENOLT_LOG(DEBUG, openolt_log_id, "Checking if group %d exists...\n",group_id);
+
+    // CONFIGURE GROUP MEMBERS
+    BCMOLT_FIELD_SET_PRESENT(&grp_cfg_obj.data, group_cfg_data, state);
+    err = bcmolt_cfg_get(dev_id, &(grp_cfg_obj.hdr));
+
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Error in querying Group %d, err = %s\n", group_id, bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "Error in querying group");
+    }
+
+    if (grp_cfg_obj.data.state != BCMOLT_GROUP_STATE_NOT_CONFIGURED) {
+        OPENOLT_LOG(DEBUG, openolt_log_id, "Group %d exists. Will be deleted.\n",group_id);
+        err = bcmolt_cfg_clear(dev_id, &(grp_cfg_obj.hdr));
+        if (err != BCM_ERR_OK) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Group %d cannot be deleted err = %s (%d).\n", group_id, bcmos_strerror(err), err);
+            return bcm_to_grpc_err(err, "Failed to delete group");;
+        }
+    } else {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Group %d does not exist.\n", group_id);
+        return Status(grpc::StatusCode::NOT_FOUND, "Group not found");
+    }
+
+    OPENOLT_LOG(INFO, openolt_log_id, "Group %d has been deleted successfully.\n", group_id);
+    return Status::OK;
+}
