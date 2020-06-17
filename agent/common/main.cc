@@ -19,6 +19,7 @@
 
 #include "server.h"
 #include "core.h"
+#include "src/core_data.h"
 
 using namespace std;
 
@@ -137,6 +138,13 @@ int main(int argc, char** argv) {
     }
     else
         pushOltOperInd(0, "nni", "up");
+
+    for (int i = 1; i < argc; ++i) {
+       if(strcmp(argv[i-1], "--interface") == 0 || (strcmp(argv[i-1], "--intf") == 0)) {
+          grpc_server_interface_name = argv[i];
+          break;
+       }
+    }
     RunServer(argc, argv);
 
     return 0;

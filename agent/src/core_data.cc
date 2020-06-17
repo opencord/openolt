@@ -178,3 +178,5 @@ std::bitset<MAX_TM_QMP_ID> tm_qmp_bitset;
 
 // Lock used to gaurd critical section during various API handling at the core_api_handler
 bcmos_fastlock data_lock;
+
+char* grpc_server_interface_name = NULL;

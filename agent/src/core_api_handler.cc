@@ -217,8 +217,23 @@ Status GetDeviceInfo_(openolt::DeviceInfo* device_info) {
 
     char device_id[OPENOLT_FIELD_LEN];
     memset(device_id, '\0', OPENOLT_FIELD_LEN);
-    openolt_read_sysinfo("MAC", device_id);
-    OPENOLT_LOG(INFO, openolt_log_id, "Fetched device mac address %s\n", device_id);
+
+    if (grpc_server_interface_name != NULL) {
+       if (get_intf_mac(grpc_server_interface_name, device_id, sizeof(device_id)) != NULL)
+       {
+           OPENOLT_LOG(INFO, openolt_log_id, "Fetched mac address %s of an interface %s\n", device_id, grpc_server_interface_name);
+       }
+       else
+       {
+           OPENOLT_LOG(ERROR, openolt_log_id, "Mac address of an interface %s is NULL\n", grpc_server_interface_name);
+       }
+    }
+    else
+    {
+       openolt_read_sysinfo("MAC", device_id);
+       OPENOLT_LOG(INFO, openolt_log_id, "Fetched device mac address %s\n", device_id);
+    }
+
     device_info->set_device_id(device_id);
 
     // Legacy, device-wide ranges. To be deprecated when adapter

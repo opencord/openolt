@@ -19,6 +19,8 @@
 #include <unistd.h>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
 
 #include "core.h"
 #include "core_data.h"
@@ -102,4 +104,5 @@ Status check_bal_ready();
 Status check_connection();
 std::string get_ip_address(const char* nw_intf);
 bcmos_errno getOnuMaxLogicalDistance(uint32_t intf_id, uint32_t *mld);
+char* get_intf_mac(const char* intf_name, char* mac_address, unsigned int max_size_of_mac_address);
 #endif // OPENOLT_CORE_UTILS_H_

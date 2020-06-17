@@ -249,5 +249,7 @@ extern Queue<openolt::Indication> oltIndQ;
 
 extern bcmos_fastlock data_lock;
 
-
+// Interface name on which grpc server is running on
+// and this can be used to get the mac adress based on interface name.
+extern char* grpc_server_interface_name;
 #endif // OPENOLT_CORE_DATA_H_

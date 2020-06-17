@@ -1331,3 +1331,41 @@ bcmos_errno getOnuMaxLogicalDistance(uint32_t intf_id, uint32_t *mld) {
 
     return BCM_ERR_OK;
 }
+
+/**
+* Gets mac address based on interface name.
+*
+* @param intf_name interface name
+* @param mac_address  mac address field
+* @param max_size_of_mac_address max sixe of the mac_address
+* @return mac_address value in case of success or return NULL in case of failure.
+*/
+
+char* get_intf_mac(const char* intf_name, char* mac_address,  unsigned int max_size_of_mac_address){
+    int fd;
+    struct ifreq ifr;
+    char *mac;
+
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if ( fd == -1) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "failed to get mac, could not create file descriptor");
+        return NULL;
+    }
+
+    ifr.ifr_addr.sa_family = AF_INET;
+    strncpy((char *)ifr.ifr_name , (const char *)intf_name , IFNAMSIZ-1);
+    if( ioctl(fd, SIOCGIFHWADDR, &ifr) == -1)
+    {
+        OPENOLT_LOG(ERROR, openolt_log_id, "failed to get mac, ioctl failed and returned err");
+        close(fd);
+        return NULL;
+    }
+
+    close(fd);
+    mac = (char *)ifr.ifr_hwaddr.sa_data;
+
+    // formatted mac address
+    snprintf(mac_address, max_size_of_mac_address, (const char *)"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", (unsigned char)mac[0], (unsigned char)mac[1], (unsigned char)mac[2], (unsigned char)mac[3], (unsigned char)mac[4], (unsigned char)mac[5]);
+
+    return mac_address;
+}

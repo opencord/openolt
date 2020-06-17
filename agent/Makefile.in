@@ -95,6 +95,7 @@ CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CPPFLAGS += -DVERSION=\"$(VERSION)\" -DBAL_VER=\"$(BAL_VER)\" -DLABEL_VCS_URL=\"$(LABEL_VCS_URL)\" \
             -DLABEL_VCS_REF=\"$(LABEL_VCS_REF)\" -DLABEL_BUILD_DATE=\"$(LABEL_BUILD_DATE)\" \
             -DLABEL_COMMIT_DATE=\"$(LABEL_COMMIT_DATE)\" -DFLOW_CHECKER
+CPPFLAGS += -I./
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
 LDFLAGS += @LDFLAGS@
 LDFLAGS += `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
