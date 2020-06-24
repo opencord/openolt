@@ -78,7 +78,7 @@ ASGVOLT64_VLAN_ID_ETH1=
 OPENOLT_ARG_INPUT_FILE=/etc/default/openolt
 
 # Wait time for BAL to get ready
-WAIT_TIME_BAL_READY=20
+WAIT_TIME_BAL_READY=120
 
 #------------------------------------------------------------------------------
 # Function Name: does_logger_exist
@@ -283,7 +283,7 @@ setup_inband_mgmt_channel() {
         check_interface_is_up eth2 $interface_type
 
         # wait for BAL to get ready
-        sleep WAIT_TIME_BAL_READY
+        sleep $WAIT_TIME_BAL_READY
 
         # enabling in-band communication through broadcom API on NIC interface id 14 for eth2 interface
         echo "/Api/Set object=inband_mgmt_channel id=0 nni_intf={intf_type=nni intf_id=0} nic_intf_id=14 \
@@ -295,7 +295,7 @@ setup_inband_mgmt_channel() {
         # Waiting till interface eth1 get initialized & RUNNING state
         check_interface_is_up eth1 $interface_type
         # wait for BAL to get ready
-        sleep WAIT_TIME_BAL_READY
+        sleep $WAIT_TIME_BAL_READY
         # enabling in-band communication through broadcom API on NIC interface id 14 for eth1 interface
         echo "/Api/Set object=inband_mgmt_channel id=0 nni_intf={intf_type=nni intf_id=0} nic_intf_id=14 \
         vlan_id=${ASGVOLT64_VLAN_ID_ETH1} action=none" | ./example_user_appl

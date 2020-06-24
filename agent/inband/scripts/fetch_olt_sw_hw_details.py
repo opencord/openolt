@@ -123,7 +123,7 @@ def get_olt_board_name():
         return None
 
 
-def retreive_vlan_id():
+def retrieve_vlan_id():
     """
     Retrieves VLAN ids of in-band interfaces.
 
@@ -147,7 +147,7 @@ def retreive_vlan_id():
                     if olt_model == ASX_16:
                         if re.search(asf16_vlan, line):
                             eth_vlan = int(line.split('=')[1].strip())
-                    else if olt_model == ASG_64:
+                    elif olt_model == ASG_64:
                         if re.search(asg64_vlan, line):
                             eth_vlan = int(line.split('=')[1].strip())
         else:
@@ -230,14 +230,14 @@ def fetch_olt_info():
 
     olt_model=get_olt_board_name()
     # retrieving VLAN ids of in-band interfaces
-    vlan = retreive_vlan_id()
+    vlan = retrieve_vlan_id()
     try:
         if vlan is not None:
             # Retreiving MAC address for in-band interfaces
             if olt_model == ASX_16:
                 macaddr = os.popen("ifconfig " + ETH_2 + "." + str(vlan) +
                                      " | grep -Po 'HWaddr " + r"\K.*$'").read().strip()
-            else if olt_model == ASG_64:
+            elif olt_model == ASG_64:
                 macaddr = os.popen("ifconfig " + ETH_1 + "." + str(vlan) +
                                      " | grep -Po 'HWaddr " + r"\K.*$'").read().strip()
         else:
