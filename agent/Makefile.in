@@ -321,6 +321,7 @@ deb:
 	cp $(BUILD_DIR)/libstdc++.so.6 device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/libbal_host_api.so device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp -a scripts/init.d device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp -a scripts/watchdog device/$(OPENOLTDEVICE)/mkdebian/debian
 	cd device/$(OPENOLTDEVICE)/mkdebian && ./build_$(OPENOLTDEVICE)_deb.sh
 	mv device/$(OPENOLTDEVICE)/*.deb $(BUILD_DIR)/openolt_$(OPENOLTDEVICE)-$(VERSION)-$(LABEL_VCS_REF).deb
 	make deb-cleanup
@@ -344,14 +345,14 @@ inband-onl:
 	    exit 1; \
 	fi;
 
-	# Update vlan.config file with VLAN ID argument passed
-	sed -i 's/asfvolt16_vlan_id_eth2=.*/asfvolt16_vlan_id_eth2=$(VLAN_ID)/' $(TOP_DIR)/inband/config/vlan.config
-	sed -i 's/asgvolt64_vlan_id_eth1=.*/asgvolt64_vlan_id_eth1=$(VLAN_ID)/' $(TOP_DIR)/inband/config/vlan.config
+	# Update inband.config file with VLAN ID argument passed
+	sed -i 's/asfvolt16_vlan_id_eth2=.*/asfvolt16_vlan_id_eth2=$(VLAN_ID)/' $(TOP_DIR)/inband/config/inband.config
+	sed -i 's/asgvolt64_vlan_id_eth1=.*/asgvolt64_vlan_id_eth1=$(VLAN_ID)/' $(TOP_DIR)/inband/config/inband.config
 
 	# Copy Inband config files and olt startup scripts to ONL source code and build
 	cd $(TOP_DIR)  && mkdir -p $(ONL_DIR)/OpenNetworkLinux/bal_packages
 	cp $(TOP_DIR)/inband/scripts/* $(ONL_DIR)/OpenNetworkLinux/bal_packages
-	cp $(TOP_DIR)/inband/config/vlan.config $(ONL_DIR)/OpenNetworkLinux/bal_packages
+	cp $(TOP_DIR)/inband/config/inband.config $(ONL_DIR)/OpenNetworkLinux/bal_packages
 	cp $(BUILD_DIR)/openolt_$(OPENOLTDEVICE)-$(VERSION)-$(LABEL_VCS_REF).deb $(ONL_DIR)/OpenNetworkLinux/bal_packages/openolt_$(OPENOLTDEVICE).deb
 
 	# Rebuild ONL packed with already built BAL+Openolt debian package

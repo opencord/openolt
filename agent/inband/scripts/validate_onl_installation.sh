@@ -48,8 +48,8 @@ TOTAL_VALIDATION_TIME=20
 # Root path where required bal directories are located
 BRCM_DIR='/broadcom'
 
-# Path to vlan config file
-VLAN_CONFIG_FILE="${BRCM_DIR}/vlan.config"
+# Path to inband config file
+INBAND_CONFIG_FILE="${BRCM_DIR}/inband.config"
 
 # vlan id for asfvolt16
 ASFVOLT16_VLAN_ID_ETH2=
@@ -278,7 +278,7 @@ dhclient_interface()
 #    in counter a number is equal to 20
 #
 # Globals:
-#     VLAN_CONFIG_FILE, ASFVOLT16_VLAN_ID_ETH2, ASGVOLT64_VLAN_ID_ETH1,
+#     INBAND_CONFIG_FILE, ASFVOLT16_VLAN_ID_ETH2, ASGVOLT64_VLAN_ID_ETH1,
 #     TIME_INTERVAL, ASFVOLT16
 #
 # Arguments:
@@ -289,9 +289,9 @@ dhclient_interface()
 #------------------------------------------------------------------------------
 check_services()
 {
-    if [ -f ${VLAN_CONFIG_FILE} ]; then
-        ASFVOLT16_VLAN_ID_ETH2=$(awk '/asfvolt16_vlan_id_eth2/{print $0}' ${VLAN_CONFIG_FILE} | awk -F "=" '{print $2}')
-        ASGVOLT64_VLAN_ID_ETH1=$(awk '/asgvolt64_vlan_id_eth1/{print $0}' ${VLAN_CONFIG_FILE} | awk -F "=" '{print $2}')
+    if [ -f ${INBAND_CONFIG_FILE} ]; then
+        ASFVOLT16_VLAN_ID_ETH2=$(awk '/asfvolt16_vlan_id_eth2/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
+        ASGVOLT64_VLAN_ID_ETH1=$(awk '/asgvolt64_vlan_id_eth1/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
         if [ "${OLT_MODEL}" = ${ASF16_MODEL} ]; then
             if [ ${ASFVOLT16_VLAN_ID_ETH2} -gt 4094 ] || [ ${ASFVOLT16_VLAN_ID_ETH2} -lt 1 ]; then
                 error_message "vlan ids not in range"
@@ -304,7 +304,7 @@ check_services()
            fi
        fi
     else
-        error_message "${VLAN_CONFIG_FILE} does not exist"
+        error_message "${INBAND_CONFIG_FILE} does not exist"
         exit 1
     fi
     echo "*********************************************************************"

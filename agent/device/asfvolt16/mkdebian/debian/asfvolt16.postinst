@@ -20,11 +20,14 @@ rm -rf /broadcom
 tar zxf /tmp/release_asfvolt16_V3.4.3.3.202002100101.tar.gz -C / 2>&1 > /dev/null
 grep -q '\/opt\/bcm68620\/svk_init.sh' /etc/rc.local || sed -i -e '$i \/opt\/bcm68620\/svk_init.sh' /etc/rc.local
 rm -f /run/bcm68620
+mkdir -p /opt/openolt && cp /tmp/watchdog/openolt_dev_mgmt_daemon_process_watchdog /opt/openolt
+[ -f /opt/openolt/openolt_dev_mgmt_daemon_process_watchdog ] && grep -q '\/opt\/openolt\/openolt_dev_mgmt_daemon_process_watchdog' /etc/rc.local || sed -i -e '$i nohup bash \/opt\/openolt\/openolt_dev_mgmt_daemon_process_watchdog &' /etc/rc.local
 cp /tmp/init.d/dev_mgmt_daemon /etc/init.d
 cp /tmp/init.d/openolt /etc/init.d
 cp /tmp/logrotate.d/openolt /etc/logrotate.d
 chmod +x /etc/init.d/dev_mgmt_daemon
 chmod +x /etc/init.d/openolt
+chmod +x /opt/openolt/openolt_dev_mgmt_daemon_process_watchdog
 update-rc.d dev_mgmt_daemon defaults
 update-rc.d openolt defaults
 mv /tmp/openolt /broadcom

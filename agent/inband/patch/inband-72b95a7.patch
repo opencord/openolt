@@ -34,7 +34,7 @@ index d5a72f8e..0b0583e1 100755
 +  mv  "$workdir"/openolt* "$destdir"/
 +  echo "INFO: Copying init scripts to init.d"
 +  cp  "$workdir"/start_inband_oltservices.sh "$destdir"/etc/init.d/
-+  cp "$workdir"/vlan.config "$destdir"/
++  cp "$workdir"/inband.config "$destdir"/
 +  cd -
  fi
 +cat > "$destdir"/etc/rc.local  <<- EOF
@@ -53,7 +53,7 @@ index d5a72f8e..0b0583e1 100755
 +
 +chmod 0777 /etc/init.d/start_inband_oltservices.sh
 +chmod 0777 /root/validate_onl_installation.sh
-+nohup sh /etc/init.d/start_inband_oltservices.sh > /var/log/startup.log &
++nohup sh /etc/init.d/start_inband_oltservices.sh >> /var/log/startup.log &
 +exit 0
 +
 +EOF

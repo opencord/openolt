@@ -64,8 +64,8 @@ OLT_INFORMATION = {}
 # and openolt binaries are located.
 BRCM_DIR = '/broadcom'
 
-# Path to vlan config file
-VLAN_CONFIG_FILE = BRCM_DIR+"/vlan.config"
+# Path to inband config file
+INBAND_CONFIG_FILE = BRCM_DIR+"/inband.config"
 
 # Operating system name which is running at OLT.
 # By default Open Network Linux (ONL) is used as operating
@@ -140,8 +140,8 @@ def retrieve_vlan_id():
     asg64_vlan = 'asgvolt64_vlan_id_eth1'
     olt_model=get_olt_board_name()
     try:
-        if os.path.exists(VLAN_CONFIG_FILE):
-            with open(VLAN_CONFIG_FILE, "r") as file_descriptor:
+        if os.path.exists(INBAND_CONFIG_FILE):
+            with open(INBAND_CONFIG_FILE, "r") as file_descriptor:
                 lines = file_descriptor.readlines()
                 for line in lines:
                     if olt_model == ASX_16:
@@ -151,7 +151,7 @@ def retrieve_vlan_id():
                         if re.search(asg64_vlan, line):
                             eth_vlan = int(line.split('=')[1].strip())
         else:
-            syslog.syslog(syslog.LOG_ERR, "{}-file-does-not-exist".format(VLAN_CONFIG_FILE))
+            syslog.syslog(syslog.LOG_ERR, "{}-file-does-not-exist".format(INBAND_CONFIG_FILE))
             return None, None
     except(EnvironmentError, re.error) as exception:
         syslog.syslog(syslog.LOG_ERR, "error-retreving-vlan-ids-{}".format(exception))

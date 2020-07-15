@@ -50,8 +50,8 @@ BRCM_DIR='/broadcom'
 # olt service files
 SVK_INIT_FILE="${BRCM_OPT_DIR}/svk_init.sh"
 
-# vlan config file
-VLAN_CONFIG_FILE="${BRCM_DIR}/vlan.config"
+# inband config file
+INBAND_CONFIG_FILE="${BRCM_DIR}/inband.config"
 DHCLIENT_CONF="/etc/dhcp/dhclient.conf"
 
 # olt serial number
@@ -78,7 +78,7 @@ ASGVOLT64_VLAN_ID_ETH1=
 OPENOLT_ARG_INPUT_FILE=/etc/default/openolt
 
 # Wait time for BAL to get ready
-WAIT_TIME_BAL_READY=120
+WAIT_TIME_BAL_READY=80
 
 #------------------------------------------------------------------------------
 # Function Name: does_logger_exist
@@ -145,11 +145,11 @@ error_message() {
 #------------------------------------------------------------------------------
 # Function Name: get_vlan_ids
 # Description:
-#    This function facilitates to fetch vlan id from vlan configuration file
-#    located at /broadcom/vlan.config
+#    This function facilitates to fetch vlan id from inband configuration file
+#    located at /broadcom/inband.config
 #
 # Globals:
-#    VLAN_CONFIG_FILE, ASFVOLT16_VLAN_ID_ETH2, ASFVOLT16_VLAN_ID_ETH3,
+#    INBAND_CONFIG_FILE, ASFVOLT16_VLAN_ID_ETH2, ASFVOLT16_VLAN_ID_ETH3,
 #    ASGVOLT64_VLAN_ID_ETH1, ASGVOLT64_VLAN_ID_ETH2
 #
 # Arguments:
@@ -159,27 +159,61 @@ error_message() {
 #    None
 #------------------------------------------------------------------------------
 get_vlan_ids() {
-    # Read vlan.config file to fetch vlan id information
-    if [ -f ${VLAN_CONFIG_FILE} ]; then
-        ASFVOLT16_VLAN_ID_ETH2=$(awk '/asfvolt16_vlan_id_eth2/{print $0}' ${VLAN_CONFIG_FILE} | awk -F "=" '{print $2}')
-        ASGVOLT64_VLAN_ID_ETH1=$(awk '/asgvolt64_vlan_id_eth1/{print $0}' ${VLAN_CONFIG_FILE} | awk -F "=" '{print $2}')
+    # Read inband.config file to fetch vlan id information
+    if [ -f ${INBAND_CONFIG_FILE} ]; then
+        ASFVOLT16_VLAN_ID_ETH2=$(awk '/asfvolt16_vlan_id_eth2/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
+        ASGVOLT64_VLAN_ID_ETH1=$(awk '/asgvolt64_vlan_id_eth1/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
         if [ -z ${ASFVOLT16_VLAN_ID_ETH2} ] || [ -z ${ASGVOLT64_VLAN_ID_ETH1} ]; then
             error_message "ERROR: vlan ids not valid"
             exit 1
         fi
     else
-        error_message "ERROR: ${VLAN_CONFIG_FILE} not found, using default value 4093"
+        error_message "ERROR: ${INBAND_CONFIG_FILE} not found, using default value 4093"
+    fi
+}
+
+#------------------------------------------------------------------------------
+# Function Name: is_out_band_connection_enabled
+# Description:
+#    This function checks if out-of-band connection is enabled by reading
+#    the enable_out_of_band_connection value in file /broadcom/inband.config
+#
+# Globals:
+#
+# Arguments:
+#    None
+#
+# Returns:
+#    true if out-of-band connection enabled, else false
+#------------------------------------------------------------------------------
+is_out_band_connection_enabled() {
+    # Read inband.config file to fetch configurtion to enable or not the out-of-band connection to the OLT.
+    if [ -f ${INBAND_CONFIG_FILE} ]; then
+        ob_cfg=$(awk '/enable_out_of_band_connection/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
+        if [ -z ${ob_cfg} ]; then
+            error_message "ERROR: missing configuration to enable out-of-band connection to OLT. Default to false"
+            return false
+        fi
+    else
+        if [ "${ob_cfg}" = "yes" ]; then
+            return true
+        elif [ "${ob_cfg}" = "no" ]; then
+            return false
+        else
+            error_message "ERROR: Invalid configuration to enable out-of-band connection -> ${ob_cfg}"
+            return false
+        fi
     fi
 }
 
 #------------------------------------------------------------------------------
 # Function Name: setup_nw_configuration
 # Description:
-#    This function read the "/broadcom/vlan.config" file to get VLAND IDs
+#    This function read the "/broadcom/inband.config" file to get VLAND IDs
 #    for the interface eth1 and eth2 based on the OLT model  and update
 #    these VLAN ID to /etc/network/interfaces file for dhcp request.
 # Globals:
-#    VLAN_CONFIG_FILE, ASFVOLT16_VLAN_ID_ETH2, ASGVOLT64_VLAN_ID_ETH1
+#    INBAND_CONFIG_FILE, ASFVOLT16_VLAN_ID_ETH2, ASGVOLT64_VLAN_ID_ETH1
 #
 # Arguments:
 #    None
@@ -189,7 +223,14 @@ get_vlan_ids() {
 #------------------------------------------------------------------------------
 setup_nw_configuration() {
     # Dynamic vlan entry in /etc/network/interfaces file
-    # Should have only one entry in the file in case of multiple reboot
+
+    if [ is_out_band_connection_enabled ]; then
+        # This interface is used for out-of-band connection for the OLT
+        # This is not a mandatory requirement for in-band management of the OLT
+        set_dhcp_ip_configuration ma1
+    fi
+
+    # These interfaces are used for in-band management of the OLT
     if [ "${OLT_MODEL}" = ${ASF16_MODEL} ]; then
         set_dhcp_ip_configuration eth2 ${ASFVOLT16_VLAN_ID_ETH2}
     else
@@ -219,9 +260,69 @@ set_dhcp_ip_configuration() {
     vlan_id=$2
     grep -q "iface ${interface}.${vlan_id}" $NETWORK_INTERFACE
     if [ $? -ne 0 ]; then
-        echo "auto ${interface}.${vlan_id}" >>${NETWORK_INTERFACE}
-        echo "iface ${interface}.${vlan_id} inet dhcp" >>${NETWORK_INTERFACE}
+        if [ -z ${vlan_id} ]; then
+            echo "auto ${interface}" >>${NETWORK_INTERFACE}
+            echo "iface ${interface} inet dhcp" >>${NETWORK_INTERFACE}
+        else
+            echo "auto ${interface}.${vlan_id}" >>${NETWORK_INTERFACE}
+            echo "iface ${interface}.${vlan_id} inet dhcp" >>${NETWORK_INTERFACE}
+        fi
     fi
+}
+
+#------------------------------------------------------------------------------
+# Function Name: disable_autostart_of_openolt_and_dev_mgmt_daemon_processes
+# Description:
+#    Disables autostart of openolt processes (openolt and dev_mgmt_daemon).
+#    The start of these openolt processes is now controlled through this script
+#
+# Globals:
+#
+# Arguments:
+#    None
+#
+# Returns:
+#    None
+#------------------------------------------------------------------------------
+disable_autostart_of_openolt_and_dev_mgmt_daemon_processes() {
+    update-rc.d dev_mgmt_daemon disable
+    update-rc.d openolt disable
+}
+
+#------------------------------------------------------------------------------
+# Function Name: stop_openolt_and_dev_mgmt_daemon_processes
+# Description:
+#    Stop openolt processes (openolt and dev_mgmt_daemon) if they were running
+#    before
+#
+# Globals:
+#
+# Arguments:
+#    None
+#
+# Returns:
+#    None
+#------------------------------------------------------------------------------
+stop_openolt_and_dev_mgmt_daemon_processes() {
+    service dev_mgmt_daemon stop
+    service openolt stop
+}
+
+#------------------------------------------------------------------------------
+# Function Name: start_openolt_dev_mgmt_daemon_process_watchdog
+# Description:
+#    Start openolt and dev_mgmt_daemon process watchdog
+#
+# Globals:
+#
+# Arguments:
+#    None
+#
+# Returns:
+#    None
+#------------------------------------------------------------------------------
+start_openolt_dev_mgmt_daemon_process_watchdog() {
+    nohup bash /opt/openolt/openolt_dev_mgmt_daemon_process_watchdog &
 }
 
 #------------------------------------------------------------------------------
@@ -532,7 +633,13 @@ start_openolt_service()
 #    None
 #------------------------------------------------------------------------------
 start_olt_services() {
+    # First stop any openolt processes if they were running before
+    # and also disable auto start of these processes (since they are in /etc/init.d)
+    stop_openolt_and_dev_mgmt_daemon_processes
+    disable_autostart_of_openolt_and_dev_mgmt_daemon_processes
+
     start_dev_mgmt_service
+    start_openolt_dev_mgmt_daemon_process_watchdog
     create_vlan_tagged_Iface
     setup_dhcpd_configuration
     setup_nw_configuration
@@ -559,7 +666,7 @@ copy_config_files() {
     #     [ -f /qax.soc ] && cp "/qax.soc" "${BRCM_DIR}/"
     # fi
     # [ -f /config.bcm ] && cp "/config.bcm" "${BRCM_DIR}/"
-    [ -f /vlan.config ] && cp "/vlan.config" "${BRCM_DIR}/"
+    [ -f /inband.config ] && cp "/inband.config" "${BRCM_DIR}/"
 }
 
 # Execution starts from here

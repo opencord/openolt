@@ -16,6 +16,7 @@
 
 
 rm -rf /opt/bcm68620
+rm -rf /opt/openolt
 rm -rf /broadcom
 sed -i '\/opt\/bcm68620\/svk_init.sh/d' /etc/rc.local
 rm -rf /run/bcm68620

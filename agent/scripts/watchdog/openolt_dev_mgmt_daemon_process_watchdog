@@ -1,0 +1,253 @@
+#!/bin/bash
+
+#Copyright 2020-present Open Networking Foundation
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
+
+# This script is a watchdog to monitor openolt and dev_mgmt_daemon processes
+# It restarts the processes when they crash
+# When OLT is working in in-band mode, it just monitors the dev_mgmt_daemon
+# process to start with. Once the openolt processes is also up, it starts
+# monitoring both the processes.
+# When OLT is working in out-of-band, it monitors both the processes to start
+# with. When either of the processes crash, it restarts both the processes.
+
+PID_MONITOR_INTERVAL=1 # in seconds
+MAX_WAIT_TIMER_FOR_OPENOLT_PROCESS_TO_START=120
+
+WATCHDOG_LOG_FILE="/var/log/openolt_process_watchdog.log"
+
+# inband config file
+INBAND_CONFIG_FILE="${BRCM_DIR}/inband.config"
+
+OLT_MODEL=$(cat /sys/devices/virtual/dmi/id/board_name)
+
+ASF16_MODEL="ASXvOLT16"
+
+# vlan id for asfvolt16
+ASFVOLT16_VLAN_ID_ETH2=
+
+# vlan id for asgvolt64
+ASGVOLT64_VLAN_ID_ETH1=
+
+
+#------------------------------------------------------------------------------
+# Function Name: LOG
+# Description:
+#    Logs to WATCHDOG_LOG_FILE
+#
+# Globals:
+#    None
+#
+# Arguments:
+#    string to be logged
+#
+# Returns:
+#    None
+#------------------------------------------------------------------------------
+LOG() {
+    echo `date`" $1" >> ${WATCHDOG_LOG_FILE}
+}
+
+#------------------------------------------------------------------------------
+# Function Name: get_vlan_ids
+# Description:
+#    This function facilitates to fetch vlan id from inband configuration file
+#    located at /broadcom/inband.config
+#
+# Globals:
+#    INBAND_CONFIG_FILE, ASFVOLT16_VLAN_ID_ETH2, ASFVOLT16_VLAN_ID_ETH3,
+#    ASGVOLT64_VLAN_ID_ETH1, ASGVOLT64_VLAN_ID_ETH2
+#
+# Arguments:
+#    None
+#
+# Returns:
+#    None
+#------------------------------------------------------------------------------
+get_vlan_ids() {
+    # Read inband.config file to fetch vlan id information
+    if [ -f ${INBAND_CONFIG_FILE} ]; then
+        if [ "${OLT_MODEL}" = ${ASF16_MODEL} ]; then
+            ASFVOLT16_VLAN_ID_ETH2=$(awk '/asfvolt16_vlan_id_eth2/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
+        else
+            ASGVOLT64_VLAN_ID_ETH1=$(awk '/asgvolt64_vlan_id_eth1/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
+        fi
+
+        if [ -z ${ASFVOLT16_VLAN_ID_ETH2} ] || [ -z ${ASGVOLT64_VLAN_ID_ETH1} ]; then
+            LOG "ERROR: vlan ids not valid"
+            exit 1
+        fi
+    else
+        LOG "ERROR: ${INBAND_CONFIG_FILE} not found, using default value 4093"
+    fi
+}
+
+#------------------------------------------------------------------------------
+# Function Name: monitor_openolt_and_dev_mgmt_daemon_process
+# Description:
+#    Monitors openolt and dev_mgmt_daemon processes in an infinite loop.
+#    Restarts both the processes if either of them exits
+#
+# Globals:
+#    None
+#
+# Arguments:
+#    None
+#
+# Returns:
+#
+#------------------------------------------------------------------------------
+monitor_openolt_and_dev_mgmt_daemon_process() {
+    LOG "start monitor openolt and dev_mgmt_daemon processes"
+
+    # This is builtin bash variable that tracks the number of seconds
+    # elapsed since the shell started. We can reset to 0 and the timer
+    # starts from here
+    SECONDS=0
+
+    while true; do
+
+        DEV_MGMT_DAEMON_PID=`pidof /broadcom/dev_mgmt_daemon`
+        OPENOLT_PID=$(pidof /broadcom/openolt)
+        if [ -z ${OPENOLT_PID} ] || [ -z ${DEV_MGMT_DAEMON_PID} ];then
+
+            if [ -z ${DEV_MGMT_DAEMON_PID} ]; then
+               LOG "dev_mgmt_daemon processes not available"
+            fi
+
+            if [ -z ${OPENOLT_PID} ]; then
+                LOG "openolt processes not available"
+            fi
+
+            # Reboot OLT so that everything recovers in the right state
+            reboot -n
+            exit 1
+        fi
+
+        sleep ${PID_MONITOR_INTERVAL}
+
+        if [ $(is_olt_in_inband_mode; echo $?) -eq 1 ]; then
+            if [ "${OLT_MODEL}" = ${ASF16_MODEL} ]; then
+                INBAND_IF_IP_ADDR=`ip -o -4 addr list eth2.${ASFVOLT16_VLAN_ID_ETH2} | awk '{print $4}' | cut -d/ -f1`
+            else
+                INBAND_IF_IP_ADDR=`ip -o -4 addr list eth1.${ASGVOLT64_VLAN_ID_ETH1} | awk '{print $4}' | cut -d/ -f1`
+            fi
+
+            if [ -z ${INBAND_IF_IP_ADDR} ] && [ ${SECONDS} -gt 60 ]; then
+                # If the in-band interface does not have an IP for more than 60s, reboot the OLT
+                LOG "in-band interface does not have IP for more than 60s, rebooting OLT"
+                reboot -n
+                exit 1
+            elif [ ${#INBAND_IF_IP_ADDR} -gt 0 ]; then
+                # This is case where we have an IP address on the in-band interface
+
+                # Reset timer if the in-band interface has an IP address
+                SECONDS=0
+            fi
+        fi
+    done
+}
+
+#------------------------------------------------------------------------------
+# Function Name: monitor_dev_mgmt_daemon_process
+# Description:
+#    Monitors dev_mgmt_daemon in an infinite loop. The loop breaks if openolt
+#    agent process starts
+#
+# Globals:
+#    None
+#
+# Arguments:
+#    None
+#
+# Returns:
+#
+#------------------------------------------------------------------------------
+monitor_dev_mgmt_daemon_process() {
+
+    # This is builtin bash variable that tracks the number of seconds
+    # elapsed since the shell started. We can reset to 0 and the timer
+    # starts from here
+    SECONDS=0
+    while true; do
+        DEV_MGMT_DAEMON_PID=$(pidof /broadcom/dev_mgmt_daemon)
+        if [ -z ${DEV_MGMT_DAEMON_PID} ];then
+            # Reboot OLT so that everything recovers in the right state
+            LOG "dev_mgmt_daemon process crashed or not available in in-band mode of OLT, rebooting OLT"
+            reboot -n
+        fi
+
+        sleep ${PID_MONITOR_INTERVAL}
+
+        OPENOLT_PID=$(pidof /broadcom/openolt)
+        if [ ${OPENOLT_PID} ]; then
+            LOG "openolt process has started. start monitoring both dev_mgmt_daemon and openolt processes"
+            break
+        elif [ ${SECONDS} -ge ${MAX_WAIT_TIMER_FOR_OPENOLT_PROCESS_TO_START} ]; then
+            # Typically the openolt process is supposed to start within MAX_WAIT_TIMER_FOR_OPENOLT_PROCESS_TO_START
+            # If that does not happen, reboot the OLT.
+            LOG "openolt process did not start for more than ${MAX_WAIT_TIMER_FOR_OPENOLT_PROCESS_TO_START} seconds, rebooting OLT"
+            reboot -n
+            exit 1
+        fi
+    done
+}
+
+#------------------------------------------------------------------------------
+# Function Name: is_olt_in_inband_mode
+# Description:
+#    Checks if OLT is working in in-band mode
+#    Presence of in-band startup scripts indicates in-band mode. These scripts
+#    are not packaged as part of the debian package or the ONL when OLT is working
+#    in out-of-band mode.
+#
+# Globals:
+#    None
+#
+# Arguments:
+#    None
+#
+# Returns:
+#
+#------------------------------------------------------------------------------
+is_olt_in_inband_mode() {
+    ! [ -f "/etc/init.d/start_inband_oltservices.sh" ]
+}
+
+
+# Execution starts here
+LOG "---- watchdog started ----"
+
+# Source watchdog configuration
+ . /opt/openolt/watchdog.config
+
+if [ ${enable_watchdog} = "yes" ]; then
+    LOG "watchdog is enabled"
+else
+    LOG "watchdog is disabled - exiting"
+    exit 0
+fi
+
+# If OLT is working in out-of-band start with monitoring only dev_mgmt_daemon process
+if [ $(is_olt_in_inband_mode; echo $?) -eq 1 ]; then
+    LOG "openolt working in in-band mode, starting to monitor dev_mgmt_daemon process first"
+    monitor_dev_mgmt_daemon_process
+    # If we are here, that means the openolt process has just started and we now need to
+    # monitor both dev_mgmt_daemon and openolt process
+else
+    sleep ${watchdog_startup_timer} # Allow some time for openolt and dev_mgmt_daemon process to start
+    LOG "openolt working in out-of-band mode"
+fi
+
+monitor_openolt_and_dev_mgmt_daemon_process
