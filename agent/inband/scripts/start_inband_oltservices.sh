@@ -78,7 +78,7 @@ ASGVOLT64_VLAN_ID_ETH1=
 OPENOLT_ARG_INPUT_FILE=/etc/default/openolt
 
 # Wait time for BAL to get ready
-WAIT_TIME_BAL_READY=80
+WAIT_TIME_BAL_READY=$(awk '/wait_time_bal_ready/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
 
 #------------------------------------------------------------------------------
 # Function Name: does_logger_exist
@@ -532,7 +532,7 @@ check_interface_is_up()
                     else
                         info_message "Inband interface ${interface} is not up, continuously retrying for DHCP IP assignment"
                         info_message "Inband interface ${interface} is not up with valid IP hence not starting openolt service"
-                        sleep 10
+                        sleep 5
                         continue
                     fi
                 fi

@@ -27,6 +27,8 @@ MAX_WAIT_TIMER_FOR_OPENOLT_PROCESS_TO_START=120
 
 WATCHDOG_LOG_FILE="/var/log/openolt_process_watchdog.log"
 
+BRCM_DIR="/broadcom"
+
 # inband config file
 INBAND_CONFIG_FILE="${BRCM_DIR}/inband.config"
 
@@ -84,7 +86,7 @@ get_vlan_ids() {
             ASGVOLT64_VLAN_ID_ETH1=$(awk '/asgvolt64_vlan_id_eth1/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
         fi
 
-        if [ -z ${ASFVOLT16_VLAN_ID_ETH2} ] || [ -z ${ASGVOLT64_VLAN_ID_ETH1} ]; then
+        if [ -z ${ASFVOLT16_VLAN_ID_ETH2} ] && [ -z ${ASGVOLT64_VLAN_ID_ETH1} ]; then
             LOG "ERROR: vlan ids not valid"
             exit 1
         fi
@@ -111,11 +113,17 @@ get_vlan_ids() {
 monitor_openolt_and_dev_mgmt_daemon_process() {
     LOG "start monitor openolt and dev_mgmt_daemon processes"
 
+    if [ "${OLT_MODEL}" = ${ASF16_MODEL} ]; then
+        INBAND_IF="eth2.${ASFVOLT16_VLAN_ID_ETH2}"
+    else
+        INBAND_IF="eth1.${ASGVOLT64_VLAN_ID_ETH1}"
+    fi
+
     # This is builtin bash variable that tracks the number of seconds
     # elapsed since the shell started. We can reset to 0 and the timer
     # starts from here
     SECONDS=0
-
+    get_vlan_ids
     while true; do
 
         DEV_MGMT_DAEMON_PID=`pidof /broadcom/dev_mgmt_daemon`
@@ -138,15 +146,11 @@ monitor_openolt_and_dev_mgmt_daemon_process() {
         sleep ${PID_MONITOR_INTERVAL}
 
         if [ $(is_olt_in_inband_mode; echo $?) -eq 1 ]; then
-            if [ "${OLT_MODEL}" = ${ASF16_MODEL} ]; then
-                INBAND_IF_IP_ADDR=`ip -o -4 addr list eth2.${ASFVOLT16_VLAN_ID_ETH2} | awk '{print $4}' | cut -d/ -f1`
-            else
-                INBAND_IF_IP_ADDR=`ip -o -4 addr list eth1.${ASGVOLT64_VLAN_ID_ETH1} | awk '{print $4}' | cut -d/ -f1`
-            fi
+            INBAND_IF_IP_ADDR=`ip -o -4 addr list ${INBAND_IF} | awk '{print $4}' | cut -d/ -f1`
 
             if [ -z ${INBAND_IF_IP_ADDR} ] && [ ${SECONDS} -gt 60 ]; then
                 # If the in-band interface does not have an IP for more than 60s, reboot the OLT
-                LOG "in-band interface does not have IP for more than 60s, rebooting OLT"
+                LOG "in-band interface ${INBAND_IF} does not have IP for more than 60s, rebooting OLT"
                 reboot -n
                 exit 1
             elif [ ${#INBAND_IF_IP_ADDR} -gt 0 ]; then
