@@ -306,7 +306,7 @@ If no VLAN_ID is specified in above command it defaults to 4093.
 Note that the required INBAND ONL version `4.14` is built as part of the above
 build procedure and is available at path
 `build/onl/OpenNetworkLinux/RELEASE/jessie/amd64/ONL-onl-4.14_ONL-OS8_2020-04-22.
-2206-b4af32e_AMD64_INSTALLED_INSTALLER\.
+2206-b4af32e_AMD64_INSTALLED_INSTALLER\.`
 This ONL Installer should be used to flash the OS on the OLT.
 
 NOTE: To compile for ASGvOLT 64 port GPON OLT, set `OPENOLTDEVICE` to
@@ -315,6 +315,63 @@ NOTE: To compile for ASGvOLT 64 port GPON OLT, set `OPENOLTDEVICE` to
 ```shell
 make OPENOLTDEVICE=asgvolt64
 ```
+
+### Log Collection for whitebox OLT Device
+
+To collect logs from openolt, dev_mgmt_daemon and syslog processes install td-agent(fluentd variant) directly on OLT device which will capture and transmits the logs to elasticsearch pod running in voltha cluster.
+
+Prerequisite:
+
+OLT should have ntp installed to ensure it has correct time(which is used by td-agent for generated events)
+
+```shell
+apt-get install ntp
+```
+
+Installation of td-agent deb package:
+
+* Download the deb package for td-agent
+
+```shell
+wget http://packages.treasuredata.com.s3.amazonaws.com/3/ubuntu/xenial/pool/contrib/t/td-agent/td-agent_3.8.0-0_amd64.deb
+```
+
+* Install td-agent on device
+
+```shell
+dpkg -i td-agent_3.8.0-0_amd64.deb
+```
+
+Post Installation:
+
+We have created custom td-agent configuration file to handle format of involved log files using right input plugins and elasticsearch output plugin.
+
+* Copy the custom config file
+
+```shell
+cd logConf
+cp td-agent.conf /etc/td-agent.conf
+```
+
+* Set elasticsearch host and port in /etc/td-agent.conf
+* Restart the td-agent service
+
+```shell
+service td-agent restart
+```
+
+Need to redirect syslog to default port of fluentd syslog plugin.
+
+* Add  “*.* @127.0.0.1:42185” to  /etc/rsyslog.conf
+* Restart syslog using
+
+```shell
+/etc/init.d/rsyslog restart
+```
+
+**Note**:
+
+To enable TLS encryption features with td-agent [reffer:](https://docs.google.com/document/d/1KF1HhE-PN-VY4JN2bqKmQBrZghFC5HQM_s0mC0slapA/edit)
 
 ### Cleanup
 
