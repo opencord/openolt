@@ -203,10 +203,10 @@ Post Installation:
 
 We have created custom td-agent configuration file to handle format of involved log files using right input plugins and elasticsearch output plugin.
 
-* Copy the custom config file
+Copy the custom config file from [here](https://github.com/opencord/openolt/tree/master/logConf) in the `~` directory of the olt.
+Then into the `/etc` folder in order for the agent to pick it up. 
 
 ```shell
-cd logConf
 cp td-agent.conf /etc/td-agent.conf
 ```
 
@@ -228,7 +228,7 @@ Need to redirect syslog to default port of fluentd syslog plugin.
 
 **Note**:
 
-To enable TLS encryption features with td-agent [reffer:](https://docs.google.com/document/d/1KF1HhE-PN-VY4JN2bqKmQBrZghFC5HQM_s0mC0slapA/edit)
+To enable TLS encryption features with td-agent [look at this google doc](https://docs.google.com/document/d/1KF1HhE-PN-VY4JN2bqKmQBrZghFC5HQM_s0mC0slapA/edit)
 
 
 ## Build OpenOLT
