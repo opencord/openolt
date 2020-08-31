@@ -67,7 +67,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->intf_id(),
             request->onu_id(),
             ((request->serial_number()).vendor_id()).c_str(),
-            ((request->serial_number()).vendor_specific()).c_str(), request->pir());
+            ((request->serial_number()).vendor_specific()).c_str(), request->pir(), request->omcc_encryption());
     }
 
     Status DeactivateOnu(
@@ -318,7 +318,7 @@ class OpenoltService final : public openolt::Openolt::Service {
 
     Status OnuItuPonAlarmSet(
             ServerContext* context,
-            const openolt::OnuItuPonAlarm* request,
+            const config::OnuItuPonAlarm* request,
             openolt::Empty* response) override {
         return OnuItuPonAlarmSet_(request);
     };

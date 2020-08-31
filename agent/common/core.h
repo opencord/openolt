@@ -20,6 +20,7 @@
 #include <grpc++/grpc++.h>
 using grpc::Status;
 #include <voltha_protos/openolt.grpc.pb.h>
+#include <voltha_protos/ext_config.grpc.pb.h>
 
 #include "state.h"
 
@@ -200,7 +201,7 @@ extern State state;
 //***************************************//
 Status Enable_(int argc, char *argv[]);
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
-    const char *vendor_id, const char *vendor_specific, uint32_t pir);
+    const char *vendor_id, const char *vendor_specific, uint32_t pir, bool omcc_encryption_mode);
 Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific);
 Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
@@ -231,7 +232,7 @@ Status CreateTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues);
 Status RemoveTrafficQueues_(const tech_profile::TrafficQueues *traffic_queues);
 Status PerformGroupOperation_(const openolt::Group *group_cfg);
 Status DeleteGroup_(uint32_t group_id);
-Status OnuItuPonAlarmSet_(const openolt::OnuItuPonAlarm* request);
+Status OnuItuPonAlarmSet_(const config::OnuItuPonAlarm* request);
 uint32_t GetPortNum_(uint32_t flow_id);
 Status GetLogicalOnuDistanceZero_(uint32_t intf_id, openolt::OnuLogicalDistance* response);
 Status GetLogicalOnuDistance_(uint32_t intf_id, uint32_t onu_id, openolt::OnuLogicalDistance* response);

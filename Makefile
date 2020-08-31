@@ -27,7 +27,7 @@ export OPENOLT_ROOT_DIR=$(shell pwd)
 
 ## Variables
 OPENOLTDEVICE     ?= asfvolt16
-OPENOLT_PROTO_VER ?= v3.3.9
+OPENOLT_PROTO_VER ?= v3.4.3
 GTEST_VER         ?= release-1.8.0
 CMOCK_VER         ?= 0207b30
 GMOCK_GLOBAL_VER  ?= 1.0.2

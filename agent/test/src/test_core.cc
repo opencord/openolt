@@ -855,7 +855,7 @@ TEST_F(TestActivateOnu, ActivateOnuSuccessOnuNotConfigured) {
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(onu_cfg_set_res));
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_submit_res));
 
-    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
+    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir, true);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -873,7 +873,7 @@ TEST_F(TestActivateOnu, ActivateOnuSuccessOnuAlreadyActive) {
 
     ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Return(onu_cfg_get_res));
 
-    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
+    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir, true);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -894,7 +894,7 @@ TEST_F(TestActivateOnu, ActivateOnuSuccessOnuInactive) {
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_submit_res));
 
 
-    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
+    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir, true);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -912,7 +912,7 @@ TEST_F(TestActivateOnu, ActivateOnuFailOnuInvalidState) {
 
     ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Return(onu_cfg_get_res));
 
-    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
+    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir, true);
     ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -927,7 +927,7 @@ TEST_F(TestActivateOnu, ActivateOnuFailCfgGetFail) {
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
                      .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
 
-    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
+    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir, true);
     ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -949,7 +949,7 @@ TEST_F(TestActivateOnu, ActivateOnuFailOperSubmitFail) {
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(onu_cfg_set_res));
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_submit_res));
 
-    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir);
+    Status status = ActivateOnu_(pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str(), pir, true);
     ASSERT_FALSE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -2642,28 +2642,28 @@ class TestOnuItuPonAlarmSet : public Test {
         bcmolt_pon_ni pon_ni = 0;
         bcmolt_onu_id onu_id = 1;
 
-        openolt::OnuItuPonAlarm *onu_itu_pon_alarm_rt;
-        openolt::OnuItuPonAlarm::RateThresholdConfig *rate_threshold_config;
-        openolt::OnuItuPonAlarm::SoakTime *soak_time_rt;
+        config::OnuItuPonAlarm *onu_itu_pon_alarm_rt;
+        config::OnuItuPonAlarm::RateThresholdConfig *rate_threshold_config;
+        config::OnuItuPonAlarm::SoakTime *soak_time_rt;
 
-        openolt::OnuItuPonAlarm *onu_itu_pon_alarm_rr;
-        openolt::OnuItuPonAlarm::RateRangeConfig *rate_range_config;
-        openolt::OnuItuPonAlarm::SoakTime *soak_time_rr;
+        config::OnuItuPonAlarm *onu_itu_pon_alarm_rr;
+        config::OnuItuPonAlarm::RateRangeConfig *rate_range_config;
+        config::OnuItuPonAlarm::SoakTime *soak_time_rr;
 
-        openolt::OnuItuPonAlarm *onu_itu_pon_alarm_tc;
-        openolt::OnuItuPonAlarm::ValueThresholdConfig *value_threshold_config;
-        openolt::OnuItuPonAlarm::SoakTime *soak_time_tc;
+        config::OnuItuPonAlarm *onu_itu_pon_alarm_tc;
+        config::OnuItuPonAlarm::ValueThresholdConfig *value_threshold_config;
+        config::OnuItuPonAlarm::SoakTime *soak_time_tc;
 
         NiceMock<BalMocker> balMock;
 
         virtual void SetUp() {
-            onu_itu_pon_alarm_rt = new openolt::OnuItuPonAlarm;
-            rate_threshold_config = new openolt::OnuItuPonAlarm::RateThresholdConfig;
-            soak_time_rt = new openolt::OnuItuPonAlarm::SoakTime;
+            onu_itu_pon_alarm_rt = new config::OnuItuPonAlarm;
+            rate_threshold_config = new config::OnuItuPonAlarm::RateThresholdConfig;
+            soak_time_rt = new config::OnuItuPonAlarm::SoakTime;
             onu_itu_pon_alarm_rt->set_pon_ni(0);
             onu_itu_pon_alarm_rt->set_onu_id(1);
-            onu_itu_pon_alarm_rt->set_alarm_id(openolt::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS);
-            onu_itu_pon_alarm_rt->set_alarm_reporting_condition(openolt::OnuItuPonAlarm_AlarmReportingCondition::OnuItuPonAlarm_AlarmReportingCondition_RATE_THRESHOLD);
+            onu_itu_pon_alarm_rt->set_alarm_id(config::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS);
+            onu_itu_pon_alarm_rt->set_alarm_reporting_condition(config::OnuItuPonAlarm_AlarmReportingCondition::OnuItuPonAlarm_AlarmReportingCondition_RATE_THRESHOLD);
             rate_threshold_config->set_rate_threshold_rising(1);
             rate_threshold_config->set_rate_threshold_falling(4);
             soak_time_rt->set_active_soak_time(2);
@@ -2671,13 +2671,13 @@ class TestOnuItuPonAlarmSet : public Test {
             rate_threshold_config->set_allocated_soak_time(soak_time_rt);
             onu_itu_pon_alarm_rt->set_allocated_rate_threshold_config(rate_threshold_config);
 
-            onu_itu_pon_alarm_rr = new openolt::OnuItuPonAlarm;
-            rate_range_config = new openolt::OnuItuPonAlarm::RateRangeConfig;
-            soak_time_rr = new openolt::OnuItuPonAlarm::SoakTime;
+            onu_itu_pon_alarm_rr = new config::OnuItuPonAlarm;
+            rate_range_config = new config::OnuItuPonAlarm::RateRangeConfig;
+            soak_time_rr = new config::OnuItuPonAlarm::SoakTime;
             onu_itu_pon_alarm_rr->set_pon_ni(0);
             onu_itu_pon_alarm_rr->set_onu_id(1);
-            onu_itu_pon_alarm_rr->set_alarm_id(openolt::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS);
-            onu_itu_pon_alarm_rr->set_alarm_reporting_condition(openolt::OnuItuPonAlarm_AlarmReportingCondition::OnuItuPonAlarm_AlarmReportingCondition_RATE_RANGE);
+            onu_itu_pon_alarm_rr->set_alarm_id(config::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS);
+            onu_itu_pon_alarm_rr->set_alarm_reporting_condition(config::OnuItuPonAlarm_AlarmReportingCondition::OnuItuPonAlarm_AlarmReportingCondition_RATE_RANGE);
             rate_range_config->set_rate_range_lower(1);
             rate_range_config->set_rate_range_upper(4);
             soak_time_rr->set_active_soak_time(2);
@@ -2685,13 +2685,13 @@ class TestOnuItuPonAlarmSet : public Test {
             rate_range_config->set_allocated_soak_time(soak_time_rr);
             onu_itu_pon_alarm_rr->set_allocated_rate_range_config(rate_range_config);
 
-            onu_itu_pon_alarm_tc = new openolt::OnuItuPonAlarm;
-            value_threshold_config = new openolt::OnuItuPonAlarm::ValueThresholdConfig;
-            soak_time_tc = new openolt::OnuItuPonAlarm::SoakTime;
+            onu_itu_pon_alarm_tc = new config::OnuItuPonAlarm;
+            value_threshold_config = new config::OnuItuPonAlarm::ValueThresholdConfig;
+            soak_time_tc = new config::OnuItuPonAlarm::SoakTime;
             onu_itu_pon_alarm_tc->set_pon_ni(0);
             onu_itu_pon_alarm_tc->set_onu_id(1);
-            onu_itu_pon_alarm_tc->set_alarm_id(openolt::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS);
-            onu_itu_pon_alarm_tc->set_alarm_reporting_condition(openolt::OnuItuPonAlarm_AlarmReportingCondition::OnuItuPonAlarm_AlarmReportingCondition_VALUE_THRESHOLD);
+            onu_itu_pon_alarm_tc->set_alarm_id(config::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS);
+            onu_itu_pon_alarm_tc->set_alarm_reporting_condition(config::OnuItuPonAlarm_AlarmReportingCondition::OnuItuPonAlarm_AlarmReportingCondition_VALUE_THRESHOLD);
             value_threshold_config->set_threshold_limit(6);
             soak_time_tc->set_active_soak_time(2);
             soak_time_tc->set_clear_soak_time(2);

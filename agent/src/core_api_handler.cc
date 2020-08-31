@@ -90,13 +90,13 @@ inline const char *get_flow_acton_command(uint32_t command) {
     return s_actions_ptr;
 }
 
-bcmolt_stat_alarm_config set_stat_alarm_config(const openolt::OnuItuPonAlarm* request) {
+bcmolt_stat_alarm_config set_stat_alarm_config(const config::OnuItuPonAlarm* request) {
     bcmolt_stat_alarm_config alarm_cfg = {};
     bcmolt_stat_alarm_trigger_config trigger_obj = {};
     bcmolt_stat_alarm_soak_config soak_obj = {};
 
     switch (request->alarm_reporting_condition()) {
-        case openolt::OnuItuPonAlarm::RATE_THRESHOLD:
+        case config::OnuItuPonAlarm::RATE_THRESHOLD:
             trigger_obj.type = BCMOLT_STAT_CONDITION_TYPE_RATE_THRESHOLD;
             BCMOLT_FIELD_SET(&trigger_obj.u.rate_threshold, stat_alarm_trigger_config_rate_threshold,
                     rising, request->rate_threshold_config().rate_threshold_rising());
@@ -107,7 +107,7 @@ bcmolt_stat_alarm_config set_stat_alarm_config(const openolt::OnuItuPonAlarm* re
             BCMOLT_FIELD_SET(&soak_obj, stat_alarm_soak_config, clear_soak_time,
                     request->rate_threshold_config().soak_time().clear_soak_time());
             break;
-        case openolt::OnuItuPonAlarm::RATE_RANGE:
+        case config::OnuItuPonAlarm::RATE_RANGE:
             trigger_obj.type = BCMOLT_STAT_CONDITION_TYPE_RATE_RANGE;
             BCMOLT_FIELD_SET(&trigger_obj.u.rate_range, stat_alarm_trigger_config_rate_range, upper,
                     request->rate_range_config().rate_range_upper());
@@ -118,7 +118,7 @@ bcmolt_stat_alarm_config set_stat_alarm_config(const openolt::OnuItuPonAlarm* re
             BCMOLT_FIELD_SET(&soak_obj, stat_alarm_soak_config, clear_soak_time,
                     request->rate_range_config().soak_time().clear_soak_time());
             break;
-        case openolt::OnuItuPonAlarm::VALUE_THRESHOLD:
+        case config::OnuItuPonAlarm::VALUE_THRESHOLD:
             trigger_obj.type = BCMOLT_STAT_CONDITION_TYPE_VALUE_THRESHOLD;
             BCMOLT_FIELD_SET(&trigger_obj.u.value_threshold, stat_alarm_trigger_config_value_threshold,
                     limit, request->value_threshold_config().threshold_limit());
@@ -139,7 +139,7 @@ bcmolt_stat_alarm_config set_stat_alarm_config(const openolt::OnuItuPonAlarm* re
     return alarm_cfg;
 }
 
-Status OnuItuPonAlarmSet_(const openolt::OnuItuPonAlarm* request) {
+Status OnuItuPonAlarmSet_(const config::OnuItuPonAlarm* request) {
     bcmos_errno err;
     bcmolt_onu_itu_pon_stats_cfg stat_cfg; /* declare main API struct */
     bcmolt_onu_key key = {}; /* declare key */
@@ -179,7 +179,7 @@ Status OnuItuPonAlarmSet_(const openolt::OnuItuPonAlarm* request) {
     errors_cfg = set_stat_alarm_config(request);
 
     switch (request->alarm_id()) {
-        case openolt::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS:
+        case config::OnuItuPonAlarm_AlarmID::OnuItuPonAlarm_AlarmID_RDI_ERRORS:
             //set the rdi_errors alarm
             BCMOLT_FIELD_SET(&stat_cfg.data, onu_itu_pon_stats_cfg_data, rdi_errors, errors_cfg);
             break;
@@ -911,6 +911,11 @@ Status EnablePonIf_(uint32_t intf_id) {
         BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.power_level.mode, BCMOLT_PON_POWER_LEVEL_MODE_DEFAULT);
     }
 
+    //Enable AES Encryption
+    BCMOLT_MSG_FIELD_SET(&interface_obj, itu.onu_activation.key_exchange, BCMOLT_CONTROL_STATE_ENABLE);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, itu.onu_activation.authentication, BCMOLT_CONTROL_STATE_ENABLE);
+    BCMOLT_MSG_FIELD_SET(&interface_obj, itu.onu_activation.fail_due_to_authentication_failure, BCMOLT_CONTROL_STATE_ENABLE);
+
     BCMOLT_FIELD_SET(&pon_interface_set_state.data, pon_interface_set_pon_interface_state_data,
         operation, BCMOLT_INTERFACE_OPERATION_ACTIVE_WORKING);
 
@@ -1108,7 +1113,7 @@ Status DisablePonIf_(uint32_t intf_id) {
 }
 
 Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
-    const char *vendor_id, const char *vendor_specific, uint32_t pir) {
+    const char *vendor_id, const char *vendor_specific, uint32_t pir, bool omcc_encryption_mode) {
     bcmos_errno err = BCM_ERR_OK;
     bcmolt_onu_cfg onu_cfg;
     bcmolt_onu_key onu_key;
@@ -1177,7 +1182,24 @@ vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id,
             return bcm_to_grpc_err(err, "Failed to configure ONU");
         }
     }
-
+    
+    if (omcc_encryption_mode == true) {
+        // set the encryption mode for omci port id
+        bcmolt_itupon_gem_cfg gem_cfg;
+        bcmolt_itupon_gem_key key = {};
+        bcmolt_gem_port_configuration configuration = {};
+        key.pon_ni = intf_id;
+        key.gem_port_id = onu_id;
+        bcmolt_control_state encryption_mode;
+        encryption_mode = BCMOLT_CONTROL_STATE_ENABLE;
+        BCMOLT_CFG_INIT(&gem_cfg, itupon_gem, key);
+        BCMOLT_FIELD_SET(&gem_cfg.data, itupon_gem_cfg_data, encryption_mode, encryption_mode);
+        err = bcmolt_cfg_set(dev_id, &gem_cfg.hdr);
+        if(err != BCM_ERR_OK) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "failed to confiure omci gem_port encryption mode = %d\n", onu_id);
+                return bcm_to_grpc_err(err, "Access_Control set ITU PON OMCI Gem port failed");
+        }
+    }
     // Now that the ONU is configured, move the ONU to ACTIVE state
     memset(&onu_cfg, 0, sizeof(bcmolt_onu_cfg));
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
