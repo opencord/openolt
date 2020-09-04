@@ -818,6 +818,25 @@ static void OnuActivationCompletedIndication(bcmolt_devid olt, bcmolt_msg *msg) 
                         onu_ind->set_oper_state("up");
                     if (ONU_ACTIVATION_COMPLETED_FAIL(data->status))
                         onu_ind->set_oper_state("down");
+                        switch (data->fail_reason) {
+                            case BCMOLT_ACTIVATION_FAIL_REASON_RANGING:
+                                onu_ind->set_fail_reason(openolt::OnuIndication_ActivationFailReason_ONU_ACTIVATION_FAIL_REASON_RANGING);
+                                break;
+                            case BCMOLT_ACTIVATION_FAIL_REASON_PASSWORD_AUTHENTICATION:
+                                onu_ind->set_fail_reason(openolt::OnuIndication_ActivationFailReason_ONU_ACTIVATION_FAIL_REASON_PASSWORD_AUTHENTICATION);
+                                break;
+                            case BCMOLT_ACTIVATION_FAIL_REASON_LOS:
+                                onu_ind->set_fail_reason(openolt::OnuIndication_ActivationFailReason_ONU_ACTIVATION_FAIL_REASON_LOS);
+                                break;
+                            case BCMOLT_ACTIVATION_FAIL_REASON_ONU_ALARM:
+                                onu_ind->set_fail_reason(openolt::OnuIndication_ActivationFailReason_ONU_ACTIVATION_FAIL_ONU_ALARM);
+                                break;
+                            case BCMOLT_ACTIVATION_FAIL_REASON_SWITCH_OVER:
+                                onu_ind->set_fail_reason(openolt::OnuIndication_ActivationFailReason_ONU_ACTIVATION_FAIL_SWITCH_OVER);
+                                break;
+                            default:
+                                onu_ind->set_fail_reason(openolt::OnuIndication_ActivationFailReason_ONU_ACTIVATION_FAIL_REASON_NONE);
+			}
                     // Setting the admin_state state field based on a valid onu_id does not make any sense.
                     // The adapter too does not seem to interpret this seriously.
                     // Legacy code, lets keep this as is for now.
