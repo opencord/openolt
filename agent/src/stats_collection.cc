@@ -245,7 +245,7 @@ void stats_collection() {
         openolt::PortStatistics* port_stats =
             collectPortStatistics(intf_ref);
 
-        openolt::Indication ind;
+        ::openolt::Indication ind;
         ind.set_allocated_port_stats(port_stats);
         oltIndQ.push(ind);
     }
@@ -258,7 +258,7 @@ void stats_collection() {
         openolt::PortStatistics* port_stats =
             collectPortStatistics(intf_ref);
 
-        openolt::Indication ind;
+        ::openolt::Indication ind;
         ind.set_allocated_port_stats(port_stats);
         oltIndQ.push(ind);
     }

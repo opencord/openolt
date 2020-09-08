@@ -31,8 +31,7 @@ chmod +x /opt/openolt/openolt_dev_mgmt_daemon_process_watchdog
 update-rc.d dev_mgmt_daemon defaults
 update-rc.d openolt defaults
 mv /tmp/openolt /broadcom
-mv /tmp/libgrpc++.so.1 /usr/local/lib
-mv /tmp/libgrpc.so.6 /usr/local/lib
+mv /tmp/libz.so.1 /usr/local/lib
 mv /tmp/libstdc++.so.6 /usr/local/lib
 mv /tmp/libbal_host_api.so /usr/local/lib
 /opt/bcm68620/svk_init.sh

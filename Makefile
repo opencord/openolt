@@ -27,27 +27,19 @@ export OPENOLT_ROOT_DIR=$(shell pwd)
 
 ## Variables
 OPENOLTDEVICE     ?= asfvolt16
-OPENOLT_PROTO_VER ?= v3.4.5
-GTEST_VER         ?= release-1.8.0
-CMOCK_VER         ?= 0207b30
-GMOCK_GLOBAL_VER  ?= 1.0.2
-GRPC_VER          ?= v1.27.1
+OPENOLT_PROTO_VER ?= v4.0.2
 
 DOCKER                     ?= docker
 DOCKER_REGISTRY            ?=
 DOCKER_REPOSITORY          ?= voltha/
 DOCKER_EXTRA_ARGS          ?=
-DOCKER_TAG                 ?= 1.0.0
+DOCKER_TAG                 ?= 2.0.1
 IMAGENAME                  = ${DOCKER_REGISTRY}${DOCKER_REPOSITORY}openolt-test:${DOCKER_TAG}
 
 DOCKER_BUILD_ARGS ?= \
 	${DOCKER_EXTRA_ARGS} \
 	--build-arg OPENOLTDEVICE=${OPENOLTDEVICE} \
-	--build-arg OPENOLT_PROTO_VER=${OPENOLT_PROTO_VER} \
-	--build-arg GTEST_VER=${GTEST_VER} \
-	--build-arg CMOCK_VER=${CMOCK_VER} \
-	--build-arg GMOCK_GLOBAL_VER=${GMOCK_GLOBAL_VER} \
-	--build-arg GRPC_VER=${GRPC_VER}
+	--build-arg OPENOLT_PROTO_VER=${OPENOLT_PROTO_VER}
 
 test:
 	${DOCKER} run --rm -v $(shell pwd):/app $(shell test -t 0 && echo "-it") ${IMAGENAME} make -C agent/test test

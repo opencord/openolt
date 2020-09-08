@@ -20,6 +20,7 @@
 
 #include "core.h"
 #include "Queue.h"
+#include "device.h"
 
 extern "C"
 {
@@ -43,8 +44,6 @@ extern "C"
 
 #define ONU_DEACTIVATE_COMPLETE_WAIT_TIMEOUT 5000 // in milli-seconds
 
-#define MIN_ALLOC_ID_GPON 256
-#define MIN_ALLOC_ID_XGSPON 1024
 
 #define MAX_ACL_ID 33
 
@@ -132,6 +131,23 @@ typedef struct acl_classifier_key {
     // above elements.
 } acl_classifier_key;
 
+typedef struct device_flow_params {
+    uint8_t pbit; // If pbit classifier is not present in flow, use 0xff to invalidate
+    uint32_t gemport_id;
+    uint16_t flow_id;
+} device_flow_params;
+
+typedef struct device_flow {
+    bool is_flow_replicated; // If true number of replicated flows is to the NUMBER_OF_PBITS, else 1
+    device_flow_params params[NUMBER_OF_REPLICATED_FLOWS]; // A voltha-flow cannot be replicated more than the number of pbits
+    uint64_t voltha_flow_id; // This is corresponding voltha flow-id.
+    uint64_t symmetric_voltha_flow_id; // Is not applicable for trap-to-controller voltha flows.
+                                       // 0 value means invalid or not-applicable
+                                       // Applicable for bi-directional data path flows (one flow per direction)
+                                       // Symmetric flows should share the same device_flow_id.
+
+} device_flow;
+
 // *******************************************************//
 // Extern Variable/Constant declarations used by the core //
 // *******************************************************//
@@ -215,21 +231,15 @@ extern bcmos_fastlock onu_deactivate_wait_lock;
 extern std::map<acl_classifier_key, uint16_t> acl_classifier_to_acl_id_map;
 extern bool operator<(const acl_classifier_key& a1, const acl_classifier_key& a2);
 
-typedef std::tuple<uint16_t, std::string> flow_id_flow_direction;
-typedef std::tuple<int16_t, uint16_t, int32_t> acl_id_gem_id_intf_id;
-extern std::map<flow_id_flow_direction, acl_id_gem_id_intf_id> flow_to_acl_map;
+typedef std::tuple<uint64_t, std::string> flow_id_flow_direction;
+typedef std::tuple<int16_t, int32_t> acl_id_intf_id;
+extern std::map<flow_id_flow_direction, acl_id_intf_id> flow_to_acl_map;
 
 // Keeps a reference count of how many flows are referencing a given ACL ID.
 // Key represents the ACL-ID and value is number of flows referencing the given ACL-ID.
 // When there is at least one flow referencing the ACL-ID, the ACL should be installed.
 // When there are no flows referencing the ACL-ID, the ACL should be removed.
 extern std::map<uint16_t, uint16_t> acl_ref_cnt;
-
-typedef std::tuple<uint16_t, uint16_t> gem_id_intf_id; // key to gem_ref_cnt
-// Keeps a reference count of how many ACL related flows are referencing a given (gem-id, pon_intf_id).
-// When there is at least on flow, we should install the gem. When there are no flows
-// the gem should be removed.
-extern std::map<gem_id_intf_id, uint16_t> gem_ref_cnt;
 
 // Needed to keep track of how many flows for a given acl_id, intf_id and intf_type are
 // installed. When there is at least on flow for this key, we should have interface registered
@@ -239,13 +249,25 @@ typedef std::tuple<uint16_t, uint8_t, std::string> acl_id_intf_id_intf_type;
 extern std::map<acl_id_intf_id_intf_type, uint16_t> intf_acl_registration_ref_cnt;
 
 extern std::bitset<MAX_ACL_ID> acl_id_bitset;
+extern bcmos_fastlock acl_id_bitset_lock;
 
 /*** ACL Handling related data end ***/
 
 extern std::bitset<MAX_TM_SCHED_ID> tm_sched_bitset;
+extern bcmos_fastlock tm_sched_bitset_lock;
+
 extern std::bitset<MAX_TM_QMP_ID> tm_qmp_bitset;
+extern bcmos_fastlock tm_qmp_bitset_lock;
+
+extern std::bitset<MAX_FLOW_ID> flow_id_bitset;
+extern bcmos_fastlock flow_id_bitset_lock;
+
+extern std::map<uint64_t, device_flow> voltha_flow_to_device_flow;
+extern bcmos_fastlock voltha_flow_to_device_flow_lock;
 
 extern Queue<openolt::Indication> oltIndQ;
+
+/*** ACL Handling related data end ***/
 
 extern bcmos_fastlock data_lock;
 

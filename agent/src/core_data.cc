@@ -146,21 +146,16 @@ bool operator<(const acl_classifier_key& a1, const acl_classifier_key& a2)
             (a2.ether_type + 2*a2.ip_proto + 3*a2.src_port + 4*a2.dst_port));
 }
 
-typedef std::tuple<uint16_t, std::string> flow_id_flow_direction;
-typedef std::tuple<int16_t, uint16_t, int32_t> acl_id_gem_id_intf_id;
-std::map<flow_id_flow_direction, acl_id_gem_id_intf_id> flow_to_acl_map;
+typedef std::tuple<uint64_t, std::string> flow_id_flow_direction;
+
+typedef std::tuple<int16_t, int32_t> acl_id_intf_id;
+std::map<flow_id_flow_direction, acl_id_intf_id> flow_to_acl_map;
 
 // Keeps a reference count of how many flows are referencing a given ACL ID.
 // Key represents the ACL-ID and value is number of flows referencing the given ACL-ID.
 // When there is at least one flow referencing the ACL-ID, the ACL should be installed.
 // When there are no flows referencing the ACL-ID, the ACL should be removed.
 std::map<uint16_t, uint16_t> acl_ref_cnt;
-
-typedef std::tuple<uint16_t, uint16_t> gem_id_intf_id; // key to gem_ref_cnt
-// Keeps a reference count of how many ACL related flows are referencing a given (gem-id, pon_intf_id).
-// When there is at least on flow, we should install the gem. When there are no flows
-// the gem should be removed.
-std::map<gem_id_intf_id, uint16_t> gem_ref_cnt;
 
 // Needed to keep track of how many flows for a given acl_id, intf_id and intf_type are
 // installed. When there is at least on flow for this key, we should have interface registered
@@ -170,13 +165,29 @@ typedef std::tuple<uint16_t, uint8_t, std::string> acl_id_intf_id_intf_type;
 std::map<acl_id_intf_id_intf_type, uint16_t> intf_acl_registration_ref_cnt;
 
 std::bitset<MAX_ACL_ID> acl_id_bitset;
+bcmos_fastlock acl_id_bitset_lock;
 
 /*** ACL Handling related data end ***/
 
+// Used to manage a pool of Scheduler IDs
 std::bitset<MAX_TM_SCHED_ID> tm_sched_bitset;
-std::bitset<MAX_TM_QMP_ID> tm_qmp_bitset;
+bcmos_fastlock tm_sched_bitset_lock;
 
-// Lock used to gaurd critical section during various API handling at the core_api_handler
+// Used to manage a pool of TM_QMP IDs
+std::bitset<MAX_TM_QMP_ID> tm_qmp_bitset;
+bcmos_fastlock tm_qmp_bitset_lock;
+
+// Used to manage a pool of Flow IDs
+std::bitset<MAX_FLOW_ID> flow_id_bitset;
+bcmos_fastlock flow_id_bitset_lock;
+
+// Maps voltha flow-id to device flow
+std::map<uint64_t, device_flow> voltha_flow_to_device_flow;
+bcmos_fastlock voltha_flow_to_device_flow_lock;
+
+
+// General purpose lock used to gaurd critical section during various API handling at the core_api_handler
 bcmos_fastlock data_lock;
+
 
 char* grpc_server_interface_name = NULL;

@@ -42,7 +42,7 @@ ONL_KERN_VER_MAJOR = 4.14
 # This specifies the GIT tag in https://github.com/opencord/voltha-protos
 # repo that we need to refer to, to pick the right version of
 # openolt.proto and tech_profile.proto
-OPENOLT_PROTO_VER ?= v3.4.5
+OPENOLT_PROTO_VER ?= v4.0.2
 
 # Variables used for Inband build
 INBAND = "n"
@@ -52,17 +52,10 @@ VLAN_ID = 4093
 # Build directory
 BUILD_DIR = build
 
-# Protobuf installation
-PROTOBUF_VER ?= 3.5.0
-PROTOBUF_ADDR = https://github.com/protocolbuffers/protobuf/releases/download/v$(PROTOBUF_VER)/protobuf-cpp-$(PROTOBUF_VER).tar.gz
-PROTOBUF_DST = /tmp/protobuf-$(PROTOBUF_VER)
+# initialiaze path of protoc binary
 protoc-bin = $(shell which protoc)
 
-#
-# GRPC installation
-GRPC_ADDR = https://github.com/grpc/grpc
-GRPC_DST = /tmp/grpc
-GRPC_VER = v1.10.x
+# initialiaze path of grpc_cpp_plugin binary
 grpc-cpp-plugin-bin = $(shell which grpc_cpp_plugin)
 
 USER := $(shell echo $(USER))
@@ -70,7 +63,7 @@ USER := $(shell echo $(USER))
 ########################################################################
 ##
 ##
-##        Install prerequisites
+##        Initialize various build flags
 ##
 ##
 HOST_SYSTEM = $(shell uname | cut -f 1 -d_)
@@ -85,6 +78,7 @@ LABEL_BUILD_DATE    ?= $(shell date -u "+%Y-%m-%dT%H:%M:%SZ")
 LABEL_COMMIT_DATE   = $(shell git show -s --format=%cd --date=iso-strict HEAD)
 
 LIBGRPC_PATH=$(shell pkg-config --libs-only-L grpc | sed s/-L// | sed s/\ //g)
+LIBZ_PATH=$(shell pkg-config --libs-only-L zlib | sed s/-L// | sed s/\ //g)
 LIBPROTOBUF_PATH=$(shell PKG_CONFIG_ALLOW_SYSTEM_LIBS=true pkg-config --libs-only-L protobuf | sed s/-L// | sed s/\ //g)
 
 CXX = @CXX@-4.9
@@ -92,9 +86,13 @@ CXXFLAGS += @CXXFLAGS@
 CXXFLAGS += $(shell pkg-config --cflags-only-I grpc++)
 CPPFLAGS += @CPPFLAGS@
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
+
+# Enabling SCALE_AND_PERF for higher performance and scaling to 512 subscribers. Enabling the flag will
+# disable the handling in FLOW_CHECKER and also disable flow statistics
+# Setting SW_UTIL_SHELL=y will enable QAX debug shell when compiling for Broadcom chip based OLT
 CPPFLAGS += -DVERSION=\"$(VERSION)\" -DBAL_VER=\"$(BAL_VER)\" -DLABEL_VCS_URL=\"$(LABEL_VCS_URL)\" \
             -DLABEL_VCS_REF=\"$(LABEL_VCS_REF)\" -DLABEL_BUILD_DATE=\"$(LABEL_BUILD_DATE)\" \
-            -DLABEL_COMMIT_DATE=\"$(LABEL_COMMIT_DATE)\" -DFLOW_CHECKER
+            -DLABEL_COMMIT_DATE=\"$(LABEL_COMMIT_DATE)\" -DFLOW_CHECKER -USCALE_AND_PERF -DSW_UTIL_SHELL=n
 CPPFLAGS += -I./
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
 LDFLAGS += @LDFLAGS@
@@ -102,37 +100,6 @@ LDFLAGS += `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
 CXXFLAGSDEVICE = -I./device -I./device/$(OPENOLTDEVICE) -I./device/generic
 
 export CXX CXXFLAGS OPENOLT_PROTO_VER
-
-prereqs-system:
-	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
-	sudo apt-get install -y build-essential autoconf libssl-dev gawk debhelper dh-systemd init-system-helpers curl cmake ccache g++-4.9
-
-prereqs-local: $(protoc-bin) $(grpc-cpp-plugin-bin)
-
-$(protoc-bin):
-	# Install protobuf
-	rm -rf $(PROTOBUF_DST)
-	cd /tmp && wget $(PROTOBUF_ADDR)
-	cd /tmp && tar -zxvf protobuf-cpp-$(PROTOBUF_VER).tar.gz
-	cd $(PROTOBUF_DST) && ./autogen.sh
-	cd $(PROTOBUF_DST) && ./configure
-	make -C $(PROTOBUF_DST)
-	sudo make -C $(PROTOBUF_DST) install
-
-$(grpc-cpp-plugin-bin):
-	# Install GRPC, protoc
-	rm -rf $(GRPC_DST)
-	cd /tmp && git clone -b $(GRPC_VER) $(GRPC_ADDR) $(GRPC_DST)
-	cd $(GRPC_DST) && git submodule update --init
-	make -C $(GRPC_DST)
-	sudo make -C $(GRPC_DST) install
-
-docker:
-	echo $(USER)
-	sudo groupadd -f docker
-ifneq "$(USER)" ""
-	sudo usermod -aG docker $(USER)
-endif
 
 ########################################################################
 ##
@@ -231,7 +198,7 @@ bal-clean:
 ##
 OPENOLT_PROTOS_DIR = ../protos
 OPENOLT_API_LIB = $(OPENOLT_PROTOS_DIR)/libopenoltapi.a
-CXXFLAGS += -I$(OPENOLT_PROTOS_DIR) -I$(OPENOLT_PROTOS_DIR)/googleapis/gens
+CXXFLAGS += -I$(OPENOLT_PROTOS_DIR) -I./device -I./device/$(OPENOLTDEVICE) -I$(OPENOLT_PROTOS_DIR)/googleapis/gens
 protos:
 	make -C $(OPENOLT_PROTOS_DIR) all
 protos-clean:
@@ -269,23 +236,6 @@ device/generic/%.o: device/generic/%.cc
 ########################################################################
 ##
 ##
-##        sim
-##
-##
-SIM_SRCS = $(wildcard sim/*.cc) $(wildcard common/*.cc)
-SIM_OBJS = $(SIM_SRCS:.cc=.o)
-SIM_DEPS = $(SIM_SRCS:.cc=.d)
-sim: sim/openoltsim
-sim/openoltsim: protos $(SIM_OBJS)
-	$(CXX) -pthread -L/usr/local/lib $(SIM_OBJS) $(OPENOLT_API_LIB) /usr/local/lib/libprotobuf.a -o $@ -lgrpc++ -lgrpc -lpthread -ldl
-sim/%.o: sim/%.cc
-	$(CXX) -std=c++11 -fpermissive -Wno-literal-suffix -I./common -I$(OPENOLT_PROTOS_DIR) -I$(OPENOLT_PROTOS_DIR)/googleapis/gens -c $< -o $@
-clean-sim:
-	rm -f sim/openoltsim $(SIM_OBJS) $(SIM_DEPS)
-
-########################################################################
-##
-##
 ##        openolt
 ##
 ##
@@ -299,8 +249,7 @@ $(BUILD_DIR)/openolt: sdk protos $(OBJS)
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_reference/host_api/strip/libbal_host_api.so $(BUILD_DIR)/.
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_driver/dev_mgmt_daemon/dev_mgmt_daemon $(BUILD_DIR)/.
-	ln -sf $(LIBGRPC_PATH)/libgrpc.so.6 $(BUILD_DIR)/libgrpc.so.6
-	ln -sf $(LIBGRPC_PATH)/libgrpc++.so.1 $(BUILD_DIR)/libgrpc++.so.1
+	ln -sf $(LIBGRPC_PATH)/libz.so.1 $(BUILD_DIR)/libz.so.1
 	ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 $(BUILD_DIR)/libstdc++.so.6
 	strip $(BUILD_DIR)/openolt
 	echo "inband=n" > $(ONL_DIR)/onl_build.mode
@@ -316,8 +265,7 @@ src/%.o: src/%.cc
 deb:
 	cp $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/openolt device/$(OPENOLTDEVICE)/mkdebian/debian
-	cp $(BUILD_DIR)/libgrpc.so.6 device/$(OPENOLTDEVICE)/mkdebian/debian
-	cp $(BUILD_DIR)/libgrpc++.so.1 device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/libz.so.1 device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/libstdc++.so.6 device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/libbal_host_api.so device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp -a scripts/init.d device/$(OPENOLTDEVICE)/mkdebian/debian
@@ -370,8 +318,7 @@ deb-cleanup:
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).substvars
 	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE)/
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/debhelper-build-stamp
-	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libgrpc++.so.1
-	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libgrpc.so.6
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libz.so.1
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libstdc++.so.6
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libbal_host_api.so
 	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/init.d/
@@ -387,7 +334,7 @@ inband-onl-cleanup:
 clean: protos-clean deb-cleanup
 	@rm -f $(OBJS) $(DEPS)
 	@rm -rf $(OPENOLT_PROTOS_DIR)/googleapis
-	@rm -f $(BUILD_DIR)/libgrpc.so.6 $(BUILD_DIR)/libgrpc++.so.1
+	@rm -f $(BUILD_DIR)/libz.so.1
 	@rm -f $(BUILD_DIR)/libbal_host_api.so
 	@rm -f $(BUILD_DIR)/openolt
 	@rm -f $(BUILD_DIR)/dev_mgmt_daemon
@@ -400,4 +347,4 @@ clean-src: protos-clean
 distclean: clean-src clean
 	@rm -rf $(BUILD_DIR)
 
-.PHONY: onl sdk bal protos prereqs-system prereqs-local sim inband-onl .FORCE
+.PHONY: onl sdk bal protos inband-onl .FORCE

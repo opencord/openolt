@@ -34,6 +34,7 @@
 
 using grpc::Server;
 using grpc::ServerBuilder;
+using grpc::ResourceQuota;
 using grpc::ServerContext;
 using grpc::ServerWriter;
 using grpc::Status;
@@ -127,31 +128,15 @@ class OpenoltService final : public openolt::Openolt::Service {
             ServerContext* context,
             const openolt::Flow* request,
             openolt::Empty* response) override {
-        return FlowAdd_(
-            request->access_intf_id(),
-            request->onu_id(),
-            request->uni_id(),
-            request->port_no(),
-            request->flow_id(),
-            request->flow_type(),
-            request->alloc_id(),
-            request->network_intf_id(),
-            request->gemport_id(),
-            request->classifier(),
-            request->action(),
-            request->priority(),
-            request->cookie(),
-            request->group_id(),
-            request->tech_profile_id());
+        return FlowAddWrapper_(request);
+
     }
 
     Status FlowRemove(
             ServerContext* context,
             const openolt::Flow* request,
             openolt::Empty* response) override {
-        return FlowRemove_(
-            request->flow_id(),
-            request->flow_type());
+        return FlowRemoveWrapper_(request);
     }
 
     Status EnableIndication(
@@ -356,8 +341,10 @@ void RunServer(int argc, char** argv) {
     serverPort = ipAddress.append(":9191").c_str();
     OpenoltService service;
     std::string server_address(serverPort);
-    ServerBuilder builder;
-
+    ::ServerBuilder builder;
+    ::ResourceQuota quota;
+    quota.SetMaxThreads(GRPC_THREAD_POOL_SIZE);
+    builder.SetResourceQuota(quota);
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
 

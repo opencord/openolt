@@ -22,4 +22,22 @@
 #define MAX_SUPPORTED_PON 64
 #define ONU_BIT_TRANSMISSION_DELAY 0.8038585/1000 /* unit: ns to us */
 #define MINIMUM_ONU_RESPONSE_RANGING_TIME 198075 /* hardcore: this is ranging time for the shortest distance, typically 35us */
+
+// DeviceInfo definitions
+
+#define ONU_ID_START 1
+#define ONU_ID_END 32
+#define MAX_ONUS_PER_PON ONU_ID_END
+
+#define ALLOC_ID_START 256
+#define ALLOC_ID_END 767
+
+#define GEM_PORT_ID_START 256
+#define GEM_PORT_ID_END 4095
+
+#define FLOW_ID_START 1
+#define FLOW_ID_END 65535
+#define MAX_FLOW_ID FLOW_ID_END
+#define INVALID_FLOW_ID 0
+
 #endif

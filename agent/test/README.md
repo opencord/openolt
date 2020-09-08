@@ -26,24 +26,6 @@ The openolt agent source code will be mounted to docker container, compiled and
 unit tests will be run.  Note that you will need access to internet to download
 the voltha/openolt-test docker container for the first time.
 
-If you choose not to use docker container packaged with pre-requisite software
-for building and running unit tests, you may install the pre-requisite software
-directly on the host system using procedure below.  However this procedure is
-NOT RECOMMENDED as software being installed via this procedure may conflict
-or overwrite the software that may already exist on the host system.
-
-```shell
-$ cd agent/test
-# Run Autoconfig to generate the appropriate makefile scaffolding for the desired target
-./configure
-# This will build pre-requisite software to build openolt. Needed once only.
-$ make prereq
-# This will install gtest and c-mock libraries. Needed once only
-$ make prereq-mock-lib
-# This will build and run the unit test cases
-$ make test
-```
-
 Once you have successfully built and run the unit-test, the test report will be
 available in `test_openolt_report_xunit.xml` file in `agent/test`.  To clean
 all build artifacts and test reports, do `make clean` from openolt agent root

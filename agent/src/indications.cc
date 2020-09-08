@@ -1292,6 +1292,7 @@ Status SubscribeIndication() {
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "Packet indication subscribe failed");
 
+#ifndef SCALE_AND_PERF
     rx_cfg.obj_type = BCMOLT_OBJ_ID_ITUPON_ALLOC;
     rx_cfg.rx_cb = ItuPonAllocConfigCompletedInd;
     rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
@@ -1299,6 +1300,7 @@ Status SubscribeIndication() {
     rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "ITU PON Alloc Configuration Complete Indication subscribe failed");
+#endif
 
     rx_cfg.obj_type = BCMOLT_OBJ_ID_GROUP;
     rx_cfg.rx_cb = GroupIndication;

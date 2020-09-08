@@ -67,6 +67,10 @@ bool free_tm_qmp_id(uint32_t sched_id,uint32_t pon_intf_id, uint32_t onu_id,
                     uint32_t uni_id, int tm_qmp_id);
 int get_acl_id();
 void free_acl_id (int acl_id);
+uint16_t get_flow_id();
+bool get_flow_ids(int num_of_flow_ids, uint16_t *flow_ids);
+void free_flow_id (uint16_t flow_id);
+void free_flow_ids(uint8_t num_flows, uint16_t *flow_ids);
 std::string get_qos_type_as_string(bcmolt_egress_qos_type qos_type);
 bcmolt_egress_qos_type get_qos_type(uint32_t pon_intf_id, uint32_t onu_id, uint32_t uni_id, uint32_t queue_size=0);
 void clear_qos_type(uint32_t pon_intf_id, uint32_t onu_id, uint32_t uni_id);
@@ -94,15 +98,20 @@ Status update_acl_interface(int32_t intf_id, bcmolt_interface_type intf_type, ui
 Status install_acl(const acl_classifier_key acl_key);
 Status remove_acl(int acl_id);
 void formulate_acl_classifier_key(acl_classifier_key *key, const ::openolt::Classifier& classifier);
-Status handle_acl_rule_install(int32_t onu_id, uint32_t flow_id,
+Status handle_acl_rule_install(int32_t onu_id, uint64_t flow_id,
                                const std::string flow_type, int32_t access_intf_id,
-                               int32_t network_intf_id, int32_t gemport_id,
+                               int32_t network_intf_id,
                                const ::openolt::Classifier& classifier);
 void clear_gem_port(int gemport_id, int access_intf_id);
-Status handle_acl_rule_cleanup(int16_t acl_id, int32_t gemport_id, int32_t intf_id, const std::string flow_type);
+Status handle_acl_rule_cleanup(int16_t acl_id, int32_t intf_id, const std::string flow_type);
 Status check_bal_ready();
 Status check_connection();
 std::string get_ip_address(const char* nw_intf);
 bcmos_errno getOnuMaxLogicalDistance(uint32_t intf_id, uint32_t *mld);
 char* get_intf_mac(const char* intf_name, char* mac_address, unsigned int max_size_of_mac_address);
+void update_voltha_flow_to_cache(uint64_t voltha_flow_id, device_flow dev_flow);
+void remove_voltha_flow_from_cache(uint64_t voltha_flow_id);
+bool is_voltha_flow_installed(uint64_t voltha_flow_id );
+const device_flow* get_device_flow(uint64_t voltha_flow_id);
+const device_flow_params* get_device_flow_params(uint64_t voltha_flow_id);
 #endif // OPENOLT_CORE_UTILS_H_

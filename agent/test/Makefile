@@ -21,31 +21,8 @@
 TOP_DIR=`pwd`
 OPENOLTDEVICE ?= asfvolt16
 
-OPENOLT_PROTO_VER ?= v3.4.5
+OPENOLT_PROTO_VER ?= v4.0.2
 
-GTEST_VER ?= release-1.8.0
-gtest-target = /usr/local/lib/libgtest.a
-
-CMOCK_VER ?= 0207b30
-cmock-target = /usr/local/include/cmock/cmock.h
-
-GMOCK_GLOBAL_VER ?= 1.0.2
-gmock-global-target = /usr/local/include/gmock-global/gmock-global.h
-
-
-# GRPC installation
-GRPC_ADDR = https://github.com/grpc/grpc
-GRPC_DST = /tmp/grpc
-GRPC_VER ?= v1.10.x
-grpc-cpp-plugin-bin = /usr/local/bin/grpc_cpp_plugin
-
-# Protobuf installation
-PROTOBUF_VER ?= 3.5.0
-PROTOBUF_ADDR = https://github.com/protocolbuffers/protobuf/releases/download/v$(PROTOBUF_VER)/protobuf-cpp-$(PROTOBUF_VER).tar.gz
-PROTOBUF_DST = /tmp/protobuf-$(PROTOBUF_VER)
-protoc-bin = /usr/local/bin/protoc
-
-#
 ########################################################################
 ##
 ##
@@ -60,7 +37,7 @@ CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
 CXXFLAGS += -DTEST_MODE -DENABLE_LOG
 LDFLAGS += -lpthread -lm `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
-CXXFLAGSDEVICE = -I../device -I../device/$(OPENOLTDEVICE) -I../device/generic
+CXXFLAGSDEVICE = -I../device -I../device/$(OPENOLTDEVICE)
 
 export CXX CXXFLAGS OPENOLT_PROTO_VER
 
@@ -72,52 +49,6 @@ BAL_INC = -I$(BAL_API_DIR)/include \
           -I$(BAL_API_DIR)/include/object_model
 CXXFLAGS += $(BAL_INC)
 
-
-prereqs-system:
-	sudo apt-get -q -y install git pkg-config build-essential autoconf libtool libgflags-dev libgtest-dev clang libc++-dev unzip docker.io
-	sudo apt-get install -y build-essential autoconf libssl-dev gawk debhelper dh-systemd init-system-helpers curl cmake ccache g++-4.9
-
-prereqs-local: $(protoc-bin) $(grpc-cpp-plugin-bin) prereqs-test-lib
-
-$(protoc-bin):
-	# Install protobuf
-	rm -rf $(PROTOBUF_DST)
-	cd /tmp && wget $(PROTOBUF_ADDR)
-	cd /tmp && tar -zxvf protobuf-cpp-$(PROTOBUF_VER).tar.gz
-	cd $(PROTOBUF_DST) && ./autogen.sh
-	cd $(PROTOBUF_DST) && ./configure
-	make -C $(PROTOBUF_DST)
-	sudo make -C $(PROTOBUF_DST) install
-
-$(grpc-cpp-plugin-bin):
-	# Install GRPC, protoc
-	rm -rf $(GRPC_DST)
-	cd /tmp && git clone -b $(GRPC_VER) $(GRPC_ADDR) $(GRPC_DST)
-	cd $(GRPC_DST) && git submodule update --init
-	make -C $(GRPC_DST)
-	sudo make -C $(GRPC_DST) install
-
-prereqs-test-lib: $(gtest-target) $(cmock-target) $(gmock-global-target)
-
-$(gtest-target):
-	# Install gtest
-	rm -rf /tmp/googletest && cd /tmp && git clone https://github.com/google/googletest.git
-	cd /tmp/googletest && git checkout $(GTEST_VER)
-	cd /tmp/googletest && cmake CMakeLists.txt
-	make -C /tmp/googletest
-	sudo make -C /tmp/googletest install
-
-$(cmock-target):
-	# Install c-mock
-	rm -rf /tmp/C-Mock && cd /tmp && git clone https://github.com/hjagodzinski/C-Mock.git
-	cd /tmp/C-Mock && git checkout $(CMOCK_VER)
-	sudo make -C /tmp/C-Mock install
-
-$(gmock-global-target):
-	# Install gmock-global
-	rm -rf /tmp/gmock-global && cd /tmp && git clone https://github.com/apriorit/gmock-global.git
-	cd /tmp/gmock-global && git checkout $(GMOCK_GLOBAL_VER)
-	sudo cp -rf /tmp/gmock-global/include/gmock-global /usr/local/include/
 
 ########################################################################
 ##

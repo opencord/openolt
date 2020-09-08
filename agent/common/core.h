@@ -171,6 +171,9 @@ extern "C"
 #define NUMBER_OF_DEFAULT_INTERFACE_QUEUES 4 // <= NUM_OF_PRIORITIES
 #define FILL_ARRAY(ARRAY,START,END,VALUE) for(int i=START;i<END;ARRAY[i++]=VALUE);
 #define COUNT_OF(array) (sizeof(array) / sizeof(array[0]))
+#define NUMBER_OF_PBITS 8
+#define NUMBER_OF_REPLICATED_FLOWS NUMBER_OF_PBITS
+#define GRPC_THREAD_POOL_SIZE 150
 
 #define GET_FLOW_INTERFACE_TYPE(type) \
        (type == BCMOLT_FLOW_INTERFACE_TYPE_PON) ? "PON" : \
@@ -216,12 +219,14 @@ Status OnuPacketOut_(uint32_t intf_id, uint32_t onu_id, uint32_t port_no, uint32
 Status ProbeDeviceCapabilities_();
 Status ProbePonIfTechnology_();
 Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt);
+Status FlowAddWrapper_(const openolt::Flow* request);
 Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t port_no,
                 uint32_t flow_id, const std::string flow_type,
                 int32_t alloc_id, int32_t network_intf_id,
                 int32_t gemport_id, const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action, int32_t priority_value,
                 uint64_t cookie, int32_t group_id, uint32_t tech_profile_id);
+Status FlowRemoveWrapper_(const openolt::Flow* request);
 Status FlowRemove_(uint32_t flow_id, const std::string flow_type);
 Status Disable_();
 Status Reenable_();

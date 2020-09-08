@@ -18,4 +18,22 @@
 #define __VENDOR_H__
 #define VENDOR_ID "generic"
 #define MODEL_ID  "generic"
+
+// DeviceInfo definitions
+
+#define ONU_ID_START 1
+#define ONU_ID_END 32
+#define MAX_ONUS_PER_PON 32
+
+#define ALLOC_ID_START 1024
+#define ALLOC_ID_END 16383
+
+#define GEM_PORT_ID_START 1024
+#define GEM_PORT_ID_END 65535
+
+#define FLOW_ID_START 1
+#define FLOW_ID_END 65535
+#define MAX_FLOW_ID 65535
+#define INVALID_FLOW_ID 0
+
 #endif
