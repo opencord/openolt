@@ -67,6 +67,7 @@ OPENOLT="openolt"
 ASFVOLT16="asfvolt16"
 ASGVOLT64="asgvolt64"
 ASF16_MODEL="ASXvOLT16"
+EDGECORE="edgecore"
 
 # vlan id for asfvolt16
 ASFVOLT16_VLAN_ID_ETH2=
@@ -490,6 +491,7 @@ set_dhclient_configuration() {
     if [ $? -ne 0 ]; then
         echo "interface \"${interface}.${vlan_id}\" {" >>$DHCLIENT_CONF
         echo "    send dhcp-client-identifier \"${serial_num}.${vlan_id}\";" >>$DHCLIENT_CONF
+        echo "    send vendor-class-identifier \"${EDGECORE}\";" >>$DHCLIENT_CONF
         echo "}" >>$DHCLIENT_CONF
     fi
 }
