@@ -10,11 +10,114 @@ index bbeab6b4..ca5a45cd 100644
 +- python3-yaml
 +- cron
 +- logrotate
+diff --git a/builds/any/rootfs/jessie/common/overlay/etc/mtab.yml b/builds/any/rootfs/jessie/common/overlay/etc/mtab.yml
+index e04f366..81ef69a 100644
+--- a/builds/any/rootfs/jessie/common/overlay/etc/mtab.yml
++++ b/builds/any/rootfs/jessie/common/overlay/etc/mtab.yml
+@@ -1,21 +1,30 @@
+ mounts:
+   ONL-IMAGES:
+-    mount: ro
++    mount: rw
+     dir: /mnt/onl/images
+     fsck: true
+ 
+-  ONL-DATA:
++  ONL-ACTIVE-DATA:
++    mount: rw
++    dir: /mnt/onl/active_data
++
++  ONL-STANDBY-DATA:
+     mount: rw
+-    dir: /mnt/onl/data
++    dir: /mnt/onl/standby_data
+ 
+   ONL-CONFIG:
+-    mount: ro
++    mount: rw
+     dir: /mnt/onl/config
+     fsck: true
+ 
+-  ONL-BOOT:
+-    mount: ro
+-    dir: /mnt/onl/boot
++  ONL-ACTIVE-BOOT:
++    mount: rw
++    dir: /mnt/onl/active_boot
++    fsck: false
++
++  ONL-STANDBY-BOOT:
++    mount: rw
++    dir: /mnt/onl/standby_boot
+     fsck: false
+ 
+   # ESP (EFI system partition)
+diff --git a/builds/any/rootfs/wheezy/common/overlay/etc/mtab.yml b/builds/any/rootfs/wheezy/common/overlay/etc/mtab.yml
+index 598e4c6..744baf3 100644
+--- a/builds/any/rootfs/wheezy/common/overlay/etc/mtab.yml
++++ b/builds/any/rootfs/wheezy/common/overlay/etc/mtab.yml
+@@ -1,19 +1,28 @@
+ mounts:
+   ONL-IMAGES:
+-    mount: ro
++    mount: rw
+     dir: /mnt/onl/images
+     fsck: true
+ 
+-  ONL-DATA:
++  ONL-ACTIVE-DATA:
++    mount: rw
++    dir: /mnt/onl/active_data
++
++  ONL-STANDBY-DATA:
+     mount: rw
+-    dir: /mnt/onl/data
++    dir: /mnt/onl/standby_data
+ 
+   ONL-CONFIG:
+-    mount: ro
++    mount: rw
+     dir: /mnt/onl/config
+     fsck: true
+ 
+-  ONL-BOOT:
+-    mount: ro
+-    dir: /mnt/onl/boot
++  ONL-ACTIVE-BOOT:
++    mount: rw
++    dir: /mnt/onl/active_boot
++    fsck: false
++
++  ONL-STANDBY-BOOT:
++    mount: rw
++    dir: /mnt/onl/standby_boot
+     fsck: false
+diff --git a/packages/base/all/boot.d/src/53.install-debs b/packages/base/all/boot.d/src/53.install-debs
+index e31d382..cf72eb3 100755
+--- a/packages/base/all/boot.d/src/53.install-debs
++++ b/packages/base/all/boot.d/src/53.install-debs
+@@ -1,6 +1,15 @@
+ #!/bin/sh
+ ############################################################
+-PACKAGE_DIR=/mnt/onl/data/install-debs
++ROOTFS_PATH=
++CMD_LINE_FILE="/proc/cmdline"
++if [ -f ${CMD_LINE_FILE} ]; then
++   if grep -q "data-active" ${CMD_LINE_FILE}; then
++       ROOTFS_PATH="active_data"
++   else
++       ROOTFS_PATH="standby_data"
++   fi
++fi
++PACKAGE_DIR=/mnt/onl/${ROOTFS_PATH}/install-debs
+ PACKAGE_LIST="$PACKAGE_DIR/list"
+ 
+ if [ -e "$PACKAGE_LIST" ]; then
 diff --git a/packages/base/all/initrds/loader-initrd-files/src/bin/swiprep b/packages/base/all/initrds/loader-initrd-files/src/bin/swiprep
 index d5a72f8e..0b0583e1 100755
 --- a/packages/base/all/initrds/loader-initrd-files/src/bin/swiprep
 +++ b/packages/base/all/initrds/loader-initrd-files/src/bin/swiprep
-@@ -173,7 +173,46 @@ if test "$mode_install"; then
+@@ -173,7 +173,49 @@ if test "$mode_install"; then
      echo "*** invalid squashfs contents" 1>&2
      exit 1
    fi
@@ -35,6 +138,7 @@ index d5a72f8e..0b0583e1 100755
 +  echo "INFO: Copying init scripts to init.d"
 +  cp  "$workdir"/start_inband_oltservices.sh "$destdir"/etc/init.d/
 +  cp "$workdir"/inband.config "$destdir"/
++  cp "$workdir"/change_labels.sh "$destdir"/etc/init.d/
 +  cd -
  fi
 +cat > "$destdir"/etc/rc.local  <<- EOF
@@ -53,7 +157,9 @@ index d5a72f8e..0b0583e1 100755
 +
 +chmod 0777 /etc/init.d/start_inband_oltservices.sh
 +chmod 0777 /root/validate_onl_installation.sh
++chmod 0777 /etc/init.d/change_labels.sh
 +nohup sh /etc/init.d/start_inband_oltservices.sh >> /var/log/startup.log &
++sh /etc/init.d/change_labels.sh >> /var/log/olt_upgrage_changelabels.log
 +exit 0
 +
 +EOF
@@ -61,8 +167,650 @@ index d5a72f8e..0b0583e1 100755
  if test "$mode_overlay"; then
    # keep the squashfs file around
    mv $workdir/rootfs.sqsh /tmp/.rootfs
+diff --git a/packages/base/all/initrds/loader-initrd-files/src/bin/sysinit b/packages/base/all/initrds/loader-initrd-files/src/bin/sysinit
+index 6529c75..cc9892d 100755
+--- a/packages/base/all/initrds/loader-initrd-files/src/bin/sysinit
++++ b/packages/base/all/initrds/loader-initrd-files/src/bin/sysinit
+@@ -90,13 +90,14 @@ if [ ! -f /etc/onl/abort ]; then
+         cat /etc/issue
+     fi
+ 
+-    if [ -f /mnt/onl/boot/boot-config ]; then
++    if [ -f /mnt/onl/active_boot/boot-config ]; then
+         # Use local boot-config.
+-        cp /mnt/onl/boot/boot-config /etc/onl/boot-config
++        cp /mnt/onl/active_boot/boot-config /etc/onl/boot-config
+     elif [ -f /etc/onl/boot-config-default ]; then
+         # Use default boot-config.
+         cp /etc/onl/boot-config-default /etc/onl/boot-config
+-        cp /etc/onl/boot-config-default /mnt/onl/boot/boot-config
++        cp /etc/onl/boot-config-default /mnt/onl/active_boot/boot-config
++
+     fi
+ fi
+ 
+diff --git a/packages/base/all/initrds/loader-initrd-files/src/bootmodes/installed b/packages/base/all/initrds/loader-initrd-files/src/bootmodes/installed
+index dc0e887..b068acb 100755
+--- a/packages/base/all/initrds/loader-initrd-files/src/bootmodes/installed
++++ b/packages/base/all/initrds/loader-initrd-files/src/bootmodes/installed
+@@ -8,17 +8,44 @@
+ . /lib/msgs
+ . /etc/onl/BOOTPARAMS
+ 
+-# make sure /mnt/onl/data exists
+-if [ ! -d /mnt/onl/data ]; then
+-    msg_error "Missing /mnt/onl/data, disk boot cannot continue"
++ONL_ROOT="/mnt/onl"
++IMAGES_PATH="${ONL_ROOT}/images"
++ACTIVE_DATA="${ONL_ROOT}/active_data"
++STANDBY_DATA="${ONL_ROOT}/standby_data"
++UPGRADE_IMAGE_PATH="${IMAGES_PATH}/upgrade"
++FILE="${ONL_ROOT}/config/upgrade_config"
++
++# Default root file system path
++ROOTFS_PATH=${ACTIVE_DATA}
++DATA_NAME="active_data"
++# Default switch image file
++SWI_FILE=$(ls ${IMAGES_PATH}/*.swi)
++
++# Get the image based on the boot
++grep -q "data-active" /proc/cmdline
++if [ $? -ne 0 ]; then
++    ROOTFS_PATH=${STANDBY_DATA}
++    DATA_NAME="standby_data"
++    # for temporary reboot on standby mode
++    if [ -d ${UPGRADE_IMAGE_PATH} ]; then
++        SWI_FILE=$(ls ${UPGRADE_IMAGE_PATH}/*.swi)
++    else
++        echo "ERROR: No Swi found for upgrade"
++        exit 1
++    fi
++fi
++
++# make sure /mnt/onl/active_data exists
++if [ ! -d ${ROOTFS_PATH} ]; then
++    msg_error "Missing ${ROOTFS_PATH}, disk boot cannot continue"
+     exit 200
+ fi
+ 
+ # make sure it's mounted as per mtab.yml
+ d1=$(stat -f -c '%b' /mnt/onl)
+-d2=$(stat -f -c '%b' /mnt/onl/data)
++d2=$(stat -f -c '%d' ${ROOTFS_PATH})
+ if [ "$d1" -eq "$d2" ]; then
+-    msg_error "Unmounted /mnt/onl/data, disk boot cannot continue"
++    msg_error "Unmounted ${ROOTFS_PATH}, disk boot cannot continue"
+     exit 200
+ fi
+ 
+@@ -37,8 +64,8 @@ case "$SWI" in
+     ""|dir:*|nfs://*/)
+         msg_info "*** missing SWI file, will attempt to boot existing image"
+ 
+-        if [ ! -s /mnt/onl/data/etc/onl/SWI ]; then
+-            msg_error "Un-populated /mnt/onl/data, cannot continue"
++        if [ ! -s ${ROOTFS_PATH}/etc/onl/SWI ]; then
++            msg_error "Un-populated ${ROOTFS_PATH}, cannot continue"
+             exit 200
+         fi
+ 
+@@ -50,11 +77,11 @@ case "$SWI" in
+         TMPDIR=$swiget_workdir swipath=$(swiget $SWI)
+ 
+         # do some sort of test to see if it's populated
+-        if [ ! -s /mnt/onl/data/etc/onl/SWI ]; then
+-            msg_info "Un-populated /mnt/onl/data, will (re-)image"
++        if [ ! -s ${ROOTFS_PATH}/etc/onl/SWI ]; then
++            msg_info "Un-populated ${ROOTFS_PATH}, will (re-)image"
+             do_unpack=1
+         else
+-            msg_info "Found valid (current) image at /mnt/onl/data"
++            msg_info "Found valid (current) image at ${ROOTFS_PATH}"
+         fi
+         ;;
+ esac
+@@ -69,12 +96,13 @@ case "$SWI" in
+ esac
+ 
+ sed -i -e '/^SWI=/d' /etc/onl/BOOTPARAMS
+-echo "SWI=dir:data:/" >> /etc/onl/BOOTPARAMS
++echo "SWI=dir:$DATA_NAME:/" >> /etc/onl/BOOTPARAMS
+ 
+ if [ "$do_unpack" ]; then
+-    swiprep --install "$swipath" --swiref "$swistamp" /mnt/onl/data
++    swipath=$SWI_FILE
++    swiprep --install "$swipath" --swiref "$swistamp" "$ROOTFS_PATH"
+ fi
+-swiprep --record "$swipath" --swiref "$swistamp" /mnt/onl/data
++swiprep --record "$swipath" --swiref "$swistamp" "$ROOTFS_PATH"
+ 
+ trap - 0 1
+ do_cleanup
+diff --git a/packages/base/all/initrds/loader-initrd-files/src/etc/mtab.yml b/packages/base/all/initrds/loader-initrd-files/src/etc/mtab.yml
+index 051105c..c5f4c35 100644
+--- a/packages/base/all/initrds/loader-initrd-files/src/etc/mtab.yml
++++ b/packages/base/all/initrds/loader-initrd-files/src/etc/mtab.yml
+@@ -4,19 +4,29 @@ mounts:
+     dir: /mnt/onl/images
+     fsck: true
+ 
+-  ONL-DATA:
++  ONL-ACTIVE-DATA:
+     mount: rw
+-    dir: /mnt/onl/data
++    dir: /mnt/onl/active_data
+     fsck: true
+ 
+   ONL-CONFIG:
+-    mount: ro
++    mount: rw
+     dir: /mnt/onl/config
+     fsck: true
+ 
+-  ONL-BOOT:
++  ONL-ACTIVE-BOOT:
++    mount: rw
++    dir: /mnt/onl/active_boot
++    fsck: true
++
++  ONL-STANDBY-BOOT:
++    mount: rw
++    dir: /mnt/onl/standby_boot
++    fsck: true
++
++  ONL-STANDBY-DATA:
+     mount: rw
+-    dir: /mnt/onl/boot
++    dir: /mnt/onl/standby_data
+     fsck: true
+ 
+   # ESP (EFI system partition)
+diff --git a/packages/base/all/vendor-config-onl/src/bin/onlfit b/packages/base/all/vendor-config-onl/src/bin/onlfit
+index 2c4b21e..01de3a0 100755
+--- a/packages/base/all/vendor-config-onl/src/bin/onlfit
++++ b/packages/base/all/vendor-config-onl/src/bin/onlfit
+@@ -21,7 +21,7 @@ dir=`mktemp -d`
+ rc=
+ 
+ if (cd $dir && wget $1); then
+-    onlfs rw boot mv $dir/* /mnt/onl/boot/${PLATFORM}.itb
++    onlfs rw boot mv $dir/* /mnt/onl/active_boot/${PLATFORM}.itb
+     rc=0
+ else
+     echo "Download failed."
+diff --git a/packages/base/all/vendor-config-onl/src/bin/onlkernel b/packages/base/all/vendor-config-onl/src/bin/onlkernel
+index e77a6cc..a61046a 100755
+--- a/packages/base/all/vendor-config-onl/src/bin/onlkernel
++++ b/packages/base/all/vendor-config-onl/src/bin/onlkernel
+@@ -19,7 +19,7 @@ dir=`mktemp -d`
+ rc=
+ 
+ if (cd $dir && wget $1); then
+-    onlfs rw boot mv $dir/* /mnt/onl/boot
++    onlfs rw boot mv $dir/* /mnt/onl/active_boot
+     rc=0
+ else
+     echo "Download failed."
+diff --git a/packages/base/all/vendor-config-onl/src/boot.d/70.dhclient.conf b/packages/base/all/vendor-config-onl/src/boot.d/70.dhclient.conf
+index 052f28f..4af1bf2 100755
+--- a/packages/base/all/vendor-config-onl/src/boot.d/70.dhclient.conf
++++ b/packages/base/all/vendor-config-onl/src/boot.d/70.dhclient.conf
+@@ -7,12 +7,10 @@
+ MA1_MAC=${MA1_MAC:-$(cat /sys/class/net/ma1/address)}
+ DHCLIENT_CONF=${DHCLIENT_CONF:-/etc/dhcp/dhclient.conf}
+ 
+-echo "interface \"ma1\" {" >> $DHCLIENT_CONF
+-echo "    send dhcp-client-identifier 01:$MA1_MAC;" >> $DHCLIENT_CONF
+-echo "}" >> $DHCLIENT_CONF
+-
+-
+-
+-
+-
++grep -q "interface \"ma1\" {" $DHCLIENT_CONF
++if [ $? -ne 0 ];then
++    echo "interface \"ma1\" {" >> $DHCLIENT_CONF
++    echo "    send dhcp-client-identifier 01:$MA1_MAC;" >> $DHCLIENT_CONF
++    echo "}" >> $DHCLIENT_CONF
++fi
+ 
+diff --git a/packages/base/all/vendor-config-onl/src/etc/onl/sysconfig/00-defaults.yml b/packages/base/all/vendor-config-onl/src/etc/onl/sysconfig/00-defaults.yml
+index 432c6a9..098e014 100644
+--- a/packages/base/all/vendor-config-onl/src/etc/onl/sysconfig/00-defaults.yml
++++ b/packages/base/all/vendor-config-onl/src/etc/onl/sysconfig/00-defaults.yml
+@@ -7,6 +7,9 @@
+ ############################################################
+ installer:
+   menu_name: "\"Open Network Linux\""
++  menu_name_active: "\"ONL Active\""
++  menu_name_standby: "\"ONL Standby\""
++
+   os_name: Open Network Linux
+   grub:
+     - $PLATFORM.cpio.gz
+diff --git a/packages/base/all/vendor-config-onl/src/lib/platform-config-defaults-uboot.yml b/packages/base/all/vendor-config-onl/src/lib/platform-config-defaults-uboot.yml
+index 57e61fb..31d3de0 100644
+--- a/packages/base/all/vendor-config-onl/src/lib/platform-config-defaults-uboot.yml
++++ b/packages/base/all/vendor-config-onl/src/lib/platform-config-defaults-uboot.yml
+@@ -171,7 +171,7 @@ default:
+   # data --> rest of disk
+   # default format (as shown) is ext4
+   installer:
+-  - ONL-BOOT:
++  - ONL-ACTIVE-BOOT:
+       =: 128MiB
+       # NOTE that u-boot wants the boot partition ext2, not ext4
+       format: ext2
+@@ -181,9 +181,15 @@ default:
+       =: 128MiB
+       format: ext4
+   - ONL-IMAGES:
+-      =: 1GiB
++      =: 3GiB
+       format: ext4
+-  - ONL-DATA:
++  - ONL-ACTIVE-DATA:
++      =: 3GiB
++      format: ext4
++  - ONL-STANDBY-BOOT:
++      =: 128MiB
++      format: ext4
++  - ONL-STANDBY-DATA:
+       =: 100%
+       format: ext4
+ 
+diff --git a/packages/base/all/vendor-config-onl/src/lib/platform-config-defaults-x86-64.yml b/packages/base/all/vendor-config-onl/src/lib/platform-config-defaults-x86-64.yml
+index 544bc2f..900cbef 100644
+--- a/packages/base/all/vendor-config-onl/src/lib/platform-config-defaults-x86-64.yml
++++ b/packages/base/all/vendor-config-onl/src/lib/platform-config-defaults-x86-64.yml
+@@ -75,6 +75,9 @@ default:
+     device: ONIE-BOOT
+     # install to the device that contains the ONIE-BOOT partition
+     # (query using parted and/or blkid)
++  install_type:
++    type: install
++    device: None
+ 
+   # Default partitioning scheme
+   # boot, config --> 128MiB
+@@ -82,16 +85,22 @@ default:
+   # data --> rest of disk
+   # default format (as shown) is ext4
+   installer:
+-  - ONL-BOOT:
++  - ONL-ACTIVE-BOOT:
+       =: 128MiB
+       format: ext4
+   - ONL-CONFIG:
+       =: 128MiB
+       format: ext4
+   - ONL-IMAGES:
+-      =: 1GiB
++      =: 3GiB
+       format: ext4
+-  - ONL-DATA:
++  - ONL-ACTIVE-DATA:
++      =: 3GiB
++      format: ext4
++  - ONL-STANDBY-BOOT:
++      =: 128MiB
++      format: ext4
++  - ONL-STANDBY-DATA:
+       =: 100%
+       format: ext4
+ 
+diff --git a/packages/base/all/vendor-config-onl/src/python/onl/bootconfig/__init__.py b/packages/base/all/vendor-config-onl/src/python/onl/bootconfig/__init__.py
+index e85c9ca..2c047be 100755
+--- a/packages/base/all/vendor-config-onl/src/python/onl/bootconfig/__init__.py
++++ b/packages/base/all/vendor-config-onl/src/python/onl/bootconfig/__init__.py
+@@ -5,7 +5,7 @@ import sys
+ import netaddr
+ 
+ class OnlBootConfig(object):
+-    BOOT_CONFIG_DEFAULT='/mnt/onl/boot/boot-config'
++    BOOT_CONFIG_DEFAULT='/mnt/onl/active_boot/boot-config'
+ 
+     def __init__(self):
+         self.keys = {}
+@@ -26,7 +26,7 @@ class OnlBootConfig(object):
+             self._readf(self.BOOT_CONFIG_DEFAULT)
+         else:
+             from onl.mounts import OnlMountContextReadOnly
+-            with OnlMountContextReadOnly("ONL-BOOT", logger=None):
++            with OnlMountContextReadOnly("ONL-ACTIVE-BOOT", logger=None):
+                 self._readf(self.BOOT_CONFIG_DEFAULT)
+ 
+     def set(self, k, v):
+@@ -53,7 +53,8 @@ class OnlBootConfig(object):
+             return True
+         else:
+             from onl.mounts import OnlMountContextReadWrite
+-            with OnlMountContextReadWrite("ONL-BOOT", logger=None):
++            with OnlMountContextReadWrite("ONL-ACTIVE-BOOT", logger=None):
++
+                 if not os.path.exists(self.BOOT_CONFIG_DEFAULT) or force_overwrite:
+                     self._writef(self.BOOT_CONFIG_DEFAULT)
+                     return True
+diff --git a/packages/base/all/vendor-config-onl/src/python/onl/grub/__init__.py b/packages/base/all/vendor-config-onl/src/python/onl/grub/__init__.py
+index b23b948..7bbca82 100644
+--- a/packages/base/all/vendor-config-onl/src/python/onl/grub/__init__.py
++++ b/packages/base/all/vendor-config-onl/src/python/onl/grub/__init__.py
+@@ -34,7 +34,7 @@ def onie_fwpkg(arguments):
+         subprocess.check_call("%s/onie/tools/bin/onie-fwpkg %s" % (ob.directory, arguments), shell=True)
+ 
+ def boot_entry_set(index):
+-    with OnlMountContextReadWrite("ONL-BOOT", logger=None) as ob:
++    with OnlMountContextReadWrite("ONL-ACTIVE-BOOT", logger=None) as ob:
+         subprocess.check_call("/usr/sbin/grub-set-default --boot-directory=%s %d" % (ob.directory, index), shell=True)
+ 
+ def boot_onie():
+diff --git a/packages/base/all/vendor-config-onl/src/python/onl/install/BaseInstall.py b/packages/base/all/vendor-config-onl/src/python/onl/install/BaseInstall.py
+index 7416c20..0c72c9d 100755
+--- a/packages/base/all/vendor-config-onl/src/python/onl/install/BaseInstall.py
++++ b/packages/base/all/vendor-config-onl/src/python/onl/install/BaseInstall.py
+@@ -364,30 +364,30 @@ class Base:
+         return 0
+ 
+     def installBootConfig(self):
++        devices = ["ONL-ACTIVE-BOOT", "ONL-STANDBY-BOOT"]
+ 
+-        try:
+-            dev = self.blkidParts['ONL-BOOT']
+-        except IndexError as ex:
+-            self.log.warn("cannot find ONL-BOOT partition (maybe raw?) : %s", str(ex))
+-            return 1
+-
+-        self.log.info("Installing boot-config to %s", dev.device)
++        for device in devices:
++            try:
++                dev = self.blkidParts[device]
++            except IndexError as ex:
++                self.log.warn("cannot find ONL-BOOT partition (maybe raw?) : %s", str(ex))
++                return 1
+ 
+-        basename = 'boot-config'
+-        with MountContext(dev.device, log=self.log) as ctx:
+-            dst = os.path.join(ctx.dir, basename)
++            basename = 'boot-config'
++            with MountContext(dev.device, log=self.log) as ctx:
++                dst = os.path.join(ctx.dir, basename)
+ 
+-            if not self.installerCopy(basename, dst, True):
+-                return
++                if not self.installerCopy(basename, dst, True):
++                    return
+ 
+-            with open(dst) as fd:
+-                buf = fd.read()
++                with open(dst) as fd:
++                    buf = fd.read()
+ 
+-        ecf = buf.encode('base64', 'strict').strip()
+-        if self.im.grub and self.im.grubEnv is not None:
+-            setattr(self.im.grubEnv, 'boot_config_default', ecf)
+-        if self.im.uboot and self.im.ubootEnv is not None:
+-            setattr(self.im.ubootEnv, 'boot-config-default', ecf)
++            ecf = buf.encode('base64', 'strict').strip()
++            if self.im.grub and self.im.grubEnv is not None:
++                setattr(self.im.grubEnv, 'boot_config_default', ecf)
++            if self.im.uboot and self.im.ubootEnv is not None:
++                setattr(self.im.ubootEnv, 'boot-config-default', ecf)
+ 
+         return 0
+ 
+@@ -503,14 +503,14 @@ if [ "${saved_entry}" ] ; then
+ fi
+ 
+ menuentry %(boot_menu_entry)s {
+-  search --no-floppy --label --set=root ONL-BOOT
++  search --no-floppy --label --set=root %(boot_partition)s
+   # Always return to this entry by default.
+   set saved_entry="0"
+   save_env saved_entry
+   echo 'Loading %(boot_loading_name)s ...'
+   insmod gzio
+   insmod part_msdos
+-  linux /%(kernel)s %(args)s onl_platform=%(platform)s
++  linux /%(kernel)s %(args)s onl_platform=%(platform)s %(boot_type)s
+   initrd /%(platform)s.cpio.gz
+ }
+ 
+@@ -693,26 +693,26 @@ class GrubInstaller(SubprocessMixin, Base):
+                     initrd = i
+                     break
+ 
+-        dev = self.blkidParts['ONL-BOOT']
++        devices = ["ONL-ACTIVE-BOOT", "ONL-STANDBY-BOOT"]
++        for device in devices:
++            dev = self.blkidParts[device]
+ 
+-        self.log.info("Installing kernel to %s", dev.device)
++            self.log.info("Installing kernel to %s", dev.device)
+ 
+-        with MountContext(dev.device, log=self.log) as ctx:
+-            def _cp(b, dstname=None):
+-                if dstname is None:
+-                    dstname = b
+-                dst = os.path.join(ctx.dir, dstname)
+-                self.installerCopy(b, dst, optional=True)
+-            [_cp(e) for e in kernels]
+-            _cp(initrd, "%s.cpio.gz" % self.im.installerConf.installer_platform)
++            with MountContext(dev.device, log=self.log) as ctx:
++                def _cp(b, dstname=None):
++                    if dstname is None:
++                        dstname = b
++                    dst = os.path.join(ctx.dir, dstname)
++                    self.installerCopy(b, dst, optional=True)
++                [_cp(e) for e in kernels]
++                _cp(initrd, "%s.cpio.gz" % self.im.installerConf.installer_platform)
+ 
+         return 0
+ 
+     def installGrubCfg(self):
+-
+-        dev = self.blkidParts['ONL-BOOT']
+-
+-        self.log.info("Installing grub.cfg to %s", dev.device)
++        device = "ONL-ACTIVE-BOOT"
++        dev = self.blkidParts[device]
+ 
+         ctx = {}
+ 
+@@ -723,6 +723,21 @@ class GrubInstaller(SubprocessMixin, Base):
+         ctx['serial'] = self.im.platformConf['grub']['serial']
+ 
+         ctx['boot_menu_entry'] = sysconfig.installer.menu_name
++        cmd = "mkdir /tmp/Test"
++        os.system(cmd)
++        cmd = "mount /dev/sda5 /tmp/Test"
++        os.system(cmd)
++        with open("upgrade_config", "w") as f:
++            f.write("root_path=data-active\n")
++            f.write("boot_path=ONL-ACTIVE-BOOT\n")
++
++        cmd = "mv upgrade_config /tmp/Test/upgrade_config"
++        os.system(cmd)
++        cmd = "umount /tmp/Test"
++        os.system(cmd)
++        ctx['boot_partition'] = "ONL-ACTIVE-BOOT"
++        ctx['boot_type'] = "data-active"
++
+         ctx['boot_loading_name'] = sysconfig.installer.os_name
+ 
+         if self.isUEFI:
+@@ -740,13 +755,12 @@ class GrubInstaller(SubprocessMixin, Base):
+             if not os.path.exists(d):
+                 self.makedirs(d)
+             dst = os.path.join(ctx.dir, 'grub/grub.cfg')
+-            with open(dst, "w") as fd:
++            with open(dst, "a") as fd:
+                 fd.write(cf)
+ 
+         return 0
+ 
+     def installGrub(self):
+-        self.log.info("Installing GRUB to %s", self.partedDevice.path)
+         self.im.grubEnv.install(self.partedDevice.path)
+         return 0
+ 
+@@ -773,11 +787,6 @@ class GrubInstaller(SubprocessMixin, Base):
+         else:
+             self.im.grubEnv.__dict__['espPart'] = None
+ 
+-        self.log.info("Installing to %s starting at partition %d",
+-                      self.device, self.minpart)
+-
+-        self.log.info("disk is %s", self.partedDevice.path)
+-
+         self.log.info("found %s partitions (bsz %s, lbsz %s)",
+                       self.partedDisk.type,
+                       self.partedDevice.sectorSize,
+@@ -803,7 +812,8 @@ class GrubInstaller(SubprocessMixin, Base):
+ 
+         # once we assign the ONL-BOOT partition,
+         # we can re-target the grub environment
+-        dev = self.blkidParts['ONL-BOOT']
++
++        dev = self.blkidParts['ONL-ACTIVE-BOOT']
+         self.im.grubEnv.__dict__['bootPart'] = dev.device
+         self.im.grubEnv.__dict__['bootDir'] = None
+ 
+@@ -1169,7 +1179,7 @@ class UbootInstaller(SubprocessMixin, UBIfsCreater):
+             self.installerDd(loaderBasename, self.rawLoaderDevice)
+             return 0
+ 
+-        dev = self.blkidParts['ONL-BOOT']
++        dev = self.blkidParts['ONL-ACTIVE-BOOT']
+         self.log.info("Installing ONL loader %s --> %s:%s...",
+                       loaderBasename, dev.device, loaderBasename)
+         with MountContext(dev.device, log=self.log) as ctx:
+diff --git a/packages/base/all/vendor-config-onl/src/python/onl/install/ShellApp.py b/packages/base/all/vendor-config-onl/src/python/onl/install/ShellApp.py
+index 4b363e7..fe268fe 100644
+--- a/packages/base/all/vendor-config-onl/src/python/onl/install/ShellApp.py
++++ b/packages/base/all/vendor-config-onl/src/python/onl/install/ShellApp.py
+@@ -331,37 +331,38 @@ class Loader(AppBase):
+     PROG = "loader-shell"
+ 
+     def runGrub(self):
++        devices = ["ONL-ACTIVE-BOOT", "ONL-STANDBY-BOOT"]
++        for boot_device in devices:
++            try:
++                dev = self.blkid[boot_device].device
++            except KeyError:
++                pass
++            if dev is None:
++                self.log.error("cannot find GRUB partition %s", dev)
++                return 1
++            initrd = self.pc['grub']['initrd']
++            if type(initrd) == dict: initrd = initrd['=']
+ 
+-        try:
+-            dev = self.blkid['ONL-BOOT'].device
+-        except KeyError:
+-            pass
+-        if dev is None:
+-            self.log.error("cannot find GRUB partition %s", dev)
+-            return 1
+-
+-        initrd = self.pc['grub']['initrd']
+-        if type(initrd) == dict: initrd = initrd['=']
++            parts = [p for p in self.pm.mounts if p.device == dev]
++            if parts:
++                grubDir = parts[0]
++                self.log.debug("found loader device %s mounted at %s",
++                               dev, grubDir)
++                p = os.path.join(grubDir, initrd)
++                if not os.path.exists(p):
++                    self.log.error("cannot find initrd %s", p)
++                    return 1
++                self.log.debug("found loader initrd at %s", p)
++                return self._runInitrdShell(p)
+ 
+-        parts = [p for p in self.pm.mounts if p.device == dev]
+-        if parts:
+-            grubDir = parts[0]
+-            self.log.debug("found loader device %s mounted at %s",
+-                           dev, grubDir)
+-            p = os.path.join(grubDir, initrd)
+-            if not os.path.exists(p):
+-                self.log.error("cannot find initrd %s", p)
+-                return 1
+-            self.log.debug("found loader initrd at %s", p)
+-            return self._runInitrdShell(p)
++            with MountContext(dev, log=self.log) as ctx:
++                p = os.path.join(ctx.dir, initrd)
++                if not os.path.exists(p):
++                    self.log.error("cannot find initrd %s:%s", dev, p)
++                    return 1
++                self.log.debug("found loader initrd at %s:%s", dev, p)
++                return self._runInitrdShell(p)
+ 
+-        with MountContext(dev, log=self.log) as ctx:
+-            p = os.path.join(ctx.dir, initrd)
+-            if not os.path.exists(p):
+-                self.log.error("cannot find initrd %s:%s", dev, p)
+-                return 1
+-            self.log.debug("found loader initrd at %s:%s", dev, p)
+-            return self._runInitrdShell(p)
+ 
+     def runUboot(self):
+ 
+@@ -373,7 +374,7 @@ class Loader(AppBase):
+         bootPartno = None
+         for idx, part in enumerate(self.pc['installer']):
+             label, pdata = list(part.items())[0]
+-            if label == 'ONL-BOOT':
++            if label == 'ONL-ACTIVE-BOOT':
+                 bootPart = pdata
+                 bootPartno = idx + 1
+                 break
+@@ -385,7 +386,7 @@ class Loader(AppBase):
+         if fmt == 'raw':
+             bootDevice = dev + str(bootPartno)
+         else:
+-            bootDevice = self.blkid['ONL-BOOT'].device
++            bootDevice = self.blkid['ONL-ACTIVE-BOOT'].device
+ 
+         # run from a raw partition
+         if fmt == 'raw':
+diff --git a/packages/base/all/vendor-config-onl/src/python/onl/upgrade/loader.py b/packages/base/all/vendor-config-onl/src/python/onl/upgrade/loader.py
+index bf3bbe5..d282f3f 100755
+--- a/packages/base/all/vendor-config-onl/src/python/onl/upgrade/loader.py
++++ b/packages/base/all/vendor-config-onl/src/python/onl/upgrade/loader.py
+@@ -77,7 +77,8 @@ class LoaderUpgrade_Fit(LoaderUpgradeBase):
+         if fit_image is None:
+             self.abort("The FIT upgrade image is missing. Upgrade cannot continue.")
+ 
+-        with OnlMountContextReadWrite("ONL-BOOT", self.logger) as d:
++        with OnlMountContextReadWrite("ONL-ACTIVE-BOOT", self.logger) as d:
++
+             self.copyfile(fit_image, os.path.join(d.directory, "%s.itb" % (self.platform.platform())))
+ 
+         onlPlatform = onl.platform.current.OnlPlatform()
+@@ -135,7 +136,7 @@ class LoaderUpgrade_x86_64(LoaderUpgradeBase, InstallUtils.SubprocessMixin):
+         X86_64_UPGRADE_DIR=sysconfig.upgrade.loader.package.dir
+         X86_64_UPGRADE_KERNEL_PATTERNS = [ "kernel-*" ]
+ 
+-        with OnlMountContextReadWrite("ONL-BOOT", self.logger) as d:
++        with OnlMountContextReadWrite("ONL-ACTIVE-BOOT", self.logger) as d:
+             for f in os.listdir(X86_64_UPGRADE_DIR):
+                 for pattern in X86_64_UPGRADE_KERNEL_PATTERNS:
+                     if fnmatch.fnmatch(f, pattern):
+diff --git a/packages/base/all/vendor-config-onl/src/sbin/uninstall b/packages/base/all/vendor-config-onl/src/sbin/uninstall
+index 79d0d77..93c7fd9 100755
+--- a/packages/base/all/vendor-config-onl/src/sbin/uninstall
++++ b/packages/base/all/vendor-config-onl/src/sbin/uninstall
+@@ -12,7 +12,7 @@ uninstall_x86_64()
+ 
+         # Force ONIE boot selection
+         onlfs mount boot --rw
+-        echo "default=1" >> /mnt/onl/boot/grub/grub.cfg
++        echo "default=1" >> /mnt/onl/active_boot/grub/grub.cfg
+ 
+     else
+         if [ "$1" = "factory" ]; then
 diff --git a/tools/switool.py b/tools/switool.py
-index 26eb2fb1..6c783c3d 100755
+index 26eb2fb..6c783c3 100755
 --- a/tools/switool.py
 +++ b/tools/switool.py
 @@ -79,6 +79,26 @@ if ops.create or ops.overwrite:
@@ -91,4 +839,4 @@ index 26eb2fb1..6c783c3d 100755
 +
      for f in ops.add_files:
          swi.add(f, arcname=f)
- 
+

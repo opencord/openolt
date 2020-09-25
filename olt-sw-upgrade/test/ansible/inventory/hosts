@@ -1,0 +1,2 @@
+[device-olt]
+192.168.50.150 ansible_ssh_user=root ansible_ssh_pass=onl ansible_sudo_pass=onl ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'

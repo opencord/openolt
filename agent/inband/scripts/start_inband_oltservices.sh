@@ -78,9 +78,6 @@ ASGVOLT64_VLAN_ID_ETH1=
 # File used to set/get argument to openolt service
 OPENOLT_ARG_INPUT_FILE=/etc/default/openolt
 
-# Wait time for BAL to get ready
-WAIT_TIME_BAL_READY=$(awk '/wait_time_bal_ready/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
-
 #------------------------------------------------------------------------------
 # Function Name: does_logger_exist
 # Description:
@@ -193,17 +190,17 @@ is_out_band_connection_enabled() {
         ob_cfg=$(awk '/enable_out_of_band_connection/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
         if [ -z ${ob_cfg} ]; then
             error_message "ERROR: missing configuration to enable out-of-band connection to OLT. Default to false"
-            return false
-        fi
-    else
-        if [ "${ob_cfg}" = "yes" ]; then
-            return true
+            echo "no"
+        elif [ "${ob_cfg}" = "yes" ]; then
+            echo "yes"
         elif [ "${ob_cfg}" = "no" ]; then
-            return false
+            echo "no"
         else
             error_message "ERROR: Invalid configuration to enable out-of-band connection -> ${ob_cfg}"
-            return false
+            echo "no"
         fi
+    else
+        echo "no"
     fi
 }
 
@@ -224,8 +221,8 @@ is_out_band_connection_enabled() {
 #------------------------------------------------------------------------------
 setup_nw_configuration() {
     # Dynamic vlan entry in /etc/network/interfaces file
-
-    if [ is_out_band_connection_enabled ]; then
+    local is_out_band=$(is_out_band_connection_enabled)
+    if [ "${is_out_band}" = "yes" ]; then
         # This interface is used for out-of-band connection for the OLT
         # This is not a mandatory requirement for in-band management of the OLT
         set_dhcp_ip_configuration ma1
@@ -689,6 +686,9 @@ if [ $? -eq 0 ]; then
         fi
     fi
     copy_config_files
+    # Wait time for BAL to get ready
+    WAIT_TIME_BAL_READY=$(awk '/wait_time_bal_ready/{print $0}' ${INBAND_CONFIG_FILE} | awk -F "=" '{print $2}')
+
     start_olt_services
 else
     error_message "logger does not exist"

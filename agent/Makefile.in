@@ -239,7 +239,9 @@ device/generic/%.o: device/generic/%.cc
 ##        openolt
 ##
 ##
+OLT_SW_UPGRADE_DIR = ../olt-sw-upgrade
 SRCS = $(wildcard src/*.cc) $(wildcard common/*.cc) $(wildcard device/$(OPENOLTDEVICE)/*.cc)
+ANSIBLE_DIR = /etc/ansible
 OBJS = $(SRCS:.cc=.o)
 DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
@@ -302,11 +304,21 @@ inband-onl:
 	cp $(TOP_DIR)/inband/scripts/* $(ONL_DIR)/OpenNetworkLinux/bal_packages
 	cp $(TOP_DIR)/inband/config/inband.config $(ONL_DIR)/OpenNetworkLinux/bal_packages
 	cp $(BUILD_DIR)/openolt_$(OPENOLTDEVICE)-$(VERSION)-$(LABEL_VCS_REF).deb $(ONL_DIR)/OpenNetworkLinux/bal_packages/openolt_$(OPENOLTDEVICE).deb
+	cp $(OLT_SW_UPGRADE_DIR)/change_labels.sh $(ONL_DIR)/OpenNetworkLinux/bal_packages
 
 	# Rebuild ONL packed with already built BAL+Openolt debian package
 	make -C $(ONL_DIR) onl-$(ONL_KERN_VER_MAJOR) INBAND=y
 	echo "inband=y" > $(ONL_DIR)/onl_build.mode
 	make inband-onl-cleanup
+# requires 'sudo' privileges
+
+ansible:
+	(ONL_INSTALLED_INSTALLER="$(shell find "$$(cd ./build/onl/OpenNetworkLinux/RELEASE/jessie/amd64; pwd)" -name "ONL-onl-*_AMD64_INSTALLED_INSTALLER")"; \
+	rm -rf $(ANSIBLE_DIR)/roles/upgrade/files; \
+	mkdir -p $(ANSIBLE_DIR)/roles/upgrade/files; \
+	cp ../olt-sw-upgrade/install_onl.sh $(ANSIBLE_DIR)/roles/upgrade/files; \
+	chmod +x $(ANSIBLE_DIR)/roles/upgrade/files/*.sh; \
+	ln -s $$ONL_INSTALLED_INSTALLER $(ANSIBLE_DIR)/roles/upgrade/files/ONL_INSTALLED_INSTALLER)
 
 src/%.o: %.cpp
 	$(CXX) -MMD -c $< -o $@
@@ -347,4 +359,4 @@ clean-src: protos-clean
 distclean: clean-src clean
 	@rm -rf $(BUILD_DIR)
 
-.PHONY: onl sdk bal protos inband-onl .FORCE
+.PHONY: onl sdk bal protos inband-onl ansible .FORCE
