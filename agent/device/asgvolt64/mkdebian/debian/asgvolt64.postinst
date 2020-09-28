@@ -17,7 +17,7 @@
 
 rm -rf /opt/bcm68620
 rm -rf /broadcom
-tar zxf /tmp/release_asgvolt64_V3.4.3.3.202002100101.tar.gz -C / 2>&1 > /dev/null
+tar zxf /tmp/release_asgvolt64_V3.4.7.5.202008030101.tar.gz -C / 2>&1 > /dev/null
 grep -q '\/opt\/bcm68620\/svk_init.sh' /etc/rc.local || sed -i -e '$i \/opt\/bcm68620\/svk_init.sh' /etc/rc.local
 rm -f /run/bcm68620
 mkdir -p /opt/openolt && cp /tmp/watchdog/openolt_dev_mgmt_daemon_process_watchdog /opt/openolt && cp /tmp/watchdog/watchdog.config /opt/openolt
