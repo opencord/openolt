@@ -113,6 +113,7 @@ get_vlan_ids() {
 monitor_openolt_and_dev_mgmt_daemon_process() {
     LOG "start monitor openolt and dev_mgmt_daemon processes"
 
+    get_vlan_ids
     if [ "${OLT_MODEL}" = ${ASF16_MODEL} ]; then
         INBAND_IF="eth2.${ASFVOLT16_VLAN_ID_ETH2}"
     else
@@ -123,7 +124,6 @@ monitor_openolt_and_dev_mgmt_daemon_process() {
     # elapsed since the shell started. We can reset to 0 and the timer
     # starts from here
     SECONDS=0
-    get_vlan_ids
     while true; do
 
         DEV_MGMT_DAEMON_PID=`pidof /broadcom/dev_mgmt_daemon`

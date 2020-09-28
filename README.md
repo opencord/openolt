@@ -55,13 +55,13 @@ navigate to `File_Station -> EdgecoreNAS`, and then the folder
 `/ASXvOLT16/OpenOLT_Agent/From_ONF_Distribution/` and pick the right version of
 `.deb` package required for your testing.
 
-`voltha-2.3/openolt_<OPENOLTDEVICE>-2.3.0-<Last Commit ID>.deb` is the latest version of package with support
-for BAL v3.4.3.3 .
+`voltha-2.5/openolt_<OPENOLTDEVICE>-2.5.0-<GIT Commit ID>.deb` is the latest version of package with support
+for BAL v3.4.7.5 .
 
 The pre-built debian packages have been tested on [Open Networking Linux
 (ONL)](http://opennetlinux.org/) version 4.14. The ONL Installer required for
-`voltha-2.3/openolt_<OPENOLTDEVICE>-2.3.0-<Last Commit ID>.deb` is also available at in the same path, i.e.,
-voltha-2.3/.
+`voltha-2.5/openolt_<OPENOLTDEVICE>-2.5.0-<GIT Commit ID>.deb` is also available at in the same path, i.e.,
+voltha-2.5/.
 
 ## Install OpenOLT
 
@@ -74,10 +74,10 @@ scp openolt.deb root@10.6.0.201:~/.
 Install the *openolt.deb* package using *dpkg*:
 
 ```shell
-dpkg -i openolt_<OPENOLTDEVICE>-2.3.0-<Last Commit ID>.deb
+dpkg -i openolt_<OPENOLTDEVICE>-2.5.0-<GIT Commit ID>.deb
 ```
 
-The ONL version required for BAL v3.4.3.3 is ONL `4.14.151-OpenNetworkLinux`. This
+The ONL version required for BAL v3.4.7.5 is ONL `4.14.151-OpenNetworkLinux`. This
 will be built as part of build procedure described `Build OpenOLT` section.
 
 ## Run OpenOLT as a Linux service
@@ -204,7 +204,7 @@ Post Installation:
 We have created custom td-agent configuration file to handle format of involved log files using right input plugins and elasticsearch output plugin.
 
 Copy the custom config file from [here](https://github.com/opencord/openolt/tree/master/logConf) in the `~` directory of the olt.
-Then into the `/etc` folder in order for the agent to pick it up. 
+Then into the `/etc` folder in order for the agent to pick it up.
 
 ```shell
 cp td-agent.conf /etc/td-agent.conf
@@ -235,7 +235,7 @@ To enable TLS encryption features with td-agent [look at this google doc](https:
 
 ### Supported BAL API versions
 
-Currently, OpenOLT supports Broadcom's BAL API, version *3.4.3.3*.
+Currently, OpenOLT supports Broadcom's BAL API, version *3.4.7.5*.
 
 ### Proprietary software requirements
 
@@ -247,9 +247,9 @@ The following proprietary source code is required to build the OpenOLT agent.
 
 The versions currently supported by the OpenOLT agent are:
 
-* `SW-BCM686OLT_3_4_3_3.tgz`
+* `SW-BCM686OLT_3_4_7_5.tgz`
 * `sdk-all-6.5.13.tar.gz`
-* `ACCTON_BAL_3.4.3.3-V202002100101.patch`
+* `ACCTON_BAL_3.4.7.5-V202008030101_rate_limiting_fixed.patch`. This is downloadable from the common CSP CS00003233745. Rename this file as `ACCTON_BAL_3.4.7.5-V202008030101.patch`
 
 > NOTE: the repository does not contain the above three source packages.  These
 > are needed to build the OpenOLT agent executable. Contact [Dave Baron at
@@ -263,22 +263,35 @@ CPU: Dual-core (4 Threads) up.
 
 Memory: 6GB
 
-Storage: 40GB of free space.
+Storage: 50GB of free space.
 
 **Software** :
 
-1. OpenOLT agent builds on *Ubuntu 16.04 LTS*.
+1. OpenOLT agent builds on *Debian GNU/Linux 8.11 (jessie)* or *Ubuntu 16.04 LTS*
 
 2. At least 4G of ram and 4G of swap -  compilation is memory intensive
 
 3. Essential tools for building packages
 
-   `sudo apt-get install build-essential ccache`
+   `apt-get install -y git pkg-config build-essential autoconf libgflags-dev clang libc++-dev unzip libssl-dev gawk debhelper debhelper dh-systemd init-system-helpers curl cmake ccache g++-4.9 wget ca-certificates lcov docker.io`
 
 4. Install cmake version 3.5.0 or above. Download cmake-3.5.0.tar.gz and untar
    it, then in the cmake-3.5.0 directory install by running:
 
    `./bootstrap && make && make install`
+
+5. Install gRPC version v1.27.1
+
+``` shell
+cd /tmp && git clone -b v1.27.1  https://github.com/grpc/grpc /tmp/grpc
+cd /tmp/grpc && git submodule update --init
+cd /tmp/grpc/third_party/protobuf && ./autogen.sh && ./configure
+make && make install && ldconfig
+cd /tmp/grpc && make && make install && ldconfig
+rm -rf /tmp/grpc
+```
+
+Note: Make sure you are using g++-4.9 as the default g++ compiler version on your build system. The grpc libraries and openolt agent code has to be compiled with this g++ version.
 
 ### Build procedure
 
@@ -292,7 +305,7 @@ Copy the Broadcom source and patch files to the openolt/agent/download directory
 
 ```shell
 cd <dir containing Broadcom source and patch files>
-cp ACCTON_BAL_3.4.3.3-V202002100101.patch SW-BCM686OLT_3_4_3_3.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
+cp ACCTON_BAL_3.4.7.5-V202008030101.patch SW-BCM686OLT_3_4_7_5.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
 ```
 
 Run the configure script to generate the appropriate Makefile scaffolding for
