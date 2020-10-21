@@ -49,13 +49,35 @@ openolt::PortStatistics* get_default_port_statistics() {
     port_stats->set_rx_mcast_packets(-1);
     port_stats->set_rx_bcast_packets(-1);
     port_stats->set_rx_error_packets(-1);
+    port_stats->set_rx_crc_errors(-1);
+    port_stats->set_rx_frames(-1);
+    port_stats->set_rx_frames_64(-1);
+    port_stats->set_rx_frames_65_127(-1);
+    port_stats->set_rx_frames_128_255(-1);
+    port_stats->set_rx_frames_256_511(-1);
+    port_stats->set_rx_frames_512_1023(-1);
+    port_stats->set_rx_frames_1024_1518(-1);
+    port_stats->set_rx_frames_1519_2047(-1);
+    port_stats->set_rx_frames_2048_4095(-1);
+    port_stats->set_rx_frames_4096_9216(-1);
+    port_stats->set_rx_frames_9217_16383(-1);
     port_stats->set_tx_bytes(-1);
     port_stats->set_tx_packets(-1);
     port_stats->set_tx_ucast_packets(-1);
     port_stats->set_tx_mcast_packets(-1);
     port_stats->set_tx_bcast_packets(-1);
     port_stats->set_tx_error_packets(-1);
-    port_stats->set_rx_crc_errors(-1);
+    port_stats->set_tx_frames(-1);
+    port_stats->set_tx_frames_64(-1);
+    port_stats->set_tx_frames_65_127(-1);
+    port_stats->set_tx_frames_128_255(-1);
+    port_stats->set_tx_frames_256_511(-1);
+    port_stats->set_tx_frames_512_1023(-1);
+    port_stats->set_tx_frames_1024_1518(-1);
+    port_stats->set_tx_frames_1519_2047(-1);
+    port_stats->set_tx_frames_2048_4095(-1);
+    port_stats->set_tx_frames_4096_9216(-1);
+    port_stats->set_tx_frames_9217_16383(-1);
     port_stats->set_bip_errors(-1);
 
     return port_stats;
@@ -81,8 +103,8 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
     bcmos_errno err;
     bcmolt_stat_flags clear_on_read = BCMOLT_STAT_FLAGS_NONE;
     bcmolt_nni_interface_stats nni_stats;
-    bcmolt_onu_itu_pon_stats pon_stats;
     bcmolt_pon_interface_itu_pon_stats itu_pon_stats;
+    bcmolt_internal_nni_enet_stats enet_stat;
 
     switch (intf_ref.intf_type) {
         case BCMOLT_INTERFACE_TYPE_NNI:
@@ -97,12 +119,33 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
             BCMOLT_MSG_FIELD_GET(&nni_stats, rx_mcast_packets);
             BCMOLT_MSG_FIELD_GET(&nni_stats, rx_bcast_packets);
             BCMOLT_MSG_FIELD_GET(&nni_stats, rx_error_packets);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_frames_64);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_frames_65_127);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_frames_128_255);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_frames_256_511);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_frames_512_1023);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_frames_1024_1518);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_frames_1519_2047);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_frames_2048_4095);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_frames_4096_9216);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, rx_frames_9217_16383);
+
             BCMOLT_MSG_FIELD_GET(&nni_stats, tx_bytes);
             BCMOLT_MSG_FIELD_GET(&nni_stats, tx_packets);
             BCMOLT_MSG_FIELD_GET(&nni_stats, tx_ucast_packets);
             BCMOLT_MSG_FIELD_GET(&nni_stats, tx_mcast_packets);
             BCMOLT_MSG_FIELD_GET(&nni_stats, tx_bcast_packets);
             BCMOLT_MSG_FIELD_GET(&nni_stats, tx_error_packets);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_frames_64);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_frames_65_127);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_frames_128_255);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_frames_256_511);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_frames_512_1023);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_frames_1024_1518);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_frames_1519_2047);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_frames_2048_4095);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_frames_4096_9216);
+            BCMOLT_MSG_FIELD_GET(&nni_stats, tx_frames_9217_16383);
 
             /* call API */
             err = bcmolt_stat_get((bcmolt_oltid)device_id, &nni_stats.hdr, clear_on_read);
@@ -149,20 +192,64 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
                 OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d, err = %s\n",
                     (int)intf_ref.intf_id, (int)intf_ref.intf_type, bcmos_strerror(err));
             }
+
             {
-                bcmolt_onu_key key;
+                bcmolt_internal_nni_key key = {};
                 key.pon_ni = (bcmolt_interface)intf_ref.intf_id;
-                BCMOLT_STAT_INIT(&pon_stats, onu, itu_pon_stats, key);
-                BCMOLT_MSG_FIELD_GET(&pon_stats, rx_bytes);
-                BCMOLT_MSG_FIELD_GET(&pon_stats, rx_packets);
-                BCMOLT_MSG_FIELD_GET(&pon_stats, tx_bytes);
+                BCMOLT_STAT_INIT(&enet_stat, internal_nni, enet_stats, key);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_bytes);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_frames);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_frames_64);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_frames_65_127);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_frames_128_255);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_frames_256_511);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_frames_512_1023);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_frames_1024_1518);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_frames_1519_2047);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_frames_2048_4095);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_frames_4096_9216);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, rx_frames_9217_16383);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_bytes);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_frames);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_frames_64);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_frames_65_127);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_frames_128_255);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_frames_256_511);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_frames_512_1023);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_frames_1024_1518);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_frames_1519_2047);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_frames_2048_4095);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_frames_4096_9216);
+                BCMOLT_FIELD_SET_PRESENT(&enet_stat.data, internal_nni_enet_stats_data, tx_frames_9217_16383);
 
                 /* call API */
-                err = bcmolt_stat_get((bcmolt_oltid)device_id, &pon_stats.hdr, clear_on_read);
+                err = bcmolt_stat_get((bcmolt_oltid)device_id, &enet_stat.hdr, clear_on_read);
                 if (err == BCM_ERR_OK) {
-                    port_stats->set_rx_bytes(pon_stats.data.rx_bytes);
-                    port_stats->set_rx_packets(pon_stats.data.rx_packets);
-                    port_stats->set_tx_bytes(pon_stats.data.tx_bytes);
+                    port_stats->set_rx_bytes(enet_stat.data.rx_bytes);
+                    port_stats->set_rx_packets(enet_stat.data.rx_frames);
+                    port_stats->set_rx_packets(enet_stat.data.rx_frames_64);
+                    port_stats->set_rx_packets(enet_stat.data.rx_frames_65_127);
+                    port_stats->set_rx_packets(enet_stat.data.rx_frames_128_255);
+                    port_stats->set_rx_packets(enet_stat.data.rx_frames_256_511);
+                    port_stats->set_rx_packets(enet_stat.data.rx_frames_512_1023);
+                    port_stats->set_rx_packets(enet_stat.data.rx_frames_1024_1518);
+                    port_stats->set_rx_packets(enet_stat.data.rx_frames_1519_2047);
+                    port_stats->set_rx_packets(enet_stat.data.rx_frames_2048_4095);
+                    port_stats->set_rx_packets(enet_stat.data.rx_frames_4096_9216);
+                    port_stats->set_rx_packets(enet_stat.data.rx_frames_9217_16383);
+
+                    port_stats->set_tx_bytes(enet_stat.data.tx_bytes);
+                    port_stats->set_rx_packets(enet_stat.data.tx_frames);
+                    port_stats->set_rx_packets(enet_stat.data.tx_frames_64);
+                    port_stats->set_rx_packets(enet_stat.data.tx_frames_65_127);
+                    port_stats->set_rx_packets(enet_stat.data.tx_frames_128_255);
+                    port_stats->set_rx_packets(enet_stat.data.tx_frames_256_511);
+                    port_stats->set_rx_packets(enet_stat.data.tx_frames_512_1023);
+                    port_stats->set_rx_packets(enet_stat.data.tx_frames_1024_1518);
+                    port_stats->set_rx_packets(enet_stat.data.tx_frames_1519_2047);
+                    port_stats->set_rx_packets(enet_stat.data.tx_frames_2048_4095);
+                    port_stats->set_rx_packets(enet_stat.data.tx_frames_4096_9216);
+                    port_stats->set_rx_packets(enet_stat.data.tx_frames_9217_16383);
                 } else {
                     OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d, err = %s\n",
                         (int)intf_ref.intf_id, (int)intf_ref.intf_type, bcmos_strerror(err));
