@@ -122,13 +122,6 @@ cd openolt/agent
 ./configure
 ```
 
-Run `make prereq` to install the package dependencies.
-This is usually a one-time thing, unless there is a change in the dependencies.
-
-```shell
-make OPENOLTDEVICE=asfvolt16 prereq
-```
-
 Run *make*. This can take a while to complete the first time, since it builds
 ONL and the Broadcom SDKs. Following runs will be much faster, as they only
 build the OpenOLT agent source.
