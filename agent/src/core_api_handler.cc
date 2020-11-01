@@ -342,6 +342,8 @@ Status Enable_(int argc, char *argv[]) {
         bcmos_fastlock_init(&voltha_flow_to_device_flow_lock, 0);
         bcmos_fastlock_init(&alloc_cfg_wait_lock, 0);
         bcmos_fastlock_init(&onu_deactivate_wait_lock, 0);
+        bcmos_fastlock_init(&acl_packet_trap_handler_lock, 0);
+
         OPENOLT_LOG(INFO, openolt_log_id, "Enable OLT - %s-%s\n", VENDOR_ID, MODEL_ID);
 
         //check BCM daemon is connected or not
@@ -1497,11 +1499,6 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
         return ::Status(grpc::StatusCode::ALREADY_EXISTS, "voltha-flow-already-installed");
     }
 
-    // Trap-to-host voltha flows need not be replicated as they are installed as ACLs, not BAL flows.
-    if (action.cmd().trap_to_host()) {
-        replicate_flow = false;
-    }
-
     // This is the case of symmetric_voltha_flow_id
     // If symmetric_voltha_flow_id is available and valid in the Flow message,
     // check if it is installed, and use the corresponding device_flow_id
@@ -1677,7 +1674,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
     BCMOLT_MSG_FIELD_SET(&cfg, cookie, cookie);
 
     if (action.cmd().trap_to_host()) {
-        Status resp = handle_acl_rule_install(onu_id, flow_id, flow_type, access_intf_id,
+        Status resp = handle_acl_rule_install(onu_id, flow_id, gemport_id, flow_type, access_intf_id,
                                               network_intf_id, classifier);
         return resp;
     }
@@ -2055,7 +2052,7 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
     OPENOLT_LOG(INFO, openolt_log_id, "flow remove received for flow_id=%u, flow_type=%s\n",
             flow_id, flow_type.c_str());
 
-    bcmos_fastlock_lock(&data_lock);
+    bcmos_fastlock_lock(&acl_packet_trap_handler_lock);
     flow_id_flow_direction fl_id_fl_dir(flow_id, flow_type);
     int32_t gemport_id = -1;
     int32_t intf_id = -1;
@@ -2068,17 +2065,41 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
         // cleanup acl only if it is a valid acl. If not valid acl, it may be datapath flow.
         if (acl_id >= 0) {
             Status resp = handle_acl_rule_cleanup(acl_id, intf_id, flow_type);
-            bcmos_fastlock_unlock(&data_lock, 0);
             if (resp.ok()) {
                 OPENOLT_LOG(INFO, openolt_log_id, "acl removed ok for flow_id = %u with acl_id = %d\n", flow_id, acl_id);
                 flow_to_acl_map.erase(fl_id_fl_dir);
+
+                // When flow is being removed, extract the value corresponding to flow_id from trap_to_host_pkt_info_with_vlan_for_flow_id if it exists
+                if (trap_to_host_pkt_info_with_vlan_for_flow_id.count(flow_id) > 0) {
+                    trap_to_host_pkt_info_with_vlan pkt_info_with_vlan = trap_to_host_pkt_info_with_vlan_for_flow_id[flow_id];
+                    // Formulate the trap_to_host_pkt_info tuple key
+                    trap_to_host_pkt_info pkt_info(std::get<0>(pkt_info_with_vlan),
+                                                   std::get<1>(pkt_info_with_vlan),
+                                                   std::get<2>(pkt_info_with_vlan),
+                                                   std::get<3>(pkt_info_with_vlan));
+                    // Extract the value corresponding to trap_to_host_pkt_info key from trap_to_host_vlan_ids_for_trap_to_host_pkt_info
+                    // The value is a list of vlan_ids for the given trap_to_host_pkt_info key
+                    // Remove the vlan_id from the list that corresponded to the flow being removed.
+                    if (trap_to_host_vlan_ids_for_trap_to_host_pkt_info.count(pkt_info) > 0) {
+                        trap_to_host_vlan_ids_for_trap_to_host_pkt_info[pkt_info].remove(std::get<4>(pkt_info_with_vlan));
+                    } else {
+                        OPENOLT_LOG(ERROR, openolt_log_id, "trap-to-host with intf_type = %d, intf_id = %d, pkt_type = %d gemport_id = %d not found in trap_to_host_vlan_ids_for_trap_to_host_pkt_info map",
+                                    std::get<0>(pkt_info_with_vlan), std::get<1>(pkt_info_with_vlan), std::get<2>(pkt_info_with_vlan), std::get<3>(pkt_info_with_vlan));
+                    }
+
+                } else {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "flow id = %u not found in trap_to_host_pkt_info_with_vlan_for_flow_id map", flow_id);
+                }
             } else {
                 OPENOLT_LOG(ERROR, openolt_log_id, "acl remove error for flow_id = %u with acl_id = %d\n", flow_id, acl_id);
             }
+            bcmos_fastlock_unlock(&acl_packet_trap_handler_lock, 0);
             return resp;
         }
     }
+    bcmos_fastlock_unlock(&acl_packet_trap_handler_lock, 0);
 
+    bcmos_fastlock_lock(&data_lock);
     uint32_t port_no = flowid_to_port[key.flow_id];
     if (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM) {
         flowid_to_gemport.erase(key.flow_id);

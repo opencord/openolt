@@ -81,9 +81,13 @@ LIBGRPC_PATH=$(shell pkg-config --libs-only-L grpc | sed s/-L// | sed s/\ //g)
 LIBZ_PATH=$(shell pkg-config --libs-only-L zlib | sed s/-L// | sed s/\ //g)
 LIBPROTOBUF_PATH=$(shell PKG_CONFIG_ALLOW_SYSTEM_LIBS=true pkg-config --libs-only-L protobuf | sed s/-L// | sed s/\ //g)
 
+PCAPPLUSPLUS_INCLUDE_PATH=-I/usr/local/include/pcapplusplus/
+PCAPPLUSPLUS_LIB_PATH=-lPcap++ -lPacket++ -lCommon++
+
 CXX = @CXX@-4.9
 CXXFLAGS += @CXXFLAGS@
 CXXFLAGS += $(shell pkg-config --cflags-only-I grpc++)
+CXXFLAGS += $(PCAPPLUSPLUS_INCLUDE_PATH)
 CPPFLAGS += @CPPFLAGS@
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
 
@@ -247,7 +251,7 @@ DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
 all: $(BUILD_DIR)/openolt
 $(BUILD_DIR)/openolt: sdk protos $(OBJS)
-	$(CXX) $(LDFLAGS) -L$(BALLIBDIR) $(OBJS) $(OPENOLT_API_LIB) $(LIBPROTOBUF_PATH)/libprotobuf.a -o $@ -l$(BALLIBNAME) $(shell pkg-config --libs protobuf grpc++ grpc)
+	$(CXX) $(LDFLAGS) -L$(BALLIBDIR) $(OBJS) $(OPENOLT_API_LIB) $(LIBPROTOBUF_PATH)/libprotobuf.a -o $@ -l$(BALLIBNAME) $(shell pkg-config --libs protobuf grpc++ grpc) $(PCAPPLUSPLUS_LIB_PATH)
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_reference/host_api/strip/libbal_host_api.so $(BUILD_DIR)/.
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_driver/dev_mgmt_daemon/dev_mgmt_daemon $(BUILD_DIR)/.

@@ -98,7 +98,7 @@ Status update_acl_interface(int32_t intf_id, bcmolt_interface_type intf_type, ui
 Status install_acl(const acl_classifier_key acl_key);
 Status remove_acl(int acl_id);
 void formulate_acl_classifier_key(acl_classifier_key *key, const ::openolt::Classifier& classifier);
-Status handle_acl_rule_install(int32_t onu_id, uint64_t flow_id,
+Status handle_acl_rule_install(int32_t onu_id, uint64_t flow_id, int32_t gemport_id,
                                const std::string flow_type, int32_t access_intf_id,
                                int32_t network_intf_id,
                                const ::openolt::Classifier& classifier);
@@ -114,4 +114,6 @@ void remove_voltha_flow_from_cache(uint64_t voltha_flow_id);
 bool is_voltha_flow_installed(uint64_t voltha_flow_id );
 const device_flow* get_device_flow(uint64_t voltha_flow_id);
 const device_flow_params* get_device_flow_params(uint64_t voltha_flow_id);
+trap_to_host_packet_type get_trap_to_host_packet_type(const ::openolt::Classifier& classifier);
+bool is_packet_allowed(bcmolt_access_control_receive_eth_packet_data *data, int32_t gemport_id);
 #endif // OPENOLT_CORE_UTILS_H_

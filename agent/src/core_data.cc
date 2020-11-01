@@ -142,8 +142,8 @@ std::map<acl_classifier_key, uint16_t> acl_classifier_to_acl_id_map;
 
 bool operator<(const acl_classifier_key& a1, const acl_classifier_key& a2)
 {
-    return ((a1.ether_type + 2*a1.ip_proto + 3*a1.src_port + 4*a1.dst_port) <
-            (a2.ether_type + 2*a2.ip_proto + 3*a2.src_port + 4*a2.dst_port));
+    return ((a1.ether_type + 2*a1.ip_proto + 3*a1.src_port + 4*a1.dst_port + 5*a1.o_vid) <
+            (a2.ether_type + 2*a2.ip_proto + 3*a2.src_port + 4*a2.dst_port + 5*a2.o_vid));
 }
 
 typedef std::tuple<uint64_t, std::string> flow_id_flow_direction;
@@ -163,6 +163,19 @@ std::map<uint16_t, uint16_t> acl_ref_cnt;
 // the ACL-ID.
 typedef std::tuple<uint16_t, uint8_t, std::string> acl_id_intf_id_intf_type;
 std::map<acl_id_intf_id_intf_type, uint16_t> intf_acl_registration_ref_cnt;
+
+// Data structures to work around ACL limits on BAL -- start --
+
+// This flag is set as soon as ACL count reaches MAX_ACL_WITH_VLAN_CLASSIFIER is hit.
+// It is not reset when ACL count comes below MAX_ACL_WITH_VLAN_CLASSIFIER again
+bool max_acls_with_vlan_classifiers_hit = false;
+// Map of flow_id -> trap_to_host_pkt_info_with_vlan
+std::map<uint64_t, trap_to_host_pkt_info_with_vlan> trap_to_host_pkt_info_with_vlan_for_flow_id;
+// Map of trap_to_host_pkt_info -> cvid_list
+std::map<trap_to_host_pkt_info, std::list<uint16_t> > trap_to_host_vlan_ids_for_trap_to_host_pkt_info;
+
+// Data structures to work around ACL limits on BAL -- end --
+
 
 std::bitset<MAX_ACL_ID> acl_id_bitset;
 bcmos_fastlock acl_id_bitset_lock;
@@ -185,6 +198,8 @@ bcmos_fastlock flow_id_bitset_lock;
 std::map<uint64_t, device_flow> voltha_flow_to_device_flow;
 bcmos_fastlock voltha_flow_to_device_flow_lock;
 
+// Lock to protect critical section around handling data associated with ACL trap packet handling
+bcmos_fastlock acl_packet_trap_handler_lock;
 
 // General purpose lock used to gaurd critical section during various API handling at the core_api_handler
 bcmos_fastlock data_lock;

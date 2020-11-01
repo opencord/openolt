@@ -22,6 +22,16 @@
 #include "Queue.h"
 #include "device.h"
 
+// pcapplusplus packet decoder include files
+#include "Packet.h"
+#include "EthLayer.h"
+#include "IPv4Layer.h"
+#include "UdpLayer.h"
+#include "VlanLayer.h"
+
+#include <time.h>
+#include <arpa/inet.h>
+
 extern "C"
 {
 #include <bcmolt_api.h>
@@ -46,6 +56,9 @@ extern "C"
 
 
 #define MAX_ACL_ID 33
+#define MAX_ACL_WITH_VLAN_CLASSIFIER 10
+
+#define ANY_VLAN 4095
 
 // **************************************//
 // Enums and structures used by the core //
@@ -126,6 +139,7 @@ typedef struct acl_classifier_key {
     int16_t ip_proto;
     int32_t src_port;
     int32_t dst_port;
+    int16_t o_vid;
     // Add more classifiers elements as needed here
     // For now, ACLs will be classified only based on
     // above elements.
@@ -248,6 +262,46 @@ extern std::map<uint16_t, uint16_t> acl_ref_cnt;
 typedef std::tuple<uint16_t, uint8_t, std::string> acl_id_intf_id_intf_type;
 extern std::map<acl_id_intf_id_intf_type, uint16_t> intf_acl_registration_ref_cnt;
 
+// Data structures to work around ACL limits on BAL -- start --
+
+enum trap_to_host_packet_type {
+    dhcpv4 = 0,
+    lldp = 1,
+    eap = 2,
+    igmpv4 = 3,
+    unsupported_trap_to_host_pkt_type = 0xff
+};
+
+// Constants useful during trap-to-host packet header field classification
+#define EAP_ETH_TYPE  0x888e
+#define LLDP_ETH_TYPE 0x88cc
+#define IPV4_ETH_TYPE 0x0800
+#define VLAN_ETH_TYPE 0x8100
+
+#define IGMPv4_PROTOCOL 2
+#define UDP_PROTOCOL    17
+
+#define DHCP_SERVER_SRC_PORT 67
+#define DHCP_CLIENT_SRC_PORT 68
+
+// This flag is set as soon as ACL count reaches MAX_ACL_WITH_VLAN_CLASSIFIER is hit.
+// It is not reset when ACL count comes below MAX_ACL_WITH_VLAN_CLASSIFIER again
+extern bool max_acls_with_vlan_classifiers_hit;
+
+// Tuple of -> {bcmolt_flow_interface_type, intf-id, trap_to_host_packet_type, gemport-id, c-vid}
+typedef std::tuple<int32_t, uint32_t, int32_t, int32_t, uint16_t> trap_to_host_pkt_info_with_vlan;
+
+// Tuple of -> {bcmolt_flow_interface_type, intf-id, trap_to_host_packet_type, gemport-id}
+typedef std::tuple<int32_t, uint32_t, int32_t, int32_t> trap_to_host_pkt_info;
+
+// Map of flow_id -> trap_to_host_pkt_info_with_vlan
+extern std::map<uint64_t, trap_to_host_pkt_info_with_vlan> trap_to_host_pkt_info_with_vlan_for_flow_id;
+
+// Map of trap_to_host_pkt_info -> cvid_list
+extern std::map<trap_to_host_pkt_info, std::list<uint16_t> > trap_to_host_vlan_ids_for_trap_to_host_pkt_info;
+
+// Data structures to work around ACL limits on BAL -- end --
+
 extern std::bitset<MAX_ACL_ID> acl_id_bitset;
 extern bcmos_fastlock acl_id_bitset_lock;
 
@@ -264,6 +318,9 @@ extern bcmos_fastlock flow_id_bitset_lock;
 
 extern std::map<uint64_t, device_flow> voltha_flow_to_device_flow;
 extern bcmos_fastlock voltha_flow_to_device_flow_lock;
+
+// Lock to protect critical section around handling data associated with ACL trap packet handling
+extern bcmos_fastlock acl_packet_trap_handler_lock;
 
 extern Queue<openolt::Indication> oltIndQ;
 

@@ -1015,8 +1015,8 @@ Status install_acl(const acl_classifier_key acl_key) {
     bcmolt_access_control_fwd_action_type action_type = BCMOLT_ACCESS_CONTROL_FWD_ACTION_TYPE_TRAP_TO_HOST;
     int acl_id = get_acl_id();
     if (acl_id < 0) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "exhausted acl_id for eth_type = %d, ip_proto = %d, src_port = %d, dst_port = %d\n",
-                acl_key.ether_type, acl_key.ip_proto, acl_key.src_port, acl_key.dst_port);
+        OPENOLT_LOG(ERROR, openolt_log_id, "exhausted acl_id for eth_type = %d, ip_proto = %d, src_port = %d, dst_port = %d o_vid = %d, max_acl_hit=%d\n",
+                acl_key.ether_type, acl_key.ip_proto, acl_key.src_port, acl_key.dst_port, acl_key.o_vid, max_acls_with_vlan_classifiers_hit);
         return bcm_to_grpc_err(BCM_ERR_INTERNAL, "exhausted acl id");
     }
 
@@ -1043,6 +1043,12 @@ Status install_acl(const acl_classifier_key acl_key) {
         BCMOLT_FIELD_SET(&c_val, classifier, src_port, acl_key.src_port);
     }
 
+    // Make sure that max_acls_with_vlan_classifiers_hit is not true to consider o_vid for ACL classification.
+    if (acl_key.o_vid > 0 && acl_key.o_vid != ANY_VLAN && !max_acls_with_vlan_classifiers_hit) {
+        OPENOLT_LOG(DEBUG, openolt_log_id, "Access_Control classify o_vid %d\n", acl_key.o_vid);
+        BCMOLT_FIELD_SET(&c_val, classifier, o_vid, acl_key.o_vid);
+    }
+
     BCMOLT_MSG_FIELD_SET(&cfg, classifier, c_val);
     BCMOLT_MSG_FIELD_SET(&cfg, priority, 10000);
     BCMOLT_MSG_FIELD_SET(&cfg, statistics_control, BCMOLT_CONTROL_STATE_ENABLE);
@@ -1061,6 +1067,11 @@ Status install_acl(const acl_classifier_key acl_key) {
 
     // Update the map that we have installed an acl for the given classfier.
     acl_classifier_to_acl_id_map[acl_key] = acl_id;
+    // If there was a valid vlan classifier in the ACL and the ACL ID hit the ceiling, set max_acls_with_vlan_classifiers_hit to true
+    // After max_acls_with_vlan_classifiers_hit is set to true no more ACLs can have vlan as an ACL classifier.
+    if (acl_key.o_vid > 0 && acl_key.o_vid != ANY_VLAN && acl_id >= MAX_ACL_WITH_VLAN_CLASSIFIER) {
+        max_acls_with_vlan_classifiers_hit = true;
+    }
     return Status::OK;
 }
 
@@ -1131,18 +1142,30 @@ void formulate_acl_classifier_key(acl_classifier_key *key, const ::openolt::Clas
             OPENOLT_LOG(DEBUG, openolt_log_id, "classify dst_port %d\n", classifier.dst_port());
             key->dst_port = classifier.dst_port();
         } else key->dst_port = -1;
+
+        // We should also check the max_acls_with_vlan_classifiers_hit flag is not false to consider the vlan for flow classifier key
+        if (classifier.o_vid() && !max_acls_with_vlan_classifiers_hit) {
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify o_vid %d\n", classifier.o_vid());
+            key->o_vid = classifier.o_vid();
+        } else key->o_vid = ANY_VLAN;
+
 }
 
-Status handle_acl_rule_install(int32_t onu_id, uint64_t flow_id,
+Status handle_acl_rule_install(int32_t onu_id, uint64_t flow_id, int32_t gemport_id,
                                const std::string flow_type, int32_t access_intf_id,
                                int32_t network_intf_id,
                                const ::openolt::Classifier& classifier) {
     int acl_id;
-    int32_t intf_id = flow_type.compare(upstream) == 0? access_intf_id: network_intf_id;
+    uint32_t intf_id = flow_type.compare(upstream) == 0? access_intf_id: network_intf_id;
     const std::string intf_type = flow_type.compare(upstream) == 0? "pon": "nni";
     bcmolt_interface_type olt_if_type = intf_type == "pon"? BCMOLT_INTERFACE_TYPE_PON: BCMOLT_INTERFACE_TYPE_NNI;
 
     Status resp;
+    trap_to_host_packet_type pkt_type = get_trap_to_host_packet_type(classifier);
+    if (pkt_type == unsupported_trap_to_host_pkt_type) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "unsupported pkt trap type");
+        return Status(grpc::StatusCode::UNIMPLEMENTED, "unsupported pkt trap type");
+    }
 
     // few map keys we are going to use later.
     flow_id_flow_direction fl_id_fl_dir(flow_id, flow_type);
@@ -1150,8 +1173,8 @@ Status handle_acl_rule_install(int32_t onu_id, uint64_t flow_id,
     acl_classifier_key acl_key;
     formulate_acl_classifier_key(&acl_key, classifier);
     const acl_classifier_key acl_key_const = {.ether_type=acl_key.ether_type, .ip_proto=acl_key.ip_proto,
-        .src_port=acl_key.src_port, .dst_port=acl_key.dst_port};
-    bcmos_fastlock_lock(&data_lock);
+        .src_port=acl_key.src_port, .dst_port=acl_key.dst_port, .o_vid=acl_key.o_vid};
+    bcmos_fastlock_lock(&acl_packet_trap_handler_lock);
 
     // Check if the acl is already installed
     if (acl_classifier_to_acl_id_map.count(acl_key_const) > 0) {
@@ -1160,14 +1183,14 @@ Status handle_acl_rule_install(int32_t onu_id, uint64_t flow_id,
 
 
         if (flow_to_acl_map.count(fl_id_fl_dir)) {
-            // coult happen if same trap flow is received again
+            // could happen if same trap flow is received again
             OPENOLT_LOG(INFO, openolt_log_id, "flow and related acl already handled, nothing more to do\n");
-            bcmos_fastlock_unlock(&data_lock, 0);
+            bcmos_fastlock_unlock(&acl_packet_trap_handler_lock, 0);
             return Status::OK;
         }
 
-        OPENOLT_LOG(INFO, openolt_log_id, "Acl for flow_id=%lu with eth_type = %d, ip_proto = %d, src_port = %d, dst_port = %d already installed with acl id = %u\n",
-                flow_id, acl_key.ether_type, acl_key.ip_proto, acl_key.src_port, acl_key.dst_port, acl_id);
+        OPENOLT_LOG(INFO, openolt_log_id, "Acl for flow_id=%lu with eth_type = %d, ip_proto = %d, src_port = %d, dst_port = %d o_vid = %d already installed with acl id = %u\n",
+                flow_id, acl_key.ether_type, acl_key.ip_proto, acl_key.src_port, acl_key.dst_port, acl_key.o_vid, acl_id);
 
         // The acl_ref_cnt is needed to know how many flows refer an ACL.
         // When the flow is removed, we decrement the reference count.
@@ -1183,9 +1206,9 @@ Status handle_acl_rule_install(int32_t onu_id, uint64_t flow_id,
     } else {
         resp = install_acl(acl_key_const);
         if (!resp.ok()) {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Acl for flow_id=%lu with eth_type = %d, ip_proto = %d, src_port = %d, dst_port = %d failed\n",
-                    flow_id, acl_key_const.ether_type, acl_key_const.ip_proto, acl_key_const.src_port, acl_key_const.dst_port);
-            bcmos_fastlock_unlock(&data_lock, 0);
+            OPENOLT_LOG(ERROR, openolt_log_id, "Acl for flow_id=%lu with eth_type = %d, ip_proto = %d, src_port = %d, dst_port = %d o_vid = %d failed\n",
+                    flow_id, acl_key_const.ether_type, acl_key_const.ip_proto, acl_key_const.src_port, acl_key_const.dst_port, acl_key_const.o_vid);
+            bcmos_fastlock_unlock(&acl_packet_trap_handler_lock, 0);
             return resp;
         }
 
@@ -1217,12 +1240,33 @@ Status handle_acl_rule_install(int32_t onu_id, uint64_t flow_id,
     acl_id_intf_id ac_id_if_id(acl_id, intf_id);
     flow_to_acl_map[fl_id_fl_dir] = ac_id_if_id;
 
-    bcmos_fastlock_unlock(&data_lock, 0);
+    // Populate the trap_to_host_pkt_info_with_vlan corresponding to the trap-to-host voltha flow_id key.
+    // When the trap-to-host voltha flow-id is being removed, this entry is cleared too from the map.
+    trap_to_host_pkt_info_with_vlan pkt_info_with_vlan((int32_t)olt_if_type, intf_id, (int32_t)pkt_type, gemport_id, (short unsigned int)classifier.o_vid());
+    trap_to_host_pkt_info_with_vlan_for_flow_id[flow_id] = pkt_info_with_vlan;
+    trap_to_host_pkt_info pkt_info((int32_t)olt_if_type, intf_id, (int32_t)pkt_type, gemport_id);
+    bool duplicate = false;
+    // Check if the vlan_id corresponding to the trap_to_host_pkt_info key is found. Set the 'duplicate' flag accordingly.
+    if (trap_to_host_vlan_ids_for_trap_to_host_pkt_info.count(pkt_info) > 0) {
+        auto& vlan_id_list = trap_to_host_vlan_ids_for_trap_to_host_pkt_info[pkt_info];
+        auto it = std::find(vlan_id_list.begin(), vlan_id_list.end(), acl_key.o_vid);
+        if (it != vlan_id_list.end()) {
+            OPENOLT_LOG(DEBUG, openolt_log_id, "cvid = %d exists already in list", acl_key.o_vid);
+            duplicate = true;
+        }
+    }
+    // If the vlan_id is not found corresponding to the trap_to_host_pkt_info key, update it.
+    // This will be used to validate the vlan_id in the trapped packet. If vlan_id in the
+    // trapped packet is not match with the stored value, packet is dropped.
+    if (!duplicate) {
+        trap_to_host_vlan_ids_for_trap_to_host_pkt_info[pkt_info].push_back(acl_key.o_vid);
+    }
+
+    bcmos_fastlock_unlock(&acl_packet_trap_handler_lock, 0);
 
     return Status::OK;
 }
 
-//Status handle_acl_rule_cleanup(int16_t acl_id, int32_t gemport_id, int32_t intf_id, const std::string flow_type) {
 Status handle_acl_rule_cleanup(int16_t acl_id, int32_t intf_id, const std::string flow_type) {
     const std::string intf_type= flow_type.compare(upstream) == 0 ? "pon": "nni";
     acl_id_intf_id_intf_type ac_id_inf_id_inf_type(acl_id, intf_id, intf_type);
@@ -1447,4 +1491,154 @@ const device_flow* get_device_flow(uint64_t voltha_flow_id) {
     bcmos_fastlock_unlock(&voltha_flow_to_device_flow_lock, 0);
 
     return NULL;
+}
+
+trap_to_host_packet_type get_trap_to_host_packet_type(const ::openolt::Classifier& classifier) {
+    trap_to_host_packet_type type = unsupported_trap_to_host_pkt_type;
+    if (classifier.eth_type() == EAP_ETH_TYPE) {
+        type = eap;
+    } else if (classifier.src_port() == DHCP_SERVER_SRC_PORT || classifier.src_port() == DHCP_CLIENT_SRC_PORT) {
+        type = dhcpv4;
+    } else if (classifier.eth_type() == LLDP_ETH_TYPE) {
+        type = lldp;
+    } else if (classifier.ip_proto() == IGMPv4_PROTOCOL) {
+        type = igmpv4;
+    }
+
+    return type;
+}
+
+// is_packet_allowed extracts the VLAN, packet-type, interface-type, interface-id from incoming trap-to-host packet.
+// Then it verifies if this packet can be allowed upstream to host. It does this by checking if the vlan in the incoming packet
+//exists in trap_to_host_vlan_ids_for_trap_to_host_pkt_info map for (interface-type, interface-id, packet-type) key.
+bool is_packet_allowed(bcmolt_access_control_receive_eth_packet_data *data, int32_t gemport_id) {
+    bcmolt_interface_type intf_type = data->interface_ref.intf_type;
+    uint32_t intf_id = data->interface_ref.intf_id;
+    trap_to_host_packet_type pkt_type = unsupported_trap_to_host_pkt_type;
+    uint16_t vlan_id = 0;
+    int ethType;
+
+    struct timeval dummy_tv = {0, 0};
+    bool free_memory_of_raw_packet = false; // This indicates the pcap library to not free the message buffer. It will freed by the caller.
+
+    pcpp::RawPacket rawPacket(data->buffer.arr, data->buffer.len, dummy_tv, free_memory_of_raw_packet, pcpp::LINKTYPE_ETHERNET);
+    pcpp::Packet parsedPacket(&rawPacket);
+    pcpp::EthLayer* ethernetLayer = parsedPacket.getLayerOfType<pcpp::EthLayer>();
+    if (ethernetLayer == NULL)
+    {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Something went wrong, couldn't find Ethernet layer\n");
+        return false;
+    }
+
+    // Getting Vlan layer
+    pcpp::VlanLayer* vlanLayer = parsedPacket.getLayerOfType<pcpp::VlanLayer>();
+    if (vlanLayer == NULL)
+    {
+        // Allow Untagged LLDP Ether type packet to trap from NNI
+        if (ntohs(ethernetLayer->getEthHeader()->etherType) == LLDP_ETH_TYPE && intf_type == BCMOLT_INTERFACE_TYPE_NNI) {
+           return true;
+        } else {
+            OPENOLT_LOG(WARNING, openolt_log_id, "untagged packets other than lldp packets are dropped. ethertype=%d, intftype=%d, intf_id=%d\n",
+                        ntohs(ethernetLayer->getEthHeader()->etherType), intf_type, intf_id);
+            return false;
+        }
+    } else {
+        ethType = ntohs(vlanLayer->getVlanHeader()->etherType);
+        if (ethType == EAP_ETH_TYPE) { // single tagged packet with EAPoL payload
+            vlan_id = vlanLayer->getVlanID();
+            pkt_type = eap;
+        } else if (ethType == IPV4_ETH_TYPE) { // single tagged packet with IPv4 payload
+            vlan_id = vlanLayer->getVlanID();
+            vlanLayer->parseNextLayer();
+            pcpp::IPv4Layer *ipv4Layer = (pcpp::IPv4Layer*)vlanLayer->getNextLayer();
+            if(ipv4Layer->getIPv4Header()->protocol == UDP_PROTOCOL) { // UDP payload
+                // Check the UDP Ports to see if it is a DHCPv4 packet
+                ipv4Layer->parseNextLayer();
+                pcpp::UdpLayer *udpLayer = (pcpp::UdpLayer*)ipv4Layer->getNextLayer();
+                if (ntohs(udpLayer->getUdpHeader()->portSrc) ==  DHCP_SERVER_SRC_PORT|| ntohs(udpLayer->getUdpHeader()->portSrc) == DHCP_CLIENT_SRC_PORT) {
+                    pkt_type = dhcpv4;
+                } else {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "unsupported udp source port = %d\n", ntohs(udpLayer->getUdpHeader()->portSrc));
+                    return false;
+                }
+            } else if (ipv4Layer->getIPv4Header()->protocol == IGMPv4_PROTOCOL) { // Igmpv4 payload
+                pkt_type = igmpv4;
+            } else {
+                OPENOLT_LOG(ERROR, openolt_log_id, "unsupported ip protocol = %d\n", ipv4Layer->getIPv4Header()->protocol);
+                return false;
+            }
+        } else if (ethType == VLAN_ETH_TYPE) { // double tagged packet
+
+            // Trap-to-host from NNI flows do not specify the VLANs, so no vlan validation is necessary.
+            if (intf_type == BCMOLT_INTERFACE_TYPE_NNI) {
+                return true;
+            }
+
+            // Here we parse the inner vlan payload and currently support only IPv4 packets
+
+            // Extract the vlan_id for trap-to-host packets arriving from the PON
+            // trap-to-host ACLs from the NNI do not care about VLAN.
+            if (intf_type == BCMOLT_INTERFACE_TYPE_PON) {
+                vlan_id = vlanLayer->getVlanID(); // This is the outer vlan id
+            }
+            vlanLayer->parseNextLayer();
+            vlanLayer = (pcpp::VlanLayer*)vlanLayer->getNextLayer(); // Here we extract the inner vlan layer
+            ethType = ntohs(vlanLayer->getVlanHeader()->etherType);
+            if (ethType == IPV4_ETH_TYPE) { // IPv4
+                uint16_t _inner_vlan_id = vlanLayer->getVlanID();
+                vlanLayer->parseNextLayer();
+                pcpp::IPv4Layer *ipv4Layer = (pcpp::IPv4Layer*)vlanLayer->getNextLayer(); // here we extract the inner vlan IPv4 payload
+                if(ipv4Layer->getIPv4Header()->protocol == UDP_PROTOCOL) { // UDP payload
+                    // Check the UDP Ports to see if it is a DHCPv4 packet
+                    ipv4Layer->parseNextLayer();
+                    pcpp::UdpLayer *udpLayer = (pcpp::UdpLayer*)ipv4Layer->getNextLayer();
+                    if (ntohs(udpLayer->getUdpHeader()->portSrc) == DHCP_SERVER_SRC_PORT || ntohs(udpLayer->getUdpHeader()->portSrc) == DHCP_CLIENT_SRC_PORT) {
+                        pkt_type = dhcpv4;
+                    } else {
+                        OPENOLT_LOG(ERROR, openolt_log_id, "unsupported udp source port = %d\n", ntohs(udpLayer->getUdpHeader()->portSrc));
+                        return false;
+                    }
+                } else if (ipv4Layer->getIPv4Header()->protocol == IGMPv4_PROTOCOL) { // Igmpv4 payload
+                    pkt_type = igmpv4;
+                } else {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "unsupported ip protocol = %d\n", ipv4Layer->getIPv4Header()->protocol)
+                    return false;
+                }
+            }
+        } else {
+            OPENOLT_LOG(ERROR, openolt_log_id, "unsupported ether type = 0x%x\n", ntohs((vlanLayer->getVlanHeader()->etherType)));
+            return false;
+        }
+    }
+
+#if 0 // Debug logs for test purpose only
+    std::cout << "vlan of received packet " << vlan_id << " intf_type " << intf_type << " intf_id " <<intf_id << " pkt_type " <<pkt_type << " gem_port_id" << gemport_id << "\n";
+    for(std::map<trap_to_host_pkt_info, std::list<uint16_t> >::const_iterator it = trap_to_host_vlan_ids_for_trap_to_host_pkt_info.begin();
+        it != trap_to_host_vlan_ids_for_trap_to_host_pkt_info.end(); ++it)
+    {
+        std::cout << "value entries" << " " << std::get<0>(it->first) << " "<< std::get<1>(it->first) << " "<< std::get<2>(it->first) << " "<< std::get<3>(it->first) << "\n\n";
+        std::cout << "vlans for the above key are => ";
+        for (std::list<uint16_t>::const_iterator _it=it->second.begin();
+             _it != it->second.end();
+             ++_it) {
+            std::cout << *_it << " ";
+        }
+        std::cout << "\n\n";
+    }
+#endif
+
+    trap_to_host_pkt_info pkt_info(intf_type, intf_id, pkt_type, gemport_id);
+    // Check for matching vlan only if the trap_to_host_pkt_info exists in the trap_to_host_vlan_ids_for_trap_to_host_pkt_info map
+    if (trap_to_host_vlan_ids_for_trap_to_host_pkt_info.count(pkt_info) > 0) {
+        // Iterate throught the vlan list to find matching vlan
+        auto& vlan_id_list = trap_to_host_vlan_ids_for_trap_to_host_pkt_info[pkt_info];
+        for (auto allowed_vlan_id : vlan_id_list) {
+            // Found exact matching vlan in the allowed list of vlans for the trap_to_host_pkt_info key or
+            // there is generic match ANY_VLAN in the list in the allowed vlan list.
+            if (allowed_vlan_id == vlan_id || allowed_vlan_id == ANY_VLAN) {
+                return true;
+            }
+        }
+    }
+    return false;
 }

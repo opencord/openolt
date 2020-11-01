@@ -32,11 +32,11 @@ OPENOLT_PROTO_VER ?= v4.0.2
 
 CXX = g++
 CXXFLAGS += -g -O2
-CXXFLAGS += `pkg-config --cflags-only-I grpc++`
+CXXFLAGS += `pkg-config --cflags-only-I grpc++` -I/usr/local/include/pcapplusplus/
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
 CXXFLAGS += -DTEST_MODE -DENABLE_LOG
-LDFLAGS += -lpthread -lm `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr
+LDFLAGS += -lpthread -lm `pkg-config --libs protobuf grpc++ grpc` -ldl -lgpr -lPcap++ -lPacket++ -lCommon++
 CXXFLAGSDEVICE = -I../device -I../device/$(OPENOLTDEVICE)
 
 export CXX CXXFLAGS OPENOLT_PROTO_VER

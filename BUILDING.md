@@ -42,7 +42,7 @@ Storage: 50GB of free space.
 
 Install the following packages
 
-   `apt-get install -y git pkg-config build-essential autoconf libgflags-dev clang libc++-dev unzip libssl-dev gawk debhelper debhelper dh-systemd init-system-helpers curl cmake ccache g++-4.9 wget ca-certificates lcov libgoogle-glog-dev`
+   `apt-get install -y git pkg-config build-essential autoconf libgflags-dev clang libc++-dev unzip libssl-dev gawk debhelper debhelper dh-systemd init-system-helpers curl cmake ccache g++-4.9 wget ca-certificates lcov libgoogle-glog-dev libpcap-dev`
 
 Follow the instructions [here](https://docs.docker.com/engine/install/debian/) to install `docker-ce`. It is not necessary to install `docker-ce-cli` and `containerd.io`.
 
@@ -81,7 +81,16 @@ cp `find . -name "*.a"` /usr/local/lib/
 cp `find . -name grpc_cpp_plugin` /usr/local/bin/
 ```
 
-6. Install latest version of Git (optional)
+6. Install PcapPlusPlus library
+
+```shell
+git clone -b v20.08 https://github.com/seladb/PcapPlusPlus.git
+./configure-linux.sh —default
+make all
+make install
+```
+
+7. Install latest version of Git (optional)
 
 By default the apt-get install an older version of git (2.1.4) on debian jessie 8.11.1. This older version does not support some of the latest git options. You may want to install a later version of git using procedure below.
 

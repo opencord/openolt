@@ -33,7 +33,7 @@ DOCKER                     ?= docker
 DOCKER_REGISTRY            ?=
 DOCKER_REPOSITORY          ?= voltha/
 DOCKER_EXTRA_ARGS          ?=
-DOCKER_TAG                 ?= 2.0.1
+DOCKER_TAG                 ?= 2.1.0
 IMAGENAME                  = ${DOCKER_REGISTRY}${DOCKER_REPOSITORY}openolt-test:${DOCKER_TAG}
 
 DOCKER_BUILD_ARGS ?= \

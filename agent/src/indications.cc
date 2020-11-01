@@ -490,18 +490,28 @@ static void OmciIndication(bcmolt_devid olt, bcmolt_msg *msg) {
 
 static void PacketIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
-    openolt::PacketIndication* pkt_ind = new openolt::PacketIndication;
 
     switch (msg->obj_type) {
         case BCMOLT_OBJ_ID_ACCESS_CONTROL:
             switch (msg->subgroup) {
                 case BCMOLT_ACCESS_CONTROL_AUTO_SUBGROUP_RECEIVE_ETH_PACKET:
                 {
+                    int32_t gemport_id;
                     bcmolt_access_control_receive_eth_packet *pkt =
                         (bcmolt_access_control_receive_eth_packet*)msg;
                     bcmolt_access_control_receive_eth_packet_data *pkt_data =
                         &((bcmolt_access_control_receive_eth_packet*)msg)->data;
 
+                    // Set the gemport_id to be passed to is_packet_allowed function
+                    gemport_id = pkt_data->svc_port_id == BCMOLT_SERVICE_PORT_ID_INVALID ? -1 : pkt_data->svc_port_id;
+
+                    // Allow the packet to host only if "is_packet_allowed" routine returns true, else drop the packet.
+                    if (! is_packet_allowed(pkt_data, gemport_id) ) {
+                        OPENOLT_LOG(WARNING, openolt_log_id, "packet not allowed to host\n");
+                        bcmolt_msg_free(msg);
+                        return;
+                    }
+                    openolt::PacketIndication* pkt_ind = new openolt::PacketIndication;
                     pkt_ind->set_intf_type(bcmolt_to_grpc_interface_rf__intf_type(
                                             (bcmolt_interface_type)pkt_data->interface_ref.intf_type));
                     pkt_ind->set_intf_id((bcmolt_interface_id)pkt_data->interface_ref.intf_id);
@@ -513,8 +523,8 @@ static void PacketIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                         OPENOLT_LOG(INFO, openolt_log_id, "packet indication, ingress intf_type %s, ingress intf_id %d, gem_port %d\n",
                             pkt_ind->intf_type().c_str(), pkt_ind->intf_id(), pkt_data->svc_port_id);
                     } else if (pkt_data->interface_ref.intf_type == BCMOLT_INTERFACE_TYPE_NNI ) {
-                        OPENOLT_LOG(INFO, openolt_log_id, "packet indication, ingress intf_type %s, ingress intf_id %d\n",
-                            pkt_ind->intf_type().c_str(), pkt_ind->intf_id());
+                        OPENOLT_LOG(INFO, openolt_log_id, "packet indication, ingress intf_type %s, ingress intf_id %d, gem_port %d \n",
+                            pkt_ind->intf_type().c_str(), pkt_ind->intf_id(), pkt_data->svc_port_id);
                     }
                 }
             }
