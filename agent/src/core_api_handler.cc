@@ -2728,11 +2728,6 @@ bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t
     bcmos_errno err;
 
     if (direction == downstream) {
-        // Gem ports are HSI/VoIP/VoD traffic is bidirectional. Multicast gem-port are downstream only. Since the common direction between
-        // bidirectional traffic and multicast gem-port is "downstream" direction and we need to remove the gemport for a given gemport id only once,
-        // we remove the gem port when downstream direction queue is getting removed.
-        remove_gem_port(access_intf_id, gemport_id);
-
         if (is_tm_sched_id_present(access_intf_id, onu_id, uni_id, direction, tech_profile_id)) {
             key.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, direction, tech_profile_id);
             key.id = queue_id_list[priority];
@@ -2741,6 +2736,15 @@ bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t
             return BCM_ERR_OK;
         }
     } else {
+        // Gemports are bi-directional (except in multicast case). We create the gem port when we create the
+        // upstream queue (see CreateQueue function) and it makes sense to delete them when remove the upstream queues.
+        // For multicast case we do not manage the install/remove of gem port in agent application. It is managed by BAL.
+        // Moreover it also makes sense to remove when upstream queue is getting removed because the upstream queue MUST exist always.
+        // It is possible that the downstream queues are not created for a subscriber (for ex: upstream EAPoL trap flow only exists
+        // but no other flow, and in this case only upstream scheduler and queues exist. We do not have a scenario where only downstream
+        // subscriber flows exist but no upstream )
+        remove_gem_port(access_intf_id, gemport_id);
+
         /* In the upstream we use pre-created queues on the NNI scheduler that are used by all subscribers.
         They should not be removed. So, lets return OK. */
         return BCM_ERR_OK;
