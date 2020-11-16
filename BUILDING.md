@@ -155,6 +155,29 @@ By default, the `OPENOLT_PROTO_VER` defaults to git tag *v4.0.2* of the
 [voltha-protos](https://gerrit.opencord.org/gitweb?p=voltha-protos.git;a=summary)
 repo.
 
+Optionally, for the NNI port default setting, the options could make the default setting of the NNI port speed.
+
+* 100G port change to 40Gbps speed
+```shell
+make OPENOLTDEVICE=asfvolt16 PORT_100G_SPEED=40000
+```
+* 100G port change to 10Gbps speed (use Break-out cable)
+```shell
+make OPENOLTDEVICE=asfvolt16 PORT_100G_SPEED=10000
+```
+* 25G port change to 20Gbps speed (Accton/Edgecore ASGvOLT64)
+```shell
+make OPENOLTDEVICE=asgvolt64 PORT_100G_SPEED=100000 PORT_25G_SPEED=20000
+```
+* 25G port change to 10Gbps speed (Accton/Edgecore ASGvOLT64)
+```shell
+make OPENOLTDEVICE=asgvolt64 PORT_100G_SPEED=100000 PORT_25G_SPEED=10000
+```
+* 25G port change to 1Gbps speed (Accton/Edgecore ASGvOLT64)
+```shell
+make OPENOLTDEVICE=asgvolt64 PORT_100G_SPEED=100000 PORT_25G_SPEED=1000
+```
+
 If the build process succeeds, libraries and executables will be created in the
 *openolt/agent/build* directory.
 

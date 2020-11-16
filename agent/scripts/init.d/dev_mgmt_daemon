@@ -14,9 +14,25 @@ NAME="dev_mgmt_daemon"
 PATH="/broadcom:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 APPDIR="/broadcom"
 APPBIN="dev_mgmt_daemon"
-APPARGS="-pcie -d"
 USER="root"
 GROUP="root"
+PORT_SPEED_FILE="$APPDIR/port_speed.soc"
+TOPOLOGY_CONFIG_FILE="$APPDIR/topology_config.ini"
+OLT_MODEL=`cat /sys/devices/virtual/dmi/id/board_name`
+if [ $OLT_MODEL = "ASXvOLT16" ]; then
+    Port_100G_SPEED=`cat $PORT_SPEED_FILE | awk -F "port_speed_for_100 " '{print $2}'`
+    [ $Port_100G_SPEED = "10000" ] && TOPOLOGY_CONFIG_FILE="$APPDIR/topology_config_16_ports.ini"
+    APPARGS="-pcie -d -port_100g_speed $Port_100G_SPEED -topology_config_file $TOPOLOGY_CONFIG_FILE"
+elif [ $OLT_MODEL = "ASGvOLT64" ]; then
+    Port_100G_SPEED=`cat $PORT_SPEED_FILE | awk -F "port_speed_for_100 " '{print $2}'`
+    [ $Port_100G_SPEED = "10000" ] && TOPOLOGY_CONFIG_FILE="$APPDIR/topology_config_16_ports.ini"
+    Port_25G_SPEED=`cat $PORT_SPEED_FILE | awk -F "port_speed_for_25 " '{print $2}'`
+    APPARGS="-pcie -d -port_100g_speed $Port_100G_SPEED -pcie -port_25g_speed $Port_25G_SPEED -topology_config_file $TOPOLOGY_CONFIG_FILE"
+else
+    Port_100G_SPEED="100000"
+    Port_25G_SPEED="25000"
+    APPARGS="-pcie -d -port_100g_speed $Port_100G_SPEED -pcie -port_25g_speed $Port_25G_SPEED -topology_config_file $TOPOLOGY_CONFIG_FILE"
+fi
 
 # Include functions
 set -e

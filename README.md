@@ -123,6 +123,34 @@ cd /broadcom
 ./dev_mgmt_daemon -d -pcie
 ```
 
+Perform `dev_mgmt_daemon` and change NNI port speed:
+
+* 100G port change to 40Gbps speed
+```shell
+cd /broadcom
+./dev_mgmt_daemon -d -pcie -port_100g_speed 40000
+```
+* 100G port change to 10Gbps speed (use Break-out cable)
+```shell
+cd /broadcom
+./dev_mgmt_daemon -d -pcie -port_100g_speed 10000 topology_config_file ./topology_config_16_ports.ini
+```
+* 25G port change to 20Gbps speed (Accton/Edgecore ASGvOLT64)
+```shell
+cd /broadcom
+./dev_mgmt_daemon -d -pcie -port_25g_speed 20000
+```
+* 25G port change to 10Gbps speed (Accton/Edgecore ASGvOLT64)
+```shell
+cd /broadcom
+./dev_mgmt_daemon -d -pcie -port_25g_speed 10000
+```
+* 25G port change to 1Gbps speed (Accton/Edgecore ASGvOLT64)
+```shell
+cd /broadcom
+./dev_mgmt_daemon -d -pcie -port_25g_speed 1000
+```
+
 The `dev_mgmt_daemon` executable presents the CLI for Broadcom's BAL when run
 in the foreground which is useful for debugging.
 

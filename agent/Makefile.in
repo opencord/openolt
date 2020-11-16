@@ -48,7 +48,10 @@ OPENOLT_PROTO_VER ?= v4.0.3
 INBAND = "n"
 VLAN_ID = 4093
 
-#
+# NNI ports speed setting
+PORT_100G_SPEED ?= 100000
+PORT_25G_SPEED ?= 25000
+
 # Build directory
 BUILD_DIR = build
 
@@ -176,6 +179,7 @@ BAL_INC = -I$(BAL_DIR)/host_driver/bal/bal_include \
           -I$(BAL_API_DIR)/include/object_model
 CXXFLAGS += $(BAL_INC) -I $(BAL_DIR)/lib/cmdline
 CXXFLAGS += -DBCMOS_MSG_QUEUE_DOMAIN_SOCKET -DBCMOS_MSG_QUEUE_UDP_SOCKET -DBCMOS_MEM_CHECK -DBCMOS_SYS_UNITTEST -DENABLE_LOG -DENABLE_CLI
+PORT_SPEED_FILE = $(BAL_DIR)/switch_sdk/$(SDK_VER)/rc/$(OPENOLTDEVICE)/board_files/broadcom/port_speed.soc
 
 sdk: onl bal-api-$(BAL_API_VER)
 ifeq ("$(wildcard $(BAL_DIR))","")
@@ -184,6 +188,12 @@ ifeq ("$(wildcard $(BAL_DIR))","")
 	cp download/$(SDK_ZIP) $(BCM_SDK)
 	chmod -R 744 $(BAL_DIR)
 	cat download/$(ACCTON_PATCH) | patch -p1 -d $(BAL_DIR)
+ifeq ("$(strip $(OPENOLTDEVICE))","asfvolt16")
+	echo "setenv port_speed_for_100 $(PORT_100G_SPEED)" > $(PORT_SPEED_FILE)
+else ifeq ("$(strip $(OPENOLTDEVICE))","asgvolt64")
+	echo "setenv port_speed_for_100 $(PORT_100G_SPEED)" > $(PORT_SPEED_FILE)
+	echo "setenv port_speed_for_25 $(PORT_25G_SPEED)" >> $(PORT_SPEED_FILE)
+endif
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) ONL_DIR=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux OPEN_SOURCE=y
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
 endif
