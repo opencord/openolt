@@ -55,13 +55,13 @@ navigate to `File_Station -> EdgecoreNAS`, and then the folder
 `/ASXvOLT16/OpenOLT_Agent/From_ONF_Distribution/` and pick the right version of
 `.deb` package required for your testing.
 
-`voltha-2.5/openolt_<OPENOLTDEVICE>-2.5.0-<GIT Commit ID>.deb` is the latest version of package with support
-for BAL v3.4.7.5 .
+`voltha-2.6/openolt_<OPENOLTDEVICE>-2.6.0-<GIT Commit ID>.deb` is the latest version of package with support
+for BAL v3.4.9.6 .
 
 The pre-built debian packages have been tested on [Open Networking Linux
 (ONL)](http://opennetlinux.org/) version 4.14. The ONL Installer required for
-`voltha-2.5/openolt_<OPENOLTDEVICE>-2.5.0-<GIT Commit ID>.deb` is also available at in the same path, i.e.,
-voltha-2.5/.
+`voltha-2.6/openolt_<OPENOLTDEVICE>-2.6.0-<GIT Commit ID>.deb` is also available at in the same path, i.e.,
+voltha-2.6/.
 
 ## Install OpenOLT
 
@@ -74,10 +74,10 @@ scp openolt.deb root@10.6.0.201:~/.
 Install the *openolt.deb* package using *dpkg*:
 
 ```shell
-dpkg -i openolt_<OPENOLTDEVICE>-2.5.0-<GIT Commit ID>.deb
+dpkg -i openolt_<OPENOLTDEVICE>-2.6.0-<GIT Commit ID>.deb
 ```
 
-The ONL version required for BAL v3.4.7.5 is ONL `4.14.151-OpenNetworkLinux`. This
+The ONL version required for BAL v3.4.9.6 is ONL `4.14.151-OpenNetworkLinux`. This
 will be built as part of build procedure described `Build OpenOLT` section.
 
 ## Run OpenOLT as a Linux service

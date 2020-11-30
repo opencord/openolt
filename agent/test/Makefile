@@ -41,7 +41,7 @@ CXXFLAGSDEVICE = -I../device -I../device/$(OPENOLTDEVICE)
 
 export CXX CXXFLAGS OPENOLT_PROTO_VER
 
-BAL_API_VER ?= bal-api-3.4.7.5
+BAL_API_VER ?= bal-api-3.4.9.6
 BAL_API_DIR=$(BAL_API_VER)
 BALLIBNAME=bcm_host_api_stubs
 BALLIBDIR=$(BAL_API_DIR)/stubs
