@@ -1,0 +1,8 @@
+Code-Review+1: Andrea Campanella <andrea@opennetworking.org>
+Code-Review+2: Girish Gowdra <girish@opennetworking.org>
+Verified+1: Jenkins Technical User <do-not-reply@opennetworking.org>
+Submitted-by: Girish Gowdra <girish@opennetworking.org>
+Submitted-at: Tue, 15 Dec 2020 17:10:10 +0000
+Reviewed-on: https://gerrit.opencord.org/c/openolt/+/22155
+Project: openolt
+Branch: refs/heads/voltha-2.6
