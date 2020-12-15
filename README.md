@@ -441,8 +441,8 @@ the below guideline.
 
 For more details about BW profile parameters, please refer below links.
 
-[MEF Whitepaper -
-Bandwidth-Profiles-for-Ethernet-Services](https://www.mef.net/Assets/White_Papers/Bandwidth-Profiles-for-Ethernet-Services.pdf)
+[MEF Wiki -
+Bandwidth-Profiles-for-Ethernet-Services](https://wiki.mef.net/display/CESG/Bandwidth+Profile)
 [Technology Profile Implementation
 Note](https://www.opennetworking.org/wp-content/uploads/2019/09/2pm-Shaun-Missett-Technology-Profile-and-Speed-Profile-Implementation.pdf)
 
