@@ -16,7 +16,7 @@ The versions currently supported by the OpenOLT agent are:
 
 * `SW-BCM686OLT_3_4_9_6.tgz`
 * `sdk-all-6.5.13.tar.gz`
-* `ACCTON_BAL_3.4.9.6-V202008310101.patch`. This is downloadable from the common CSP CS00003233745.
+* `ACCTON_BAL_3.4.9.6-V202012040101.patch`. This is downloadable from the common CSP CS00003233745.
 
 > NOTE: the repository does not contain the above three source packages.  These
 > are needed to build the OpenOLT agent executable. Contact [Dave Baron at
@@ -120,7 +120,7 @@ Copy the Broadcom source and patch files to the openolt/agent/download directory
 
 ```shell
 cd <dir containing Broadcom source and patch files>
-cp ACCTON_BAL_3.4.9.6-V202008310101.patch SW-BCM686OLT_3_4_9_6.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
+cp ACCTON_BAL_3.4.9.6-V202012040101.patch SW-BCM686OLT_3_4_9_6.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
 ```
 
 Run the configure script to generate the appropriate Makefile scaffolding for
