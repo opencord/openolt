@@ -83,6 +83,49 @@ openolt::PortStatistics* get_default_port_statistics() {
     return port_stats;
 }
 
+openolt::OnuStatistics get_default_onu_statistics() {
+    openolt::OnuStatistics onu_stats;
+
+    onu_stats.set_positive_drift(-1);
+    onu_stats.set_negative_drift(-1);
+    onu_stats.set_delimiter_miss_detection(-1);
+    onu_stats.set_bip_errors(-1);
+    onu_stats.set_bip_units(-1);
+    onu_stats.set_fec_corrected_symbols(-1);
+    onu_stats.set_fec_codewords_corrected(-1);
+    onu_stats.set_fec_codewords_uncorrectable(-1);
+    onu_stats.set_fec_codewords(-1);
+    onu_stats.set_fec_corrected_units(-1);
+    onu_stats.set_xgem_key_errors(-1);
+    onu_stats.set_xgem_loss(-1);
+    onu_stats.set_rx_ploams_error(-1);
+    onu_stats.set_rx_ploams_non_idle(-1);
+    onu_stats.set_rx_omci(-1);
+    onu_stats.set_rx_omci_packets_crc_error(-1);
+    onu_stats.set_rx_bytes(-1);
+    onu_stats.set_rx_packets(-1);
+    onu_stats.set_tx_bytes(-1);
+    onu_stats.set_tx_packets(-1);
+    onu_stats.set_ber_reported(-1);
+    onu_stats.set_lcdg_errors(-1);
+    onu_stats.set_rdi_errors(-1);
+
+    return onu_stats;
+}
+
+openolt::GemPortStatistics get_default_gemport_statistics() {
+    openolt::GemPortStatistics gemport_stats;
+
+    gemport_stats.set_intf_id(-1);
+    gemport_stats.set_gemport_id(-1);
+    gemport_stats.set_rx_packets(-1);
+    gemport_stats.set_rx_bytes(-1);
+    gemport_stats.set_tx_packets(-1);
+    gemport_stats.set_tx_bytes(-1);
+
+    return gemport_stats;
+}
+
 #if 0
 openolt::FlowStatistics* get_default_flow_statistics() {
     openolt::FlowStatistics* flow_stats = new openolt::FlowStatistics;
@@ -289,6 +332,129 @@ openolt::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
 #endif
     return port_stats;
 
+}
+
+bcmos_errno get_onu_statistics(bcmolt_interface_id intf_id, bcmolt_onu_id onu_id, openolt::OnuStatistics* onu_stats) {
+    bcmos_errno err = BCM_ERR_OK;
+
+#ifndef TEST_MODE
+    *onu_stats = get_default_onu_statistics();
+    bcmolt_stat_flags clear_on_read = BCMOLT_STAT_FLAGS_NONE;
+    bcmolt_onu_itu_pon_stats itu_onu_stats;
+
+    {
+        bcmolt_onu_key key;
+        key.pon_ni = intf_id;
+        key.onu_id = onu_id;
+        BCMOLT_STAT_INIT(&itu_onu_stats, onu, itu_pon_stats, key);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, positive_drift);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, negative_drift);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, delimiter_miss_detection);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, bip_errors);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, bip_units);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, fec_corrected_symbols);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, fec_codewords_corrected);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, fec_codewords_uncorrectable);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, fec_codewords);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, fec_corrected_units);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, xgem_key_errors);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, xgem_loss);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, rx_ploams_error);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, rx_ploams_non_idle);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, rx_omci);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, rx_omci_packets_crc_error);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, rx_bytes);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, rx_packets);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, tx_bytes);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, tx_packets);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, ber_reported);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, lcdg_errors);
+        BCMOLT_MSG_FIELD_GET(&itu_onu_stats, rdi_errors);
+
+        /* call API */
+        err = bcmolt_stat_get((bcmolt_oltid)device_id, &itu_onu_stats.hdr, clear_on_read);
+        if (err == BCM_ERR_OK) {
+            onu_stats->set_positive_drift(itu_onu_stats.data.positive_drift);
+            onu_stats->set_negative_drift(itu_onu_stats.data.negative_drift);
+            onu_stats->set_delimiter_miss_detection(itu_onu_stats.data.delimiter_miss_detection);
+            onu_stats->set_bip_errors(itu_onu_stats.data.bip_errors);
+            onu_stats->set_bip_units(itu_onu_stats.data.bip_units);
+            onu_stats->set_fec_corrected_symbols(itu_onu_stats.data.fec_corrected_symbols);
+            onu_stats->set_fec_codewords_corrected(itu_onu_stats.data.fec_codewords_corrected);
+            onu_stats->set_fec_codewords_uncorrectable(itu_onu_stats.data.fec_codewords_uncorrectable);
+            onu_stats->set_fec_codewords(itu_onu_stats.data.fec_codewords);
+            onu_stats->set_fec_corrected_units(itu_onu_stats.data.fec_corrected_units);
+            onu_stats->set_xgem_key_errors(itu_onu_stats.data.xgem_key_errors);
+            onu_stats->set_xgem_loss(itu_onu_stats.data.xgem_loss);
+            onu_stats->set_rx_ploams_error(itu_onu_stats.data.rx_ploams_error);
+            onu_stats->set_rx_ploams_non_idle(itu_onu_stats.data.rx_ploams_non_idle);
+            onu_stats->set_rx_omci(itu_onu_stats.data.rx_omci);
+            onu_stats->set_rx_omci_packets_crc_error(itu_onu_stats.data.rx_omci_packets_crc_error);
+            onu_stats->set_rx_bytes(itu_onu_stats.data.rx_bytes);
+            onu_stats->set_rx_packets(itu_onu_stats.data.rx_packets);
+            onu_stats->set_tx_bytes(itu_onu_stats.data.tx_bytes);
+            onu_stats->set_tx_packets(itu_onu_stats.data.tx_packets);
+            onu_stats->set_ber_reported(itu_onu_stats.data.ber_reported);
+            onu_stats->set_lcdg_errors(itu_onu_stats.data.lcdg_errors);
+            onu_stats->set_rdi_errors(itu_onu_stats.data.rdi_errors);
+        } else {
+            OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve ONU statistics, intf_id %d, onu_id %d, err no: %d - %s\n",
+                        (int)intf_id, (int)onu_id, err, bcmos_strerror(err));
+            return err;
+        }
+    }
+
+    onu_stats->set_intf_id(intf_id);
+    onu_stats->set_onu_id(onu_id);
+    time_t now;
+    time(&now);
+    onu_stats->set_timestamp((int)now);
+#endif
+
+    return err;
+}
+
+bcmos_errno get_gemport_statistics(bcmolt_interface_id intf_id, bcmolt_gem_port_id gemport_id, openolt::GemPortStatistics* gemport_stats) {
+    bcmos_errno err = BCM_ERR_OK;
+
+#ifndef TEST_MODE
+    *gemport_stats = get_default_gemport_statistics();
+    bcmolt_stat_flags clear_on_read = BCMOLT_STAT_FLAGS_NONE;
+    bcmolt_itupon_gem_stats gem_stats;
+
+    {
+        bcmolt_itupon_gem_key key;
+        key.pon_ni = intf_id;
+        key.gem_port_id = gemport_id;
+
+        BCMOLT_STAT_INIT(&gem_stats, itupon_gem, stats, key);
+        BCMOLT_MSG_FIELD_GET(&gem_stats, rx_packets);
+        BCMOLT_MSG_FIELD_GET(&gem_stats, rx_bytes);
+        BCMOLT_MSG_FIELD_GET(&gem_stats, tx_packets);
+        BCMOLT_MSG_FIELD_GET(&gem_stats, tx_bytes);
+
+        /* call API */
+        err = bcmolt_stat_get((bcmolt_oltid)device_id, &gem_stats.hdr, clear_on_read);
+        if (err == BCM_ERR_OK) {
+            gemport_stats->set_rx_packets(gem_stats.data.rx_packets);
+            gemport_stats->set_rx_bytes(gem_stats.data.rx_bytes);
+            gemport_stats->set_tx_packets(gem_stats.data.tx_packets);
+            gemport_stats->set_tx_bytes(gem_stats.data.tx_bytes);
+        } else {
+            OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve GEMPORT statistics, intf_id %d, gemport_id %d, err no: %d - %s\n",
+                        (int)intf_id, (int)gemport_id, err, bcmos_strerror(err));
+            return err;
+        }
+    }
+
+    gemport_stats->set_intf_id(intf_id);
+    gemport_stats->set_gemport_id(gemport_id);
+    time_t now;
+    time(&now);
+    gemport_stats->set_timestamp((int)now);
+#endif
+
+    return err;
 }
 
 #if 0

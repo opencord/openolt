@@ -28,6 +28,8 @@ void init_stats();
 void stop_collecting_statistics();
 openolt::PortStatistics* get_default_port_statistics();
 openolt::PortStatistics* collectPortStatistics(bcmolt_interface_id intf_id, bcmolt_interface_type intf_type);
+bcmos_errno get_onu_statistics(bcmolt_interface_id intf_id, bcmolt_onu_id onu_id, openolt::OnuStatistics* onu_stats);
+bcmos_errno get_gemport_statistics(bcmolt_interface_id intf_id, bcmolt_gem_port_id gemport_id, openolt::GemPortStatistics* gemport_stats);
 #if 0
 openolt::FlowStatistics* get_default_flow_statistics();
 openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_flow_type flow_type);

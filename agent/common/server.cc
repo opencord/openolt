@@ -326,6 +326,26 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->onu_id(),
             response);
     };
+
+    Status GetOnuStatistics(
+            ServerContext* context,
+            const openolt::Onu* request,
+            openolt::OnuStatistics* response) override {
+        return GetOnuStatistics_(
+            request->intf_id(),
+            request->onu_id(),
+            response);
+    }
+
+    Status GetGemPortStatistics(
+            ServerContext* context,
+            const openolt::OnuPacket* request,
+            openolt::GemPortStatistics* response) override {
+        return GetGemPortStatistics_(
+            request->intf_id(),
+            request->gemport_id(),
+            response);
+    }
 };
 
 void RunServer(int argc, char** argv) {

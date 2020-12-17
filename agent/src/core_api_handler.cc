@@ -3181,3 +3181,31 @@ Status GetLogicalOnuDistance_(uint32_t intf_id, uint32_t onu_id, ::openolt::OnuL
 
     return Status::OK;
 }
+
+Status GetOnuStatistics_(uint32_t intf_id, uint32_t onu_id, openolt::OnuStatistics* onu_stats) {
+    bcmos_errno err;
+
+    err = get_onu_statistics((bcmolt_interface_id)intf_id, (bcmolt_onu_id)onu_id, onu_stats);
+
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "retrieval of ONU statistics failed - PON ID = %u, ONU ID = %u, err = %d - %s", intf_id, onu_id, err, bcmos_strerror(err));
+        return grpc::Status(grpc::StatusCode::INTERNAL, "retrieval of ONU statistics failed");
+    }
+
+    OPENOLT_LOG(INFO, openolt_log_id, "retrieved ONU statistics for PON ID = %d, ONU ID = %d\n", (int)intf_id, (int)onu_id);
+    return Status::OK;
+}
+
+Status GetGemPortStatistics_(uint32_t intf_id, uint32_t gemport_id, openolt::GemPortStatistics* gemport_stats) {
+    bcmos_errno err;
+
+    err = get_gemport_statistics((bcmolt_interface_id)intf_id, (bcmolt_gem_port_id)gemport_id, gemport_stats);
+
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "retrieval of GEMPORT statistics failed - PON ID = %u, ONU ID = %u, err = %d - %s", intf_id, gemport_id, err, bcmos_strerror(err));
+        return grpc::Status(grpc::StatusCode::INTERNAL, "retrieval of GEMPORT statistics failed");
+    }
+
+    OPENOLT_LOG(INFO, openolt_log_id, "retrieved GEMPORT statistics for PON ID = %d, GEMPORT ID = %d\n", (int)intf_id, (int)gemport_id);
+    return Status::OK;
+}

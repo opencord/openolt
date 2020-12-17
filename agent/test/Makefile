@@ -21,7 +21,7 @@
 TOP_DIR=`pwd`
 OPENOLTDEVICE ?= asfvolt16
 
-OPENOLT_PROTO_VER ?= v4.0.3
+OPENOLT_PROTO_VER ?= v4.0.11
 
 ########################################################################
 ##
@@ -30,7 +30,7 @@ OPENOLT_PROTO_VER ?= v4.0.3
 ##
 ##
 
-CXX = g++
+CXX = g++-4.9
 CXXFLAGS += -g -O2
 CXXFLAGS += `pkg-config --cflags-only-I grpc++` -I/usr/local/include/pcapplusplus/
 CPPFLAGS += `pkg-config --cflags protobuf grpc`

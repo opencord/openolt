@@ -241,6 +241,8 @@ Status OnuItuPonAlarmSet_(const config::OnuItuPonAlarm* request);
 uint32_t GetPortNum_(uint32_t flow_id);
 Status GetLogicalOnuDistanceZero_(uint32_t intf_id, openolt::OnuLogicalDistance* response);
 Status GetLogicalOnuDistance_(uint32_t intf_id, uint32_t onu_id, openolt::OnuLogicalDistance* response);
+Status GetOnuStatistics_(uint32_t intf_id, uint32_t onu_id, openolt::OnuStatistics *onu_stats);
+Status GetGemPortStatistics_(uint32_t intf_id, uint32_t gemport_id, openolt::GemPortStatistics* gemport_stats);
 int get_status_bcm_cli_quit(void);
 uint16_t get_dev_id(void);
 Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state);
