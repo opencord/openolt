@@ -1,6 +1,6 @@
-asfvolt16 (3.4.9.6+edgecore-V202008310101) stable; urgency=high
+asfvolt16 (3.4.9.6+edgecore-V202012040101) stable; urgency=high
 
     * Based on code from SW-BCM686OLT_3_4_9_6.tgz.
-    * Merged the Accton's fixed to ACCTON_BAL_3.4.9.6-V202008310101.patch.
+    * Merged the Accton's fixed to ACCTON_BAL_3.4.9.6-V202012040101.patch.
 
  -- Jason Huang <jasonsc_huang@edge-core.com>  Mon, 30 NOV 2020 01:01:03 +0800
