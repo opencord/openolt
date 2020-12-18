@@ -1538,7 +1538,7 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                 gemport_id = dev_fl_symm_params[i].gemport_id;
                 cl.set_o_pbits(dev_fl_symm_params[i].pbit);
                 Status st = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id,
-                                    flow_type, alloc_id, network_intf_id, gemport_id, classifier,
+                                    flow_type, alloc_id, network_intf_id, gemport_id, cl,
                                     action, priority, cookie, group_id, tech_profile_id);
                 if (st.error_code() != grpc::StatusCode::OK && st.error_code() != grpc::StatusCode::ALREADY_EXISTS) {
                     OPENOLT_LOG(ERROR, openolt_log_id, "failed to install device flow=%u for voltha flow=%lu. Undoing any device flows installed.", flow_id, voltha_flow_id);
