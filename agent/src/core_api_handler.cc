@@ -1756,11 +1756,15 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
             BCMOLT_FIELD_SET(&c_val, classifier, ip_proto, classifier.ip_proto());
         }
 
-        /*
         if (classifier.dst_ip()) {
-            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, dst_ip, classifier.dst_ip());
+            bcmos_ipv4_address d_ip = {};
+            bcmos_ipv4_address_init(&d_ip);
+            d_ip.u32 = classifier.dst_ip();
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify dst_ip %04x\n", d_ip.u32);
+            BCMOLT_FIELD_SET(&c_val, classifier, dst_ip, d_ip);
         }
 
+        /*
         if (classifier.src_ip()) {
             BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, src_ip, classifier.src_ip());
         }
