@@ -42,7 +42,14 @@ Storage: 50GB of free space.
 
 Install the following packages
 
-   `apt-get install -y git pkg-config build-essential autoconf libgflags-dev clang libc++-dev unzip libssl-dev gawk debhelper debhelper dh-systemd init-system-helpers curl cmake ccache g++-4.9 wget ca-certificates lcov libgoogle-glog-dev libpcap-dev`
+   `sudo apt-get update && sudo apt-get install -y git pkg-config build-essential autoconf libgflags-dev clang libc++-dev unzip libssl-dev gawk debhelper debhelper dh-systemd init-system-helpers curl cmake ccache g++-4.9 wget ca-certificates lcov libgoogle-glog-dev libpcap-dev`
+
+Run the below commands to ensure that g++-4.9 and gcc-4.9 are default g++ and gcc compiler versions.
+
+```shell
+sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 20
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 20
+```
 
 Follow the instructions [here](https://docs.docker.com/engine/install/debian/) to install `docker-ce`. It is not necessary to install `docker-ce-cli` and `containerd.io`.
 
@@ -54,7 +61,7 @@ git clone -b v3.5.1 https://gitlab.kitware.com/cmake/cmake.git
 cd /tmp/cmake
 ./bootstrap
 make
-make install
+sudo make install
 ```
 
 5. Install gRPC version v1.31.1
@@ -75,10 +82,10 @@ cmake ../.. -DgRPC_INSTALL=ON                \
             -DgRPC_SSL_PROVIDER=module      \
             -DgRPC_ZLIB_PROVIDER=module
 make
-make install
+sudo make install
 # copy library and grpc_cpp_plugin to path below.
-cp `find . -name "*.a"` /usr/local/lib/
-cp `find . -name grpc_cpp_plugin` /usr/local/bin/
+sudo cp `find . -name "*.a"` /usr/local/lib/
+sudo cp `find . -name grpc_cpp_plugin` /usr/local/bin/
 ```
 
 6. Install PcapPlusPlus library
@@ -87,7 +94,7 @@ cp `find . -name grpc_cpp_plugin` /usr/local/bin/
 git clone -b v20.08 https://github.com/seladb/PcapPlusPlus.git
 ./configure-linux.sh —default
 make all
-make install
+sudo make install
 ```
 
 7. Install latest version of Git (optional)
@@ -95,9 +102,9 @@ make install
 By default the apt-get install an older version of git (2.1.4) on debian jessie 8.11.1. This older version does not support some of the latest git options. You may want to install a later version of git using procedure below.
 
 ```shell
-apt-get remove --purge git ## Removes older verion of git
-apt update
-apt install make libssl-dev libghc-zlib-dev libcurl4-gnutls-dev libexpat1-dev gettext unzip
+sudo apt-get remove --purge git ## Removes older verion of git
+sudo apt update
+sudo apt install make libssl-dev libghc-zlib-dev libcurl4-gnutls-dev libexpat1-dev gettext unzip
 wget https://github.com/git/git/archive/v2.18.0.zip -O git.zip
 unzip git.zip
 cd git-*
