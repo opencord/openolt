@@ -918,7 +918,7 @@ Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t gemport_id) {
 
     err = bcmolt_cfg_set(dev_id, &cfg.hdr);
     if(err != BCM_ERR_OK) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "failed to install gem_port = %d err_text=%s\n", gemport_id, cfg.hdr.hdr.err_text);
+        OPENOLT_LOG(ERROR, openolt_log_id, "failed to install gem_port = %d err = %s (%d)\n", gemport_id, cfg.hdr.hdr.err_text, err);
         return bcm_to_grpc_err(err, "Access_Control set ITU PON Gem port failed");
     }
 
@@ -939,11 +939,37 @@ Status remove_gem_port(int32_t intf_id, int32_t gemport_id) {
     err = bcmolt_cfg_clear(dev_id, &gem_cfg.hdr);
     if (err != BCM_ERR_OK)
     {
-        OPENOLT_LOG(ERROR, openolt_log_id, "failed to remove gem_port = %d err=%s\n", gemport_id, gem_cfg.hdr.hdr.err_text);
+        OPENOLT_LOG(ERROR, openolt_log_id, "failed to remove gem_port = %d err = %s (%d)\n", gemport_id, gem_cfg.hdr.hdr.err_text, err);
         return bcm_to_grpc_err(err, "Access_Control clear ITU PON Gem port failed");
     }
 
     OPENOLT_LOG(INFO, openolt_log_id, "gem port removed successfully = %d\n", gemport_id);
+
+    return Status::OK;
+}
+
+Status enable_encryption_for_gem_port(int32_t intf_id, int32_t gemport_id) {
+    bcmos_errno err;
+    bcmolt_itupon_gem_cfg cfg;
+    bcmolt_itupon_gem_key key = {
+        .pon_ni = (bcmolt_interface)intf_id,
+        .gem_port_id = (bcmolt_gem_port_id)gemport_id
+    };
+
+    BCMOLT_CFG_INIT(&cfg, itupon_gem, key);
+
+    bcmolt_control_state encryption_mode;
+    encryption_mode = BCMOLT_CONTROL_STATE_ENABLE;
+    BCMOLT_FIELD_SET(&cfg.data, itupon_gem_cfg_data, encryption_mode, encryption_mode);
+
+    err = bcmolt_cfg_set(dev_id, &cfg.hdr);
+    if(err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "failed to set encryption on pon = %d gem_port = %d, err = %s (%d)\n",
+            intf_id, gemport_id, cfg.hdr.hdr.err_text, err);
+        return bcm_to_grpc_err(err, "Failed to set encryption on GEM port");;
+    }
+
+    OPENOLT_LOG(INFO, openolt_log_id, "encryption set successfully on pon = %d gem_port = %d\n", intf_id, gemport_id);
 
     return Status::OK;
 }

@@ -1149,6 +1149,7 @@ vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id,
         }
     }
 
+// TODO: MOVE THIS TO A NEW METHOD
     if (omcc_encryption_mode == true) {
         // set the encryption mode for omci port id
         bcmolt_itupon_gem_cfg gem_cfg;
@@ -1162,7 +1163,7 @@ vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id,
         BCMOLT_FIELD_SET(&gem_cfg.data, itupon_gem_cfg_data, encryption_mode, encryption_mode);
         err = bcmolt_cfg_set(dev_id, &gem_cfg.hdr);
         if(err != BCM_ERR_OK) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "failed to confiure omci gem_port encryption mode = %d\n", onu_id);
+                OPENOLT_LOG(ERROR, openolt_log_id, "failed to configure omci gem_port encryption mode = %d\n", onu_id);
                 return bcm_to_grpc_err(err, "Access_Control set ITU PON OMCI Gem port failed");
         }
     }
@@ -1459,6 +1460,17 @@ Status UplinkPacketOut_(uint32_t intf_id, const std::string pkt) {
     return Status::OK;
 }
 
+bool get_aes_flag_for_gem_port(const google::protobuf::Map<unsigned int, bool> &gemport_to_aes, uint32_t gemport_id) {
+    bool aes_flag = false;
+    for (google::protobuf::Map<unsigned int, bool>::const_iterator it=gemport_to_aes.begin(); it!=gemport_to_aes.end(); it++) {
+        if (it->first == gemport_id) {
+            aes_flag = it->second;
+            break;
+        }
+    }
+    return aes_flag;
+}
+
 Status FlowAddWrapper_(const ::openolt::Flow* request) {
 
     int32_t access_intf_id = request->access_intf_id();
@@ -1479,7 +1491,9 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
     uint32_t tech_profile_id = request->tech_profile_id();
     bool replicate_flow = request->replicate_flow();
     const google::protobuf::Map<unsigned int, unsigned int> &pbit_to_gemport = request->pbit_to_gemport();
+    const google::protobuf::Map<unsigned int, bool> &gemport_to_aes = request->gemport_to_aes();
     uint16_t flow_id;
+    bool enable_encryption;
 
     // The intf_id variable defaults to access(PON) interface ID.
     // For trap-from-nni flow where access interface ID is not valid , change it to NNI interface ID
@@ -1515,11 +1529,12 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                 flow_id = dev_fl_symm_params[0].flow_id;
                 gemport_id = dev_fl_symm_params[0].gemport_id; // overwrite the gemport with symmetric flow gemport
                                                                // Should be same as what is coming in this request.
+                enable_encryption = get_aes_flag_for_gem_port(gemport_to_aes, gemport_id);
                 ::openolt::Classifier cl = ::openolt::Classifier(classifier);
                 cl.set_o_pbits(dev_fl_symm_params[0].pbit);
                 Status st = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id,
                                     flow_type, alloc_id, network_intf_id, gemport_id, cl,
-                                    action, priority, cookie, group_id, tech_profile_id);
+                                    action, priority, cookie, group_id, tech_profile_id, enable_encryption);
                 if (st.error_code() == grpc::StatusCode::OK) {
                     device_flow dev_fl;
                     dev_fl.is_flow_replicated = false;
@@ -1536,10 +1551,11 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                 ::openolt::Classifier cl = ::openolt::Classifier(classifier);
                 flow_id = dev_fl_symm_params[i].flow_id;
                 gemport_id = dev_fl_symm_params[i].gemport_id;
+                enable_encryption = get_aes_flag_for_gem_port(gemport_to_aes, gemport_id);
                 cl.set_o_pbits(dev_fl_symm_params[i].pbit);
                 Status st = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id,
                                     flow_type, alloc_id, network_intf_id, gemport_id, cl,
-                                    action, priority, cookie, group_id, tech_profile_id);
+                                    action, priority, cookie, group_id, tech_profile_id, enable_encryption);
                 if (st.error_code() != grpc::StatusCode::OK && st.error_code() != grpc::StatusCode::ALREADY_EXISTS) {
                     OPENOLT_LOG(ERROR, openolt_log_id, "failed to install device flow=%u for voltha flow=%lu. Undoing any device flows installed.", flow_id, voltha_flow_id);
                     // On failure remove any successfully replicated flows installed so far for the voltha_flow_id
@@ -1568,9 +1584,10 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "could not allocated flow id for voltha-flow-id=%lu\n", voltha_flow_id);
                 return ::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "flow-ids-exhausted");
             }
+            enable_encryption = get_aes_flag_for_gem_port(gemport_to_aes, gemport_id);
             Status st = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id,
                                 flow_type, alloc_id, network_intf_id, gemport_id, classifier,
-                                action, priority, cookie, group_id, tech_profile_id);
+                                action, priority, cookie, group_id, tech_profile_id, enable_encryption);
             if (st.error_code() == grpc::StatusCode::OK) {
                 device_flow dev_fl;
                 dev_fl.is_flow_replicated = false;
@@ -1607,10 +1624,11 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                     ::openolt::Classifier cl = ::openolt::Classifier(classifier);
                     flow_id = dev_fl.params[cnt].flow_id;
                     gemport_id = dev_fl.params[cnt].gemport_id;
+                    enable_encryption = get_aes_flag_for_gem_port(gemport_to_aes, gemport_id);
                     cl.set_o_pbits(dev_fl.params[cnt].pbit);
                     Status st = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id,
                                         flow_type, alloc_id, network_intf_id, gemport_id, cl,
-                                        action, priority, cookie, group_id, tech_profile_id);
+                                        action, priority, cookie, group_id, tech_profile_id, enable_encryption);
                     if (st.error_code() != grpc::StatusCode::OK) {
                         OPENOLT_LOG(ERROR, openolt_log_id, "failed to install device flow=%u for voltha flow=%lu. Undoing any device flows installed.", flow_id, voltha_flow_id);
                         // Remove any successfully replicated flows installed so far for the voltha_flow_id
@@ -1644,7 +1662,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
                 int32_t alloc_id, int32_t network_intf_id,
                 int32_t gemport_id, const ::openolt::Classifier& classifier,
                 const ::openolt::Action& action, int32_t priority_value, uint64_t cookie,
-                int32_t group_id, uint32_t tech_profile_id) {
+                int32_t group_id, uint32_t tech_profile_id, bool aes_enabled) {
     bcmolt_flow_cfg cfg;
     bcmolt_flow_key key = { }; /**< Object key. */
     int32_t o_vid = -1;
@@ -1698,13 +1716,13 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
             return bcm_to_grpc_err(BCM_ERR_PARM, "flow network setting invalid");
         }
 
-        if (onu_id >= 0) {
+        if (onu_id >= ONU_ID_START) {
             BCMOLT_MSG_FIELD_SET(&cfg, onu_id, onu_id);
         }
-        if (gemport_id >= 0) {
+        if (gemport_id >= GEM_PORT_ID_START) {
             BCMOLT_MSG_FIELD_SET(&cfg, svc_port_id, gemport_id);
         }
-        if (gemport_id >= 0 && port_no != 0) {
+        if (gemport_id >= GEM_PORT_ID_START && port_no != 0) {
             bcmos_fastlock_lock(&data_lock);
             if (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM) {
                 port_to_flows[port_no].insert(key.flow_id);
@@ -1856,7 +1874,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
 
     BCMOLT_MSG_FIELD_SET(&cfg, action, a_val);
 
-    if ((access_intf_id >= 0) && (onu_id >= 0)) {
+    if ((access_intf_id >= 0) && (onu_id >= ONU_ID_START)) {
         qos_type = get_qos_type(access_intf_id, onu_id, uni_id);
         if (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM) {
             tm_val.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, downstream, tech_profile_id);
@@ -1996,6 +2014,22 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
         bcmos_fastlock_unlock(&data_lock, 0);
 
     }
+
+    /*
+       Enable AES encryption on GEM ports if they are used in downstream unicast flows.
+       Rationale: We can't do upstream encryption in GPON. This change addresses the common denominator (and also minimum viable)
+       use case for both technologies which is downstream unicast GEM port encryption. Since the downstream traffic is inherently
+       broadcast to all the ONUs behind a PON port, encrypting the individual subscriber traffic in this direction is important
+       and considered good enough in terms of security (See Section 12.1 of G.984.3). For upstream unicast and downstream multicast
+       GEM encryption, we need to make additional changes specific to XGSPON. This will be done as a future work.
+    */
+    if (aes_enabled && (access_intf_id >= 0) && (gemport_id >= GEM_PORT_ID_START) && (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM)) {
+        OPENOLT_LOG(INFO, openolt_log_id, "Setting encryption on pon = %d gem_port = %d through flow_id = %d\n", access_intf_id, gemport_id, flow_id);
+        enable_encryption_for_gem_port(access_intf_id, gemport_id);
+    } else {
+        OPENOLT_LOG(WARNING, openolt_log_id, "Flow config for flow_id = %d is not suitable for setting downstream encryption on pon = %d gem_port = %d. No action taken.\n", flow_id, access_intf_id, gemport_id);
+    }
+
     return Status::OK;
 }
 

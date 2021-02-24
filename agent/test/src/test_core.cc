@@ -1237,6 +1237,7 @@ class TestFlowAdd : public Test {
         uint64_t cookie = 0;
         int32_t group_id = -1;
         uint32_t tech_profile_id = 64;
+        bool enable_encryption = true;
 
         NiceMock<BalMocker> balMock;
         openolt::Flow* flow;
@@ -1536,7 +1537,81 @@ TEST_F(TestFlowAdd, FlowAddHsiaPriorityQueueDownstreamSuccess) {
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
+// Test 11 - FlowAdd - success case (Downstream-Encrypted GEM)
+TEST_F(TestFlowAdd, FlowAddDownstreamEncryptedGemSuccess) {
+    onu_id = 2;
+    flow_id = 7;
+    flow_type = "downstream";
+    alloc_id = 1025;
+    enable_encryption = true;
 
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id, tech_profile_id, enable_encryption);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 12 - FlowAdd - success case (Downstream-Unencrypted GEM - prints warning that encryption will not applied)
+TEST_F(TestFlowAdd, FlowAddDownstreamUnencryptedGemWarning) {
+    onu_id = 2;
+    flow_id = 8;
+    flow_type = "downstream";
+    alloc_id = 1025;
+    enable_encryption = false;
+
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id, tech_profile_id, enable_encryption);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 13 - FlowAdd - success case (Upstream-Encrypted GEM - prints warning that encryption will not applied)
+TEST_F(TestFlowAdd, FlowAddUpstreamEncryptedGemWarning) {
+    onu_id = 2;
+    flow_id = 9;
+    flow_type = "upstream";
+    alloc_id = 1025;
+    enable_encryption = true;
+
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id, tech_profile_id, enable_encryption);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 14 - FlowAdd - success case (Multicast-Encrypted GEM - prints warning that encryption will not applied)
+TEST_F(TestFlowAdd, FlowAddMulticastEncryptedGemWarning) {
+    onu_id = 2;
+    flow_id = 10;
+    flow_type = "multicast";
+    alloc_id = 1025;
+    enable_encryption = true;
+
+    bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+        gemport_id, *classifier, *action, priority_value, cookie, group_id, tech_profile_id, enable_encryption);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
 ////////////////////////////////////////////////////////////////////////////
 // For testing OnuPacketOut functionality
 ////////////////////////////////////////////////////////////////////////////
@@ -1716,6 +1791,10 @@ TEST_F(TestUplinkPacketOut, UplinkPacketOutFailureNoFlowIdFound) {
     FlowRemove_(4, "downstream");
     FlowRemove_(5, "upstream");
     FlowRemove_(6, "downstream");
+    FlowRemove_(7, "downstream");
+    FlowRemove_(8, "downstream");
+    FlowRemove_(9, "upstream");
+    FlowRemove_(10, "multicast");
 
     bcmos_errno flow_cfg_get_stub_res = BCM_ERR_OK;
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
