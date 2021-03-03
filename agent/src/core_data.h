@@ -269,14 +269,16 @@ enum trap_to_host_packet_type {
     lldp = 1,
     eap = 2,
     igmpv4 = 3,
+    pppoed = 4,
     unsupported_trap_to_host_pkt_type = 0xff
 };
 
 // Constants useful during trap-to-host packet header field classification
-#define EAP_ETH_TYPE  0x888e
-#define LLDP_ETH_TYPE 0x88cc
-#define IPV4_ETH_TYPE 0x0800
-#define VLAN_ETH_TYPE 0x8100
+#define EAP_ETH_TYPE    0x888e
+#define LLDP_ETH_TYPE   0x88cc
+#define IPV4_ETH_TYPE   0x0800
+#define VLAN_ETH_TYPE   0x8100
+#define PPPoED_ETH_TYPE 0x8863
 
 #define IGMPv4_PROTOCOL 2
 #define UDP_PROTOCOL    17

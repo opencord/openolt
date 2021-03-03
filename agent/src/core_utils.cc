@@ -1503,6 +1503,8 @@ trap_to_host_packet_type get_trap_to_host_packet_type(const ::openolt::Classifie
         type = lldp;
     } else if (classifier.ip_proto() == IGMPv4_PROTOCOL) {
         type = igmpv4;
+    } else if (classifier.ip_proto() == PPPoED_ETH_TYPE) {
+        type = pppoed;
     }
 
     return type;
@@ -1547,6 +1549,9 @@ bool is_packet_allowed(bcmolt_access_control_receive_eth_packet_data *data, int3
         if (ethType == EAP_ETH_TYPE) { // single tagged packet with EAPoL payload
             vlan_id = vlanLayer->getVlanID();
             pkt_type = eap;
+        } else if (ethType == PPPoED_ETH_TYPE) { // single tagged packet with PPPOeD payload
+            vlan_id = vlanLayer->getVlanID();
+            pkt_type = pppoed;
         } else if (ethType == IPV4_ETH_TYPE) { // single tagged packet with IPv4 payload
             vlan_id = vlanLayer->getVlanID();
             vlanLayer->parseNextLayer();
