@@ -1503,7 +1503,7 @@ trap_to_host_packet_type get_trap_to_host_packet_type(const ::openolt::Classifie
         type = lldp;
     } else if (classifier.ip_proto() == IGMPv4_PROTOCOL) {
         type = igmpv4;
-    } else if (classifier.ip_proto() == PPPoED_ETH_TYPE) {
+    } else if (classifier.eth_type() == PPPoED_ETH_TYPE) {
         type = pppoed;
     }
 
