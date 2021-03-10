@@ -214,6 +214,7 @@ Status GetDeviceInfo_(::openolt::DeviceInfo* device_info) {
     openolt_read_sysinfo("Serial Number", serial_number);
     OPENOLT_LOG(INFO, openolt_log_id, "Fetched device serial number %s\n", serial_number);
     device_info->set_device_serial_number(serial_number);
+    device_info->set_previously_connected(state.previously_connected());
 
     char device_id[OPENOLT_FIELD_LEN];
     memset(device_id, '\0', OPENOLT_FIELD_LEN);

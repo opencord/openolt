@@ -28,7 +28,7 @@ class State {
         return activated;
     }
 
-    bool previsouly_connected() {
+    bool previously_connected() {
         return connected_once;
     }
 

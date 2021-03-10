@@ -147,7 +147,7 @@ class OpenoltService final : public openolt::Openolt::Service {
         std::cout << "Connection to Voltha established. Indications enabled"
         << std::endl;
 
-        if (state.previsouly_connected()) {
+        if (state.previously_connected()) {
             // Reconciliation / recovery case
             std::cout << "Reconciliation / Recovery case" << std::endl;
             if (state.is_activated()){
