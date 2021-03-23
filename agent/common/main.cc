@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Wait for successful activation before allowing VOLTHA to connect. 
+    // Wait for successful activation before allowing VOLTHA to connect.
     // This is necessary to allow the device topology to be dynamically
     // queried from driver after initialization and activation is complete.
     int maxTrials = 300;
@@ -107,7 +107,7 @@ int main(int argc, char** argv) {
     }
 
     sleep(2);
-    // Enable all PON interfaces. 
+    // Enable all PON interfaces.
     for (int i = 0; i < NumPonIf_(); i++) {
         status = EnablePonIf_(i);
         if (!status.ok()) {
@@ -145,7 +145,11 @@ int main(int argc, char** argv) {
           break;
        }
     }
-    RunServer(argc, argv);
+
+    if (!RunServer(argc, argv)) {
+        std::cerr << "FATAL: gRPC server creation failed\n";
+        return 2;
+    }
 
     return 0;
 }

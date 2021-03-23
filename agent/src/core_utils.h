@@ -25,6 +25,7 @@
 #include "core.h"
 #include "core_data.h"
 #include "error_format.h"
+#include <grpc/grpc_security_constants.h>
 
 extern "C"
 {
@@ -117,4 +118,8 @@ const device_flow* get_device_flow(uint64_t voltha_flow_id);
 const device_flow_params* get_device_flow_params(uint64_t voltha_flow_id);
 trap_to_host_packet_type get_trap_to_host_packet_type(const ::openolt::Classifier& classifier);
 bool is_packet_allowed(bcmolt_access_control_receive_eth_packet_data *data, int32_t gemport_id);
+std::pair<grpc_ssl_client_certificate_request_type, bool> get_grpc_tls_option(const char* tls_option);
+const std::string &get_grpc_tls_option();
+bool is_grpc_secure();
+std::pair<std::string, bool> read_from_txt_file(const std::string& file_name);
 #endif // OPENOLT_CORE_UTILS_H_

@@ -219,6 +219,7 @@ At the VOLTHA CLI, preprovision and enable the OLT:
 ### Additional notes
 
 * *9191* is the TCP port that the *OpenOLT* agent uses for its gRPC channel.
+* See the [SECURITY.md](./SECURITY.md) for possible TLS configurations.
 * In the commands above, you should use OLT inband interface IP address if OLT
   is used in inband mode, otherwise substitute all its occurrences with the
   management IP of your OLT.

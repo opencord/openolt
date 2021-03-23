@@ -18,6 +18,7 @@
 #include "bal_mocker.h"
 #include "core.h"
 #include "core_data.h"
+#include "server.h"
 #include <future>
 using namespace testing;
 using namespace std;
@@ -3238,4 +3239,88 @@ TEST_F(TestOnuLogicalDistance, OnuLogicalDistanceOnuNotActivatedFailure) {
     onu_cfg.data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
     Status status = GetLogicalOnuDistance_(pon_ni, onu_id, onu_logical_distance);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+////////////////////////////////////////////////////////////////////////////
+// For testing Secure Server functionality
+////////////////////////////////////////////////////////////////////////////
+
+class TestSecureServer : public Test {
+    protected:
+        virtual void SetUp() {}
+        virtual void TearDown() {}
+};
+
+TEST_F(TestSecureServer, StartInsecureServer) {
+    // const to prevent the following warning:
+    // warning: deprecated conversion from string constant to 'char*' [-Wwrite-strings]
+    const char *args[] = {"./openolt"};
+    int argc = sizeof(args) / sizeof(args[0]);
+    char **argv = const_cast<char**>(args);
+
+    bool ok = RunServer(argc, argv);
+
+    ASSERT_TRUE(ok);
+
+    OPENOLT_LOG(INFO, openolt_log_id, "insecure gRPC server has been started and shut down successfully\n");
+}
+
+TEST_F(TestSecureServer, StartWithInvalidTLSOption) {
+    const char *args[] = {"./openolt", "--enable-tls", "DUMMY_GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE"};
+    int argc = sizeof(args) / sizeof(args[0]);
+    char **argv = const_cast<char**>(args);
+
+    bool ok = RunServer(argc, argv);
+
+    ASSERT_FALSE(ok);
+
+    OPENOLT_LOG(INFO, openolt_log_id, "secure gRPC server could not be started due to invalid TLS option\n");
+}
+
+TEST_F(TestSecureServer, CertificatesAreMissing) {
+    const char *args[] = {"./openolt", "--enable-tls", "GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE"};
+    int argc = sizeof(args) / sizeof(args[0]);
+    char **argv = const_cast<char**>(args);
+    const std::string cmd = "exec [ -d './keystore' ] && rm -rf './keystore'";
+
+    int res = std::system(cmd.c_str());
+    if (res == 0) {
+        std::cout << "directory ./keystore is deleted\n";
+    } else {
+        std::cout << "directory ./keystore is not existing\n";
+    }
+
+    bool ok = RunServer(argc, argv);
+
+    ASSERT_FALSE(ok);
+
+    OPENOLT_LOG(INFO, openolt_log_id, "secure gRPC server could not be started due to missing certificates\n");
+}
+
+TEST_F(TestSecureServer, StartWithValidTLSOption) {
+    const char *args[] = {"./openolt", "--enable-tls", "GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE"};
+    int argc = sizeof(args) / sizeof(args[0]);
+    char **argv = const_cast<char**>(args);
+    const std::string cmd_1 = "exec cp -r ./keystore-test ./keystore";
+    const std::string cmd_2 = "exec rm -rf './keystore'";
+
+    int res = std::system(cmd_1.c_str());
+    if (res == 0) {
+        std::cout << "directory ./keystore is copied from ./keystore-test\n";
+
+        bool ok = RunServer(argc, argv);
+        ASSERT_TRUE(ok);
+
+        OPENOLT_LOG(INFO, openolt_log_id, "secure gRPC server has been started with the given certificates and TLS options, and shut down successfully\n");
+
+        res = std::system(cmd_2.c_str());
+        if (res == 0) {
+            std::cout << "directory ./keystore is deleted\n";
+        } else {
+            std::cerr << "directory ./keystore could not be deleted\n";
+        }
+    } else {
+        std::cerr << "directory ./keystore could not be prepared, err: " << res << '\n';
+        FAIL();
+    }
 }

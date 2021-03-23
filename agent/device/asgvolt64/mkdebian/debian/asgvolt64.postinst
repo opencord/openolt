@@ -37,3 +37,5 @@ mv /tmp/libbal_host_api.so /usr/local/lib
 /opt/bcm68620/svk_init.sh
 [ "A`cat ~/.bashrc| grep LD_LIBRARY_PATH`" = "A" ] && echo "export LD_LIBRARY_PATH=/broadcom:\$LD_LIBRARY_PATH" >> ~/.bashrc; . ~/.bashrc
 ldconfig /broadcom
+# create directory for certificates
+mkdir -p /broadcom/keystore/

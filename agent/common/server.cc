@@ -27,6 +27,7 @@
 #include "server.h"
 #include "core.h"
 #include "state.h"
+#include "../src/core_utils.h"
 
 #include <grpc++/grpc++.h>
 #include <voltha_protos/openolt.grpc.pb.h>
@@ -348,14 +349,58 @@ class OpenoltService final : public openolt::Openolt::Service {
     }
 };
 
-void RunServer(int argc, char** argv) {
+bool RunServer(int argc, char** argv) {
     std::string ipAddress = "0.0.0.0";
+    bool tls_enabled = false;
+    std::pair<grpc_ssl_client_certificate_request_type, bool> grpc_security;
+    std::shared_ptr<grpc::ServerCredentials> credentials;
 
     for (int i = 1; i < argc; ++i) {
         if(strcmp(argv[i-1], "--interface") == 0 || (strcmp(argv[i-1], "--intf") == 0)) {
             ipAddress = get_ip_address(argv[i]);
             break;
         }
+    }
+
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i-1], "--enable-tls") == 0) {
+            grpc_security = get_grpc_tls_option(argv[i]);
+            if (grpc_security.second) {
+                tls_enabled = true;
+            } else {
+                std::cerr << "unknown security option: \"" << argv[i-1] << " " << argv[i] << "\"\n";
+                return false;
+            };
+            break;
+        }
+    }
+
+    if (tls_enabled) {
+        std::string dir_cert{"./keystore"};
+        auto read_root_crt = read_from_txt_file(dir_cert + "/root.crt");
+        auto read_server_key = read_from_txt_file(dir_cert + "/server.key");
+        auto read_server_crt = read_from_txt_file(dir_cert + "/server.crt");
+
+        if (read_root_crt.second && read_server_key.second && read_server_crt.second) {
+            std::cout << "certificate files read successfully\n";
+        } else {
+            std::cerr << std::boolalpha << "certificate files read failed - root.crt: " << read_root_crt.second
+                                                                    << ", server.key: " << read_server_key.second
+                                                                    << ", server.crt: " << read_server_crt.second << '\n';
+            return false;
+        }
+
+        std::string root_crt = read_root_crt.first;
+        std::string server_key = read_server_key.first;
+        std::string server_crt = read_server_crt.first;
+
+        grpc::SslServerCredentialsOptions ssl_opts{grpc_security.first};
+        ssl_opts.pem_root_certs = root_crt;
+        grpc::SslServerCredentialsOptions::PemKeyCertPair keycert = {server_key, server_crt};
+        ssl_opts.pem_key_cert_pairs.push_back(keycert);
+        credentials = grpc::SslServerCredentials(ssl_opts);
+    } else {
+        credentials = grpc::InsecureServerCredentials();
     }
 
     serverPort = ipAddress.append(":9191").c_str();
@@ -365,7 +410,7 @@ void RunServer(int argc, char** argv) {
     ::ResourceQuota quota;
     quota.SetMaxThreads(GRPC_THREAD_POOL_SIZE);
     builder.SetResourceQuota(quota);
-    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    builder.AddListeningPort(server_address, credentials);
     builder.RegisterService(&service);
 
     std::unique_ptr<Server> server(builder.BuildAndStart());
@@ -377,5 +422,11 @@ void RunServer(int argc, char** argv) {
     std::cout << "Server listening on " << server_address
     << ", connection signature : " << signature << std::endl;
 
+#ifdef TEST_MODE
+    server->Shutdown();
+#else
     server->Wait();
+#endif
+
+    return true;
 }

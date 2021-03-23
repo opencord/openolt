@@ -19,11 +19,44 @@ APPARGS=""
 USER="root"
 GROUP="root"
 
+# ------------------------------------------------------------------------------
 # If OLT is used in inband mode, inband interface name will be copied
 # to /etc/default/openolt file. Here inband interface is passed as argument
 # while running openolt service
 [ -r /etc/default/openolt ] && . /etc/default/openolt
 [ -z "gRPC_interface" ] || APPARGS="--interface $gRPC_interface"
+# ------------------------------------------------------------------------------
+GRPC_TLS_OPTION_A='GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE'
+# Server does not request client certificate.
+# The certificate presented by the client is not checked by the server at all. (A client may present a self signed or signed certificate or not present a certificate at all and any of those option would be accepted)
+
+GRPC_TLS_OPTION_B='GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_BUT_DONT_VERIFY'
+# Server requests client certificate but does not enforce that the client presents a certificate.
+# If the client presents a certificate, the client authentication is left to the application (the necessary metadata will be available to the application via authentication context properties, see grpc_auth_context).
+# The client's key certificate pair must be valid for the SSL connection to be established.
+
+GRPC_TLS_OPTION_C='GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY'
+# Server requests client certificate but does not enforce that the client presents a certificate.
+# If the client presents a certificate, the client authentication is done by the gRPC framework. (For a successful connection the client needs to either present a certificate that can be verified against the root certificate configured by the server or not present a certificate at all)
+# The client's key certificate pair must be valid for the SSL connection to be established.
+
+GRPC_TLS_OPTION_D='GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_BUT_DONT_VERIFY'
+# Server requests client certificate and enforces that the client presents a certificate.
+# If the client presents a certificate, the client authentication is left to the application (the necessary metadata will be available to the application via authentication context properties, see grpc_auth_context).
+# The client's key certificate pair must be valid for the SSL connection to be established.
+
+GRPC_TLS_OPTION_E='GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY'
+# Server requests client certificate and enforces that the client presents a certificate.
+# The certificate presented by the client is verified by the gRPC framework. (For a successful connection the client needs to present a certificate that can be verified against the root certificate configured by the server)
+# The client's key certificate pair must be valid for the SSL connection to be established.
+
+GRPC_TLS_OPTION_Z='' # INSECURE
+
+# choose one of the above six options with the last letter
+GRPC_TLS_OPTION=$GRPC_TLS_OPTION_Z
+
+[ $GRPC_TLS_OPTION ] && APPARGS="$APPARGS --enable-tls $GRPC_TLS_OPTION"
+# ------------------------------------------------------------------------------
 
 # Include functions
 set -e
@@ -52,7 +85,7 @@ stop() {
   while test -d /proc/$(cat /var/run/$NAME.pid); do
     killtree $(cat /var/run/$NAME.pid) 15
     sleep 0.5
-  done 
+  done
   [ -z `cat /var/run/$NAME.pid 2>/dev/null` ] || rm /var/run/$NAME.pid
   printf "done\n"
 }

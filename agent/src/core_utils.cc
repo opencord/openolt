@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
+#include <fstream>
+#include <sstream>
 #include "core_utils.h"
+
+// save the TLS option
+static std::string tls_option_arg{};
 
 std::string serial_number_to_str(bcmolt_serial_number* serial_number) {
 #define SERIAL_NUMBER_SIZE 12
@@ -1672,4 +1677,49 @@ bool is_packet_allowed(bcmolt_access_control_receive_eth_packet_data *data, int3
         }
     }
     return false;
+}
+
+std::pair<grpc_ssl_client_certificate_request_type, bool> get_grpc_tls_option(const char* tls_option) {
+    static std::map<std::string,grpc_ssl_client_certificate_request_type> grpc_security_option_map = {{"GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE",
+                                                                                                        grpc_ssl_client_certificate_request_type::GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE},
+                                                                                                      {"GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_BUT_DONT_VERIFY",
+                                                                                                        grpc_ssl_client_certificate_request_type::GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_BUT_DONT_VERIFY},
+                                                                                                      {"GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY",
+                                                                                                        grpc_ssl_client_certificate_request_type::GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY},
+                                                                                                      {"GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_BUT_DONT_VERIFY",
+                                                                                                        grpc_ssl_client_certificate_request_type::GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_BUT_DONT_VERIFY},
+                                                                                                      {"GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY",
+                                                                                                        grpc_ssl_client_certificate_request_type::GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY}};
+
+    auto it = grpc_security_option_map.find(tls_option);
+    if (it == grpc_security_option_map.end()) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "invalid gRPC Server security option: %s\n", tls_option);
+        return {grpc_ssl_client_certificate_request_type::GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE, false};
+    } else {
+        OPENOLT_LOG(INFO, openolt_log_id, "valid gRPC Server security option: %s\n", tls_option);
+        tls_option_arg = std::string{tls_option};
+        return {it->second, true};
+    }
+}
+
+const std::string &get_grpc_tls_option() {
+    return tls_option_arg;
+}
+
+bool is_grpc_secure() {
+    return !tls_option_arg.empty();
+}
+
+std::pair<std::string, bool> read_from_txt_file(const std::string& file_name) {
+    std::ifstream in_file(file_name);
+
+    if (!in_file.is_open()) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "error opening file '%s'\n", file_name.c_str());
+        return {"", false};
+    }
+
+    std::stringstream buffer;
+    buffer << in_file.rdbuf();
+
+    return {buffer.str(), in_file.good()};
 }
