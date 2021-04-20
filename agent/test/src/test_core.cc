@@ -1969,6 +1969,7 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_BestEffortMaxBWZeroFailure) {
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_BestEffort);
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
     traffic_shaping_info->set_cir(64000);
     traffic_shaping_info->set_pir(0);
     traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
@@ -1983,6 +1984,7 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_BestEffortMaxBWLtGuaranteedBwFa
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_BestEffort);
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
     traffic_shaping_info->set_cir(64000);
     traffic_shaping_info->set_pir(32000);
     traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
@@ -1997,6 +1999,7 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_BestEffortMaxBWEqGuaranteedBwFa
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_BestEffort);
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
     traffic_shaping_info->set_cir(64000);
     traffic_shaping_info->set_pir(64000);
     traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
@@ -2011,6 +2014,7 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NAMaxBWZeroFailure) {
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_NA);
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
     traffic_shaping_info->set_cir(64000);
     traffic_shaping_info->set_pir(0);
     traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
@@ -2025,6 +2029,7 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NAGuaranteedBwZeroFailure) {
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_NA);
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
     traffic_shaping_info->set_cir(0);
     traffic_shaping_info->set_pir(32000);
     traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
@@ -2039,6 +2044,7 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NAMaxBWLtGuaranteedBwFailure) {
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_NA);
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
     traffic_shaping_info->set_cir(64000);
     traffic_shaping_info->set_pir(32000);
     traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
@@ -2053,6 +2059,7 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NAMaxBWEqGuaranteedBwFailure) {
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_NA);
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
     traffic_shaping_info->set_cir(64000);
     traffic_shaping_info->set_pir(64000);
     traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
@@ -2067,6 +2074,7 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NoneMaxBWZeroFailure) {
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_None);
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
     traffic_shaping_info->set_cir(64000);
     traffic_shaping_info->set_pir(0);
     traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
@@ -2081,6 +2089,7 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NoneGuaranteedBwZeroFailure) {
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_None);
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
     traffic_shaping_info->set_cir(0);
     traffic_shaping_info->set_pir(32000);
     traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
@@ -2089,36 +2098,60 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NoneGuaranteedBwZeroFailure) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
-// Test 15 - CreateTrafficSchedulers-Upstream Success (AdditionalBW_None-Max BW > Guaranteed BW) case
-TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NoneMaxBWGtGuaranteedBwSuccess) {
+// Test 15 - CreateTrafficSchedulers-Upstream Failure (AdditionalBW_None-Max BW > Guaranteed BW) case
+TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NoneMaxBWGtGuaranteedBwFailure) {
     scheduler->set_direction(tech_profile::Direction::UPSTREAM);
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_None);
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
     traffic_shaping_info->set_cir(64000);
     traffic_shaping_info->set_pir(128000);
     traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
 
-    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
-    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
-
-    future<Status> future_res = async(launch::async, CreateTrafficSchedulers_, traffic_scheds);
-    future<int> push_alloc_cfg_complt = \
-    async(launch::async, TestCreateTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_ACTIVE, ALLOC_CFG_STATUS_SUCCESS);
-
-    Status status = future_res.get();
-    int res = push_alloc_cfg_complt.get();
-    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+    Status status = CreateTrafficSchedulers_(traffic_scheds);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
-// Test 16 - CreateTrafficSchedulers-Upstream Success (AdditionalBW_None-Max BW < Guaranteed BW) case
-TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NoneMaxBWLtGuaranteedBwSuccess) {
+// Test 16 - CreateTrafficSchedulers-Upstream Failure (AdditionalBW_None-Max BW < Guaranteed BW) case
+TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NoneMaxBWLtGuaranteedBwFailure) {
     scheduler->set_direction(tech_profile::Direction::UPSTREAM);
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_None);
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
     traffic_shaping_info->set_cir(64000);
     traffic_shaping_info->set_pir(32000);
+    traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
+
+    Status status = CreateTrafficSchedulers_(traffic_scheds);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 17 - CreateTrafficSchedulers-Upstream Failure (Invalid AdditionalBW value) case
+TEST_F(TestCreateTrafficSchedulers, AdditionalBW_InvalidValueFailure) {
+    scheduler->set_direction(tech_profile::Direction::UPSTREAM);
+    scheduler->set_additional_bw(9);
+    traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
+    traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(0);
+    traffic_shaping_info->set_cir(64000);
+    traffic_shaping_info->set_pir(128000);
+    traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
+
+    Status status = CreateTrafficSchedulers_(traffic_scheds);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 18 - CreateTrafficSchedulers-Upstream Success (AdditionalBW_None-Max BW = Fixed BW) case
+TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NoneMaxBWEqFixedBwSuccess) {
+    scheduler->set_direction(tech_profile::Direction::UPSTREAM);
+    scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_None);
+    traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
+    traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_gir(64000);
+    traffic_shaping_info->set_cir(0);
+    traffic_shaping_info->set_pir(64000);
     traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
 
     bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
@@ -2133,7 +2166,7 @@ TEST_F(TestCreateTrafficSchedulers, AdditionalBW_NoneMaxBWLtGuaranteedBwSuccess)
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
-// Test 17 - CreateTrafficSchedulers-Downstream success case
+// Test 19 - CreateTrafficSchedulers-Downstream success case
 TEST_F(TestCreateTrafficSchedulers, CreateTrafficSchedulersDownstreamSuccess) {
     scheduler->set_direction(tech_profile::Direction::DOWNSTREAM);
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_BestEffort);
@@ -2150,7 +2183,7 @@ TEST_F(TestCreateTrafficSchedulers, CreateTrafficSchedulersDownstreamSuccess) {
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
-// Test 18 - CreateTrafficSchedulers-Downstream Failure case
+// Test 20 - CreateTrafficSchedulers-Downstream Failure case
 TEST_F(TestCreateTrafficSchedulers, CreateTrafficSchedulersDownstreamFailure) {
     scheduler->set_direction(tech_profile::Direction::DOWNSTREAM);
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_BestEffort);
@@ -2167,7 +2200,7 @@ TEST_F(TestCreateTrafficSchedulers, CreateTrafficSchedulersDownstreamFailure) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
-// Test 19 - CreateTrafficSchedulers-Invalid direction Failure case
+// Test 21 - CreateTrafficSchedulers-Invalid direction Failure case
 TEST_F(TestCreateTrafficSchedulers, CreateTrafficSchedulersInvalidDirectionFailure) {
     scheduler->set_direction(tech_profile::Direction::BIDIRECTIONAL);
     scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_BestEffort);

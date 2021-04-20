@@ -2308,91 +2308,98 @@ uni_id %d, port_no %u\n", tm_sched_key.id, intf_id, onu_id, uni_id, port_no);
         key.pon_ni = intf_id;
         key.alloc_id = alloc_id;
         int bw_granularity = (board_technology == "XGS-PON")?XGS_BANDWIDTH_GRANULARITY:GPON_BANDWIDTH_GRANULARITY;
+        /*
+            PIR: Maximum Bandwidth
+            CIR: Assured Bandwidth
+            GIR: Fixed Bandwidth
+        */
         int pir_bw = tf_sh_info.pir()*125; // conversion from kbps to bytes/sec
         int cir_bw = tf_sh_info.cir()*125; // conversion from kbps to bytes/sec
+        int gir_bw = tf_sh_info.gir()*125; // conversion from kbps to bytes/sec
+        int guaranteed_bw = cir_bw+gir_bw;
         //offset to match bandwidth granularity
         int offset_pir_bw = pir_bw%bw_granularity;
-        int offset_cir_bw = cir_bw%bw_granularity;
+        int offset_gir_bw = gir_bw%bw_granularity;
+        int offset_guaranteed_bw = guaranteed_bw%bw_granularity;
 
         pir_bw = pir_bw - offset_pir_bw;
-        cir_bw = cir_bw - offset_cir_bw;
+        gir_bw = gir_bw - offset_gir_bw;
+        guaranteed_bw = guaranteed_bw - offset_guaranteed_bw;
 
         BCMOLT_CFG_INIT(&cfg, itupon_alloc, key);
 
+        OPENOLT_LOG(INFO, openolt_log_id, "Creating alloc_id %d with pir = %d bytes/sec, cir = %d bytes/sec, gir = %d bytes/sec, additional_bw = %d.\n", alloc_id, pir_bw, cir_bw, gir_bw, additional_bw);
+
+        if (pir_bw == 0) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth must be at least %d bytes/sec\n",
+                        (board_technology == "XGS-PON")?XGS_BANDWIDTH_GRANULARITY:GPON_BANDWIDTH_GRANULARITY);
+            return BCM_ERR_PARM;
+        } else if (pir_bw < guaranteed_bw) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth (%d) can't be less than Guaranteed bandwidth (%d)\n",
+                        pir_bw, guaranteed_bw);
+            return BCM_ERR_PARM;
+        }
+
+        // Setting additional bw eligibility and validating bw provisionings
         switch (additional_bw) {
-            case 2: //AdditionalBW_BestEffort
-                if (pir_bw == 0) {
-                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth was set to 0, must be at least \
-%d bytes/sec\n", (board_technology == "XGS-PON")?XGS_BANDWIDTH_GRANULARITY:GPON_BANDWIDTH_GRANULARITY);
-                   return BCM_ERR_PARM;
-                } else if (pir_bw < cir_bw) {
-                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth (%d) can't be less than Guaranteed \
-bandwidth (%d)\n", pir_bw, cir_bw);
-                   return BCM_ERR_PARM;
-                } else if (pir_bw == cir_bw) {
-                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth must be greater than Guaranteed \
-bandwidth for additional bandwidth eligibility of type best_effort\n");
-                   return BCM_ERR_PARM;
+
+            case tech_profile::AdditionalBW::AdditionalBW_BestEffort: //AdditionalBW_BestEffort - For T-Cont types 4 & 5
+                if (pir_bw == guaranteed_bw) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth must be greater than Guaranteed \
+bandwidth for additional bandwidth eligibility of type Best Effort\n");
+                    return BCM_ERR_PARM;
                 }
                 BCMOLT_MSG_FIELD_SET(&cfg, sla.additional_bw_eligibility, BCMOLT_ADDITIONAL_BW_ELIGIBILITY_BEST_EFFORT);
                 break;
-            case 1: //AdditionalBW_NA
-                if (pir_bw == 0) {
-                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth was set to 0, must be at least \
-%d bytes/sec\n", (board_technology == "XGS-PON")?XGS_BANDWIDTH_GRANULARITY:GPON_BANDWIDTH_GRANULARITY);
-                    return BCM_ERR_PARM;
-                } else if (cir_bw == 0) {
+
+            case tech_profile::AdditionalBW::AdditionalBW_NA: //AdditionalBW_NA - For T-Cont types 3 & 5
+                if (guaranteed_bw == 0) {
                     OPENOLT_LOG(ERROR, openolt_log_id, "Guaranteed bandwidth must be greater than zero for \
 additional bandwidth eligibility of type Non-Assured (NA)\n");
                     return BCM_ERR_PARM;
-                } else if (pir_bw < cir_bw) {
-                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth (%d) can't be less than Guaranteed \
-bandwidth (%d)\n", pir_bw, cir_bw);
-                    return BCM_ERR_PARM;
-                } else if (pir_bw == cir_bw) {
+                } else if (pir_bw == guaranteed_bw) {
                     OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth must be greater than Guaranteed \
-bandwidth for additional bandwidth eligibility of type non_assured\n");
+bandwidth for additional bandwidth eligibility of type Non-Assured\n");
                     return BCM_ERR_PARM;
                 }
                 BCMOLT_MSG_FIELD_SET(&cfg, sla.additional_bw_eligibility, BCMOLT_ADDITIONAL_BW_ELIGIBILITY_NON_ASSURED);
                 break;
-            case 0: //AdditionalBW_None
-                if (pir_bw == 0) {
-                    OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth was set to 0, must be at least \
-16000 bytes/sec\n");
-                    return BCM_ERR_PARM;
-                } else if (cir_bw == 0) {
-                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth must be equal to Guaranteed bandwidth \
+
+            case tech_profile::AdditionalBW::AdditionalBW_None: //AdditionalBW_None - For T-Cont types 1 & 2
+                if (guaranteed_bw != pir_bw) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Guaranteed bandwidth must be equal to maximum bandwidth \
 for additional bandwidth eligibility of type None\n");
                     return BCM_ERR_PARM;
-                } else if (pir_bw > cir_bw) {
-                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth must be equal to Guaranteed bandwidth \
-for additional bandwidth eligibility of type None\n");
-                   OPENOLT_LOG(ERROR, openolt_log_id, "Setting Maximum bandwidth (%d) to Guaranteed \
-bandwidth in None eligibility\n", pir_bw);
-                   cir_bw = pir_bw;
-                } else if (pir_bw < cir_bw) {
-                   OPENOLT_LOG(ERROR, openolt_log_id, "Maximum bandwidth (%d) can't be less than Guaranteed \
-bandwidth (%d)\n", pir_bw, cir_bw);
-                   OPENOLT_LOG(ERROR, openolt_log_id, "Setting Maximum bandwidth (%d) to Guaranteed \
-bandwidth in None eligibility\n", pir_bw);
-                   cir_bw = pir_bw;
                 }
                 BCMOLT_MSG_FIELD_SET(&cfg, sla.additional_bw_eligibility, BCMOLT_ADDITIONAL_BW_ELIGIBILITY_NONE);
                 break;
+
             default:
+                OPENOLT_LOG(ERROR, openolt_log_id, "Invalid additional bandwidth eligibility value (%d) supplied.\n", additional_bw);
                 return BCM_ERR_PARM;
         }
+
         /* CBR Real Time Bandwidth which require shaping of the bandwidth allocations
            in a fine granularity. */
         BCMOLT_MSG_FIELD_SET(&cfg, sla.cbr_rt_bw, 0);
+        /* Since we can assign minimum 64000 bytes/sec for cbr_rt_bw, we prefer assigning
+           gir_bw to cbr_nrt_bw to allow smaller amounts.
+           TODO: Specify CBR_RT_BW and CBR_NRT_BW separately from VOLTHA */
         /* Fixed Bandwidth with no critical requirement of shaping */
-        BCMOLT_MSG_FIELD_SET(&cfg, sla.cbr_nrt_bw, 0);
+        BCMOLT_MSG_FIELD_SET(&cfg, sla.cbr_nrt_bw, gir_bw);
         /* Dynamic bandwidth which the OLT is committed to allocate upon demand */
-        BCMOLT_MSG_FIELD_SET(&cfg, sla.guaranteed_bw, cir_bw);
+        BCMOLT_MSG_FIELD_SET(&cfg, sla.guaranteed_bw, guaranteed_bw);
         /* Maximum allocated bandwidth allowed for this alloc ID */
         BCMOLT_MSG_FIELD_SET(&cfg, sla.maximum_bw, pir_bw);
-        BCMOLT_MSG_FIELD_SET(&cfg, sla.alloc_type, BCMOLT_ALLOC_TYPE_NSR);
+
+        if (pir_bw == gir_bw) { // T-Cont Type 1 --> set alloc type to NONE
+            // the condition cir_bw == 0 is implicitly satistied
+            OPENOLT_LOG(INFO, openolt_log_id, "Setting alloc type to NONE since maximum bandwidth is equal to fixed bandwidth\n");
+            BCMOLT_MSG_FIELD_SET(&cfg, sla.alloc_type, BCMOLT_ALLOC_TYPE_NONE);
+        } else { // For other T-Cont types, set alloc type to NSR. TODO: read the default from a config file.
+            BCMOLT_MSG_FIELD_SET(&cfg, sla.alloc_type, BCMOLT_ALLOC_TYPE_NSR);
+        }
+
         /* Set to True for AllocID with CBR RT Bandwidth that requires compensation
            for skipped allocations during quiet window */
         BCMOLT_MSG_FIELD_SET(&cfg, sla.cbr_rt_compensation, BCMOS_FALSE);
@@ -2409,7 +2416,7 @@ bandwidth in None eligibility\n", pir_bw);
         err = bcmolt_cfg_set(dev_id, &cfg.hdr);
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d,\
-port_no %u, alloc_id %d, err = %s\n", intf_id, onu_id,uni_id,port_no,alloc_id, bcmos_strerror(err));
+port_no %u, alloc_id %d, err = %s (%s)\n", intf_id, onu_id,uni_id,port_no,alloc_id, bcmos_strerror(err), cfg.hdr.hdr.err_text);
             return err;
         }
 #ifndef SCALE_AND_PERF
