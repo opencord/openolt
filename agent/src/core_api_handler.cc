@@ -299,6 +299,25 @@ Status GetDeviceInfo_(::openolt::DeviceInfo* device_info) {
     return Status::OK;
 }
 
+void reset_pon_device(bcmolt_odid dev)
+{
+    bcmos_errno err;
+    bcmolt_device_reset oper;
+    bcmolt_device_key key = {.device_id = dev};
+
+    OPENOLT_LOG(INFO, openolt_log_id, "Reset PON device: %d\n", dev);
+
+    BCMOLT_OPER_INIT(&oper, device, reset, key);
+    err = bcmolt_oper_submit(dev_id, &oper.hdr);
+    if (err)
+    {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to reset PON device(%d) failed, err = %s\n", dev, bcmos_strerror(err));
+    }else
+    {
+        OPENOLT_LOG(INFO, openolt_log_id, "Reset PON device(%d) success\n", dev);
+    }
+}
+
 Status Enable_(int argc, char *argv[]) {
     bcmos_errno err;
     bcmolt_host_init_parms init_parms = {};
@@ -383,12 +402,26 @@ Status Enable_(int argc, char *argv[]) {
                     bcmolt_device_key key = {.device_id = dev};
                     bcmolt_device_connect oper;
                     BCMOLT_OPER_INIT(&oper, device, connect, key);
+
+		    /* BAL saves current state into dram_tune soc file and when dev_mgmt_daemon restarts
+		     * it retains config from soc file. If openolt agent try to connect device without
+		     * device reset device initialization fails hence doing device reset here. */
+                    reset_pon_device(dev);
+
                     if (MODEL_ID == "asfvolt16") {
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
                         BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_XGS__2_X);
                     } else if (MODEL_ID == "asgvolt64") {
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_FOUR_TO_ONE);
+                        BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_GPON__16_X);
+                    } else if (MODEL_ID == "phoenix") {
+                        BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_NONE);
+                        if(dev == 1) {
+                            BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_FOUR_TO_ONE);
+                        }
+                        BCMOLT_MSG_FIELD_SET (&oper, ras_ddr_mode, BCMOLT_RAS_DDR_USAGE_MODE_TWO_DDRS);
+                        BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
                         BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_GPON__16_X);
                     }
                     err = bcmolt_oper_submit(dev_id, &oper.hdr);

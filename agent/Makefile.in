@@ -29,14 +29,15 @@ OPENOLTDEVICE ?= generic
 BAL_MAJOR_VER = 3
 BAL_MINOR_VER = 4
 BAL_REV_A_VER = 9
-BAL_REV_B_VER = 6
-BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
+BAL_REV_B_VER != if [ "$(OPENOLTDEVICE)" = "phoenix" ]; then echo "8"; else echo "6"; fi
+BAL_API_REV_B_VER = 6
+BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_API_REV_B_VER)
 BAL_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
 SDK_VER = 6.5.13
-DEV_VER ?= 202012040101
+DEV_VER != if [ "$(OPENOLTDEVICE)" = "phoenix" ]; then echo "20210420"; else echo "202012040101"; fi
 #
 # Version of Open Network Linux (ONL).
-ONL_KERN_VER_MAJOR = 4.14
+ONL_KERN_VER_MAJOR != if [ "$(OPENOLTDEVICE)" = "phoenix" ]; then echo "4.19"; else echo "4.14"; fi
 
 # OpenOLT Proto version.
 # This specifies the GIT tag in https://github.com/opencord/voltha-protos
@@ -51,6 +52,8 @@ VLAN_ID = 4093
 # NNI ports speed setting
 PORT_100G_SPEED ?= 100000
 PORT_25G_SPEED ?= 25000
+PORT_40G_SPEED ?= 40g
+PORT_10G_SPEED ?= 10g
 
 # Build directory
 BUILD_DIR = build
@@ -87,7 +90,7 @@ LIBPROTOBUF_PATH=$(shell PKG_CONFIG_ALLOW_SYSTEM_LIBS=true pkg-config --libs-onl
 PCAPPLUSPLUS_INCLUDE_PATH=-I/usr/local/include/pcapplusplus/
 PCAPPLUSPLUS_LIB_PATH=-lPcap++ -lPacket++ -lCommon++
 
-CXX = @CXX@-4.9
+CXX != if [ "$(OPENOLTDEVICE)" = "phoenix" ]; then echo "@CXX@-6"; else echo "@CXX@-4.9"; fi
 CXXFLAGS += @CXXFLAGS@
 CXXFLAGS += $(shell pkg-config --cflags-only-I grpc++)
 CXXFLAGS += $(PCAPPLUSPLUS_INCLUDE_PATH)
@@ -122,7 +125,11 @@ onl:
 		git clone https://github.com/opencomputeproject/OpenNetworkLinux.git $(ONL_DIR)/OpenNetworkLinux; \
 		cp download/Makefile.onl $(ONL_DIR)/Makefile; \
 		install -m 755 download/build-onl.sh $(ONL_DIR)/OpenNetworkLinux; \
-		make -C $(ONL_DIR) onl-$(ONL_KERN_VER_MAJOR) INBAND=n; \
+		if [ "$(OPENOLTDEVICE)" = "phoenix" ]; then \
+			cp $(TOP_DIR)/device/$(OPENOLTDEVICE)/update_kernel_options.sh $(ONL_DIR)/OpenNetworkLinux/.; \
+			chmod 0755 $(ONL_DIR)/OpenNetworkLinux/update_kernel_options.sh; \
+		fi; \
+		make -C $(ONL_DIR) onl-$(ONL_KERN_VER_MAJOR) INBAND=n BOARD=$(OPENOLTDEVICE); \
 	else \
 		if [ "$(INBAND)" = n -a "$$(grep "inband" $(ONL_DIR)/onl_build.mode | cut -d= -f 2)" = y ]; then \
 			make -C $(ONL_DIR) onl-$(ONL_KERN_VER_MAJOR) INBAND=n; \
@@ -147,7 +154,7 @@ bal-api-$(BAL_API_VER):
 		git clone https://github.com/balapi/bal-api-$(BAL_API_VER).git $(BAL_API_DIR); \
 	fi;
 bal-api-clean:
-	rm $(BAL_API_DIR)
+	rm -rf $(BAL_API_DIR)
 
 ########################################################################
 ##
@@ -157,7 +164,9 @@ bal-api-clean:
 ##
 BAL_ZIP = SW-BCM686OLT_$(subst .,_,$(BAL_VER)).tgz
 SDK_ZIP = sdk-all-$(SDK_VER).tar.gz
-ACCTON_PATCH = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER).patch
+PATCH_FILE != if [ "$(OPENOLTDEVICE)" = "phoenix" ]; then \
+	echo "PHOENIX_BAL_$(BAL_VER)_V$(DEV_VER).patch"; else \
+	echo "ACCTON_BAL_$(BAL_VER)-V$(DEV_VER).patch"; fi
 BAL_DIR = $(BUILD_DIR)/$(OPENOLTDEVICE)-bal
 BCM_SDK = $(BAL_DIR)/switch_sdk/$(SDK_VER)
 BALLIBDIR = $(BAL_DIR)/build/host_reference/host_api
@@ -187,14 +196,19 @@ ifeq ("$(wildcard $(BAL_DIR))","")
 	tar zxvf download/$(BAL_ZIP) --strip 1 -C $(BAL_DIR)
 	cp download/$(SDK_ZIP) $(BCM_SDK)
 	chmod -R 744 $(BAL_DIR)
-	cat download/$(ACCTON_PATCH) | patch -p1 -d $(BAL_DIR)
+	cat download/$(PATCH_FILE) | patch -p1 -d $(BAL_DIR)
 ifeq ("$(strip $(OPENOLTDEVICE))","asfvolt16")
 	echo "setenv port_speed_for_100 $(PORT_100G_SPEED)" > $(PORT_SPEED_FILE)
 else ifeq ("$(strip $(OPENOLTDEVICE))","asgvolt64")
 	echo "setenv port_speed_for_100 $(PORT_100G_SPEED)" > $(PORT_SPEED_FILE)
 	echo "setenv port_speed_for_25 $(PORT_25G_SPEED)" >> $(PORT_SPEED_FILE)
 endif
+ifeq ("$(strip $(OPENOLTDEVICE))","phoenix")
+	chmod 0755 $(BAL_DIR)/onu_mgmt/libomcistack/me_codegen/omci_stack_codegen
+	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) ONL=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux ONL_DEBIAN_SUITE=$(shell lsb_release -c -s) OPEN_SOURCE=y
+else
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) ONL_DIR=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux OPEN_SOURCE=y
+endif
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
 endif
 
@@ -262,7 +276,11 @@ DEPS = $(SRCS:.cc=.d)
 all: $(BUILD_DIR)/openolt
 $(BUILD_DIR)/openolt: sdk protos $(OBJS)
 	$(CXX) $(LDFLAGS) -L$(BALLIBDIR) $(OBJS) $(OPENOLT_API_LIB) $(LIBPROTOBUF_PATH)/libprotobuf.a -o $@ -l$(BALLIBNAME) $(shell pkg-config --libs protobuf grpc++ grpc) $(PCAPPLUSPLUS_LIB_PATH)
+ifeq ("$(strip $(OPENOLTDEVICE))","phoenix")
+	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_v$(BAL_VER).tar.gz $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz
+else
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
+endif
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_reference/host_api/strip/libbal_host_api.so $(BUILD_DIR)/.
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_driver/dev_mgmt_daemon/dev_mgmt_daemon $(BUILD_DIR)/.
 	ln -sf $(LIBGRPC_PATH)/libz.so.1 $(BUILD_DIR)/libz.so.1
@@ -285,9 +303,12 @@ deb:
 	cp $(BUILD_DIR)/libstdc++.so.6 device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/libbal_host_api.so device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp -a scripts/init.d device/$(OPENOLTDEVICE)/mkdebian/debian
+ifeq ("$(strip $(OPENOLTDEVICE))","phoenix")
+	sed -i '/\/opt\/bcm68650\/svk_init.sh/c\    \/opt\/bcm68650\/svk_init.sh -qsfp_speed=$(PORT_40G_SPEED) -sfp_speed=$(PORT_10G_SPEED)' device/$(OPENOLTDEVICE)/mkdebian/debian/init.d/dev_mgmt_daemon
+endif
 	cp -a scripts/watchdog device/$(OPENOLTDEVICE)/mkdebian/debian
 	cd device/$(OPENOLTDEVICE)/mkdebian && ./build_$(OPENOLTDEVICE)_deb.sh
-	mv device/$(OPENOLTDEVICE)/*.deb $(BUILD_DIR)/openolt_$(OPENOLTDEVICE)-$(VERSION)-$(LABEL_VCS_REF).deb
+	mv device/$(OPENOLTDEVICE)/$(OPENOLTDEVICE)_*.deb $(BUILD_DIR)/openolt_$(OPENOLTDEVICE)-$(VERSION)-$(LABEL_VCS_REF).deb
 	make deb-cleanup
 
 inband-onl:

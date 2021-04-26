@@ -9,7 +9,8 @@ adapter](https://github.com/opencord/voltha/tree/master/voltha/adapters/openolt)
 
 OpenOLT agent uses Broadcom's BAL (Broadband Adaptation Layer) software for
 interfacing with the Maple/Qumran chipsets in OLTs such as the Edgecore/Accton
-ASXvOLT16.
+ASXvOLT16 and with Aspen/Qumran chipsets in OLTs such as the Radisys/Phoenix
+RLT-3200G.
 
 ```text
 
@@ -77,8 +78,9 @@ Install the *openolt.deb* package using *dpkg*:
 dpkg -i openolt_<OPENOLTDEVICE>-2.6.0-<GIT Commit ID>.deb
 ```
 
-The ONL version required for BAL v3.4.9.6 is ONL `4.14.151-OpenNetworkLinux`. This
-will be built as part of build procedure described `Build OpenOLT` section.
+The ONL version required for BAL v3.4.9.6 is ONL `4.14.151-OpenNetworkLinux`. Radisys RLT-3200G
+requires BAL v3.4.9.8 and ONL version `4.19-OpenNetworkLinux`. This will be built as part of
+build procedure described in `Build OpenOLT` section.
 
 ## Run OpenOLT as a Linux service
 
@@ -125,30 +127,50 @@ cd /broadcom
 
 Perform `dev_mgmt_daemon` and change NNI port speed:
 
-* 100G port change to 40Gbps speed
+* 100G port change to 40Gbps speed (Accton/Edgecore ASXvOLT16)
+
 ```shell
 cd /broadcom
 ./dev_mgmt_daemon -d -pcie -port_100g_speed 40000
 ```
-* 100G port change to 10Gbps speed (use Break-out cable)
+
+* 100G port change to 10Gbps speed (use Break-out cable) (Accton/Edgecore ASXvOLT16)
+
 ```shell
 cd /broadcom
 ./dev_mgmt_daemon -d -pcie -port_100g_speed 10000 topology_config_file ./topology_config_16_ports.ini
 ```
+
 * 25G port change to 20Gbps speed (Accton/Edgecore ASGvOLT64)
+
 ```shell
 cd /broadcom
 ./dev_mgmt_daemon -d -pcie -port_25g_speed 20000
 ```
+
 * 25G port change to 10Gbps speed (Accton/Edgecore ASGvOLT64)
+
 ```shell
 cd /broadcom
 ./dev_mgmt_daemon -d -pcie -port_25g_speed 10000
 ```
+
 * 25G port change to 1Gbps speed (Accton/Edgecore ASGvOLT64)
+
 ```shell
 cd /broadcom
 ./dev_mgmt_daemon -d -pcie -port_25g_speed 1000
+```
+
+* 40G QSFP NNI port change to 10Gbps speed and 10G SFP NNI port to default speed (Phoenix/Radisys RLT-3200G).  
+  If no speed specified QSFP port speed defaults to 40G and SFP port speed defaults to 10G
+
+```shell
+cd /opt/bcm68650/
+./svk_init.sh -clean
+./svk_init.sh -qsfp_speed=10g -sfp_speed=10g
+cd /broadcom
+./dev_mgmt_daemon -d -pcie
 ```
 
 The `dev_mgmt_daemon` executable presents the CLI for Broadcom's BAL when run
@@ -182,8 +204,8 @@ cd /broadcom
 * Startup script named "start_inband_oltservices.sh" will be executed in
   background after ONL installation. Script execution could be watched in a
   log file located in /var/log/startup.log.
-* Follow the procedure specified below in Build OpenOLT section to build
-  integrated Inband ONL image.
+* Follow the procedure specified in Build OpenOLT section to build integrated
+  Inband ONL image.
 
 ### Connect from VOLTHA
 
@@ -266,7 +288,7 @@ Refer [BUILDING guide](BUILDING.md) for details on how to build openolt agent.
 ## FAQ
 
 The information here may be specific to specific OLT and ONU hardware such as
-Edgecore ASFVOLT16 OLT and Broadcom based ONUs.
+Edgecore ASFVOLT16 OLT, Radisys RLT-3200G OLT and Broadcom based ONUs.
 
 ### How to change speed of ASFVOLT16 NNI interface?
 
@@ -313,7 +335,7 @@ WAN port packet counters:
 bs /b/e port/index=wan0
 ```
 
-### How to get access to MAPLE CLI on OLT box
+### How to get access to BAL CLI on OLT box
 
 To get access to the `BCM.0>` maple console, SSH into the OLT and then execute:
 

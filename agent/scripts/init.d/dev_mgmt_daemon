@@ -19,6 +19,21 @@ GROUP="root"
 PORT_SPEED_FILE="$APPDIR/port_speed.soc"
 TOPOLOGY_CONFIG_FILE="$APPDIR/topology_config.ini"
 OLT_MODEL=`cat /sys/devices/virtual/dmi/id/board_name`
+PRODUCT_NAME=
+
+# phoenix - wait for onlp driver to load
+if [ "$OLT_MODEL" = "Default string" ]; then
+    RETRY_COUNT=0
+    while [ -z "$PRODUCT_NAME" ]
+    do
+        PRODUCT_NAME=$(onlpd -s | grep Part | awk '{print $3}')
+        echo "RETRY_COUNT=$RETRY_COUNT, product name=$PRODUCT_NAME"
+        sleep 1
+	RETRY_COUNT=$((RETRY_COUNT+1))
+    done
+    OLT_MODEL=$PRODUCT_NAME
+fi
+
 if [ "$OLT_MODEL" = "ASXvOLT16" ]; then
     Port_100G_SPEED=`cat $PORT_SPEED_FILE | awk -F "port_speed_for_100 " '{print $2}'`
     [ "$Port_100G_SPEED" = "10000" ] && TOPOLOGY_CONFIG_FILE="$APPDIR/topology_config_16_ports.ini"
@@ -28,6 +43,8 @@ elif [ "$OLT_MODEL" = "ASGvOLT64" ]; then
     [ "$Port_100G_SPEED" = "10000" ] && TOPOLOGY_CONFIG_FILE="$APPDIR/topology_config_16_ports.ini"
     Port_25G_SPEED=`cat $PORT_SPEED_FILE | awk -F "port_speed_for_25 " '{print $2}'`
     APPARGS="-pcie -d -port_100g_speed $Port_100G_SPEED -pcie -port_25g_speed $Port_25G_SPEED -topology_config_file $TOPOLOGY_CONFIG_FILE"
+elif [ "$OLT_MODEL" = "RLT-3200G" ] || [ "$OLT_MODEL" = "RLT-3200X" ] || [ "$OLT_MODEL" = "RLT-1600G" ] || [ "$OLT_MODEL" = "RLT-1600X" ]; then
+    APPARGS="-pcie -d"
 else
     Port_100G_SPEED="100000"
     Port_25G_SPEED="25000"
@@ -39,7 +56,12 @@ set -e
 . /lib/lsb/init-functions
 
 start() {
-  /opt/bcm68620/svk_init.sh
+  if [ "$OLT_MODEL" = "ASGvOLT64" ] || [ "$OLT_MODEL" = "ASXvOLT16" ]; then
+    /opt/bcm68620/svk_init.sh
+  elif [ "$OLT_MODEL" = "RLT-3200G" ] || [ "$OLT_MODEL" = "RLT-3200X" ] || [ "$OLT_MODEL" = "RLT-1600G" ] || [ "$OLT_MODEL" = "RLT-1600X" ]; then
+    /opt/bcm68650/svk_init.sh
+  fi
+
   sleep 10
   printf "Starting '$NAME'... "
   touch /var/log/$NAME.log

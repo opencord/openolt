@@ -14,10 +14,17 @@
 
 COMMIT_ID = 72b95a7
 INBAND = "n"
+BOARD = ""
 
 onl-4.14:
 	if [ $(INBAND) = y ]; then \
 	    cd OpenNetworkLinux && git checkout -B $@ $(COMMIT_ID) && git apply inband-$(COMMIT_ID).patch && docker/tools/onlbuilder --non-interactive -8 -c ./build-onl.sh; \
 	else \
 	    cd OpenNetworkLinux && git stash && git checkout -B $@ $(COMMIT_ID) && docker/tools/onlbuilder --non-interactive -8 -c ./build-onl.sh; \
+	fi;
+onl-4.19:
+	if [ "$(BOARD)" = "phoenix" ]; then \
+	        cd OpenNetworkLinux && git stash && git checkout -B $@ $(COMMIT_ID) && bash update_kernel_options.sh && docker/tools/onlbuilder --non-interactive -9 -c ./build-onl.sh; \
+	else \
+		cd OpenNetworkLinux && git stash && git checkout -B $@ $(COMMIT_ID) && docker/tools/onlbuilder --non-interactive -9 -c ./build-onl.sh; \
 	fi;

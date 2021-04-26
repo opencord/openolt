@@ -301,7 +301,7 @@ void bcm_dev_log_log(dev_log_id xi_id,
 
 bcmos_errno bcmos_task_query(const bcmos_task *task, bcmos_task_parm *parm) {
     printf (" -- stub bcmos_task_query called --\n");
-    return BCM_ERR_OK;
+    return BCM_ERR_ALREADY;
 }
 
 bcmos_errno bcmos_task_create(bcmos_task *task, const bcmos_task_parm *parm) {
