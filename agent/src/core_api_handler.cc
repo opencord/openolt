@@ -427,6 +427,7 @@ Status Disable_() {
 
     Status status;
     int failedCount = 0;
+    OPENOLT_LOG(INFO, openolt_log_id, "Received disable OLT\n");
     for (int i = 0; i < NumPonIf_(); i++) {
         status = DisablePonIf_(i);
         if (!status.ok()) {
@@ -1055,6 +1056,19 @@ Status DisablePonIf_(uint32_t intf_id) {
     bcmolt_pon_interface_cfg interface_obj;
     bcmolt_pon_interface_key intf_key = {.pon_ni = (bcmolt_interface)intf_id};
     bcmolt_pon_interface_set_pon_interface_state pon_interface_set_state;
+
+    BCMOLT_CFG_INIT(&interface_obj, pon_interface, intf_key);
+    BCMOLT_MSG_FIELD_GET(&interface_obj, state);
+
+    err = bcmolt_cfg_get(dev_id, &interface_obj.hdr);
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch pon port status, PON interface %d, err %d err_text=%s \n", intf_id, err, interface_obj.hdr.hdr.err_text);
+        return bcm_to_grpc_err(err, "Failed to fetch pon port state");
+    }
+    if (interface_obj.data.state == BCMOLT_INTERFACE_STATE_INACTIVE) {
+        OPENOLT_LOG(INFO, openolt_log_id, "PON Interface already inactive, PON interface %d\n", intf_id);
+        return Status::OK;
+    }
 
     BCMOLT_CFG_INIT(&interface_obj, pon_interface, intf_key);
     BCMOLT_OPER_INIT(&pon_interface_set_state, pon_interface, set_pon_interface_state, intf_key);

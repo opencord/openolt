@@ -265,10 +265,12 @@ TEST_F(TestOltDisableReenable, OltDisableSuccess){
     // This is described in https://github.com/arangodb-helper/gtest/blob/master/googlemock/docs/CookBook.md
     NiceMock<BalMocker> balMock;
     bcmos_errno olt_oper_res = BCM_ERR_OK;
+    bcmos_errno olt_get_res = BCM_ERR_OK;
 
     Status olt_disable_res;
     state.deactivate();
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(olt_oper_res));
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Return(olt_get_res));
     olt_disable_res = Disable_();
     ASSERT_TRUE( olt_disable_res.error_message() == Status::OK.error_message() );
 
@@ -280,9 +282,11 @@ TEST_F(TestOltDisableReenable, OltDisableAllPonFailed){
     // This is described in https://github.com/arangodb-helper/gtest/blob/master/googlemock/docs/CookBook.md
     NiceMock<BalMocker> balMock;
     bcmos_errno olt_oper_res = BCM_ERR_INTERNAL;
+    bcmos_errno pon_cfg_get_res = BCM_ERR_INTERNAL;
 
     Status olt_disable_res;
     state.deactivate();
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Return(pon_cfg_get_res));
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(olt_oper_res));
     olt_disable_res = Disable_();
     ASSERT_TRUE( olt_disable_res.error_code() == grpc::StatusCode::INTERNAL);
@@ -777,14 +781,26 @@ class TestDisablePonIf : public Test {
         }
 };
 
-// Test 1 - DisablePonIf success case
+// Test 1 - DisablePonIf success case - PON port in BCMOLT_INTERFACE_STATE_ACTIVE_WORKING state
 TEST_F(TestDisablePonIf, DisablePonIfSuccess) {
     bcmos_errno olt_oper_res = BCM_ERR_OK;
     bcmos_errno bal_cfg_set_res = BCM_ERR_OK;
     NiceMock<BalMocker> balMock;
     uint32_t pon_id=1;
 
-    //ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(bal_cfg_set_res));
+    bcmos_errno pon_intf_get_res = BCM_ERR_OK;
+    bcmolt_pon_interface_cfg interface_obj;
+
+    bcmolt_pon_interface_key intf_key = {.pon_ni = (bcmolt_interface)pon_id};
+    BCMOLT_CFG_INIT(&interface_obj, pon_interface, intf_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([pon_intf_get_res, &interface_obj] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_pon_interface_cfg* pon_cfg = (bcmolt_pon_interface_cfg*)cfg;
+                                                                   pon_cfg->data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
+                                                                   memcpy(&interface_obj, pon_cfg, sizeof(bcmolt_pon_interface_cfg));
+                                                                   return pon_intf_get_res;
+                                                               }
+    ));
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(olt_oper_res));
     state.deactivate();
     Status status = DisablePonIf_(pon_id);
@@ -792,11 +808,25 @@ TEST_F(TestDisablePonIf, DisablePonIfSuccess) {
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
-// Test 2 - DisablePonIf Failure case
-TEST_F(TestDisablePonIf, DisablePonIfFailed) {
+// Test 2 - DisablePonIf Failure case - bcmolt_oper_submit returns BCM_ERR_INTERNAL
+TEST_F(TestDisablePonIf, DisablePonIf_OperSubmitErrInternal) {
     bcmos_errno olt_oper_res = BCM_ERR_INTERNAL;
     NiceMock<BalMocker> balMock;
     uint32_t pon_id=1;
+
+    bcmos_errno pon_intf_get_res = BCM_ERR_OK;
+    bcmolt_pon_interface_cfg interface_obj;
+
+    bcmolt_pon_interface_key intf_key = {.pon_ni = (bcmolt_interface)pon_id};
+    BCMOLT_CFG_INIT(&interface_obj, pon_interface, intf_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([pon_intf_get_res, &interface_obj] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_pon_interface_cfg* pon_cfg = (bcmolt_pon_interface_cfg*)cfg;
+                                                                   pon_cfg->data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
+                                                                   memcpy(&interface_obj, pon_cfg, sizeof(bcmolt_pon_interface_cfg));
+                                                                   return pon_intf_get_res;
+                                                               }
+    ));
 
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(olt_oper_res));
     state.deactivate();
@@ -805,16 +835,58 @@ TEST_F(TestDisablePonIf, DisablePonIfFailed) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
-// Test 3 - DisablePonIf ONU discovery failure case
-TEST_F(TestDisablePonIf, DisablePonIfOnuDiscoveryFail) {
+// Test 3 - DisablePonIf Failure case - bcmolt_oper_submit returns BCM_ERR_INTERNAL
+TEST_F(TestDisablePonIf, DisablePonIf_CfgSetErrInternal) {
     NiceMock<BalMocker> balMock;
     uint32_t pon_id=1;
     bcmos_errno bal_cfg_set_res= BCM_ERR_INTERNAL;
+
+    bcmos_errno pon_intf_get_res = BCM_ERR_OK;
+    bcmolt_pon_interface_cfg interface_obj;
+
+    bcmolt_pon_interface_key intf_key = {.pon_ni = (bcmolt_interface)pon_id};
+    BCMOLT_CFG_INIT(&interface_obj, pon_interface, intf_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([pon_intf_get_res, &interface_obj] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_pon_interface_cfg* pon_cfg = (bcmolt_pon_interface_cfg*)cfg;
+                                                                   pon_cfg->data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
+                                                                   memcpy(&interface_obj, pon_cfg, sizeof(bcmolt_pon_interface_cfg));
+                                                                   return pon_intf_get_res;
+                                                               }
+    ));
+
+
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(bal_cfg_set_res));
     state.deactivate();
     Status status = DisablePonIf_(pon_id);
 
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 4 - DisablePonIf success case - PON port in BCMOLT_INTERFACE_STATE_INACTIVE state
+TEST_F(TestDisablePonIf, DisablePonIfSuccess_PonIntfInactive) {
+    bcmos_errno olt_oper_res = BCM_ERR_OK;
+    bcmos_errno bal_cfg_set_res = BCM_ERR_OK;
+    NiceMock<BalMocker> balMock;
+    uint32_t pon_id=1;
+
+    bcmos_errno pon_intf_get_res = BCM_ERR_OK;
+    bcmolt_pon_interface_cfg interface_obj;
+
+    bcmolt_pon_interface_key intf_key = {.pon_ni = (bcmolt_interface)pon_id};
+    BCMOLT_CFG_INIT(&interface_obj, pon_interface, intf_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([pon_intf_get_res, &interface_obj] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_pon_interface_cfg* pon_cfg = (bcmolt_pon_interface_cfg*)cfg;
+                                                                   pon_cfg->data.state = BCMOLT_INTERFACE_STATE_INACTIVE;
+                                                                   memcpy(&interface_obj, pon_cfg, sizeof(bcmolt_pon_interface_cfg));
+                                                                   return pon_intf_get_res;
+                                                               }
+    ));
+    state.deactivate();
+    Status status = DisablePonIf_(pon_id);
+
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
 ////////////////////////////////////////////////////////////////////////////
