@@ -362,6 +362,7 @@ Status Enable_(int argc, char *argv[]) {
         bcmos_fastlock_init(&flow_id_bitset_lock, 0);
         bcmos_fastlock_init(&voltha_flow_to_device_flow_lock, 0);
         bcmos_fastlock_init(&alloc_cfg_wait_lock, 0);
+        bcmos_fastlock_init(&gem_cfg_wait_lock, 0);
         bcmos_fastlock_init(&onu_deactivate_wait_lock, 0);
         bcmos_fastlock_init(&acl_packet_trap_handler_lock, 0);
 
@@ -2762,8 +2763,8 @@ sched_id %d, tm_q_set_id %d, intf_id %d, onu_id %d, uni_id %d, tech_profile_id %
         return err;
     }
 
-    if (direction.compare(upstream) == 0) {
-        Status st = install_gem_port(access_intf_id, onu_id, gemport_id);
+    if (direction == upstream || direction == downstream) {
+        Status st = install_gem_port(access_intf_id, onu_id, uni_id, gemport_id);
         if (st.error_code() != grpc::StatusCode::ALREADY_EXISTS && st.error_code() != grpc::StatusCode::OK) {
             OPENOLT_LOG(ERROR, openolt_log_id, "failed to created gemport=%d, access_intf=%d, onu_id=%d\n", gemport_id, access_intf_id, onu_id);
             return BCM_ERR_INTERNAL;
@@ -2842,6 +2843,17 @@ bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t
     bcmolt_tm_queue_key key = { };
     bcmos_errno err;
 
+    // Gemports are bi-directional (except in multicast case). We create the gem port when we create the
+    // upstream/downstream queue (see CreateQueue function) and it makes sense to delete them when remove the queues.
+    // For multicast case we do not manage the install/remove of gem port in agent application. It is managed by BAL.
+    if (direction == upstream || direction == downstream) {
+        Status st = remove_gem_port(access_intf_id, onu_id, uni_id, gemport_id);
+        if (st.error_code() != grpc::StatusCode::OK) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "failed to remove gemport=%d, access_intf=%d, onu_id=%d\n", gemport_id, access_intf_id, onu_id);
+            return BCM_ERR_INTERNAL;
+        }
+    }
+
     if (direction == downstream) {
         if (is_tm_sched_id_present(access_intf_id, onu_id, uni_id, direction, tech_profile_id)) {
             key.sched_id = get_tm_sched_id(access_intf_id, onu_id, uni_id, direction, tech_profile_id);
@@ -2851,15 +2863,6 @@ bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t
             return BCM_ERR_OK;
         }
     } else {
-        // Gemports are bi-directional (except in multicast case). We create the gem port when we create the
-        // upstream queue (see CreateQueue function) and it makes sense to delete them when remove the upstream queues.
-        // For multicast case we do not manage the install/remove of gem port in agent application. It is managed by BAL.
-        // Moreover it also makes sense to remove when upstream queue is getting removed because the upstream queue MUST exist always.
-        // It is possible that the downstream queues are not created for a subscriber (for ex: upstream EAPoL trap flow only exists
-        // but no other flow, and in this case only upstream scheduler and queues exist. We do not have a scenario where only downstream
-        // subscriber flows exist but no upstream )
-        remove_gem_port(access_intf_id, gemport_id);
-
         /* In the upstream we use pre-created queues on the NNI scheduler that are used by all subscribers.
         They should not be removed. So, lets return OK. */
         return BCM_ERR_OK;

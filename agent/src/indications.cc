@@ -35,10 +35,6 @@ extern "C"
 
 using grpc::Status;
 
-extern Queue<openolt::Indication> oltIndQ;
-extern std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *> alloc_cfg_compltd_map;
-extern bcmos_fastlock alloc_cfg_wait_lock;
-
 bool subscribed = false;
 uint32_t nni_intf_id = 0;
 #define current_device 0
@@ -589,6 +585,84 @@ static void ItuPonAllocConfigCompletedInd(bcmolt_devid olt, bcmolt_msg *msg) {
                         it->second->push(res);
                     }
                     bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
+                }
+            }
+    }
+
+    bcmolt_msg_free(msg);
+}
+
+static void ItuPonGemConfigCompletedInd(bcmolt_devid olt, bcmolt_msg *msg) {
+
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ITUPON_GEM:
+            switch (msg->subgroup) {
+                case BCMOLT_ITUPON_GEM_AUTO_SUBGROUP_CONFIGURATION_COMPLETED:
+                {
+                    bcmolt_itupon_gem_configuration_completed *pkt =
+                        (bcmolt_itupon_gem_configuration_completed*)msg;
+                    bcmolt_itupon_gem_configuration_completed_data *pkt_data =
+                        &((bcmolt_itupon_gem_configuration_completed*)msg)->data;
+
+                    gem_cfg_compltd_key key((uint32_t)pkt->key.pon_ni, (uint32_t) pkt->key.gem_port_id);
+                    gem_cfg_complete_result res;
+                    res.pon_intf_id = pkt->key.pon_ni;
+                    res.gem_port_id = pkt->key.gem_port_id;
+
+                    pkt_data->status == BCMOLT_RESULT_SUCCESS ? res.status = GEM_CFG_STATUS_SUCCESS: res.status = GEM_CFG_STATUS_FAIL;
+                    switch (pkt_data->new_state) {
+                        case BCMOLT_ACTIVATION_STATE_NOT_CONFIGURED:
+                            res.state = GEM_OBJECT_STATE_NOT_CONFIGURED;
+                            break;
+                        case BCMOLT_ACTIVATION_STATE_INACTIVE:
+                            res.state = GEM_OBJECT_STATE_INACTIVE;
+                            break;
+                        case BCMOLT_ACTIVATION_STATE_PROCESSING:
+                            res.state = GEM_OBJECT_STATE_PROCESSING;
+                            break;
+                        case BCMOLT_ACTIVATION_STATE_ACTIVE:
+                            res.state = GEM_OBJECT_STATE_ACTIVE;
+                            break;
+                        default:
+                            OPENOLT_LOG(ERROR, openolt_log_id, "invalid itu pon gem activation new_state, pon_intf %u, gem_port_id %u, new_state %d\n",
+                                    pkt->key.pon_ni, pkt->key.gem_port_id, pkt_data->new_state);
+                            res.state = GEM_OBJECT_STATE_NOT_CONFIGURED;
+                    }
+                    OPENOLT_LOG(INFO, openolt_log_id, "received itu pon gem cfg complete ind, pon intf %u, gem_port_id %u, status %u, new_state %u\n",
+                            pkt->key.pon_ni, pkt->key.gem_port_id, pkt_data->status, pkt_data->new_state);
+
+                    uint32_t gem_cfg_key_check_counter = 1;
+                    std::map<gem_cfg_compltd_key,  Queue<gem_cfg_complete_result> *>::iterator it;
+                    while(true) {
+                        bcmos_fastlock_lock(&gem_cfg_wait_lock);
+                        // Push the result from BAL to queue
+                        it = gem_cfg_compltd_map.find(key);
+
+                        if (it != gem_cfg_compltd_map.end()) {
+                            bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+                            break;
+                        } else if (it == gem_cfg_compltd_map.end() && gem_cfg_key_check_counter < MAX_GEM_CFG_KEY_CHECK) {
+                            /*During removal of gemport, indication from BAL arriving soon even before we start waiting for gemport cfg completion
+                            by pushing empty cfg_result for gem_cfg_compltd_key. To handle this scenario delaying to push gem cfg completion indication
+                            to Queue by 6ms.*/
+                            bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+                            bcmos_usleep(6000);
+                        } else {
+                            // could be case of spurious aysnc response, OR, the application timed-out waiting for response and cleared the key.
+                            bcmolt_msg_free(msg);
+                            OPENOLT_LOG(ERROR, openolt_log_id, "gem config key not found for gem_port_id = %u, pon_intf = %u\n", pkt->key.gem_port_id, pkt->key.pon_ni);
+                            bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+                            return;
+                        }
+                        gem_cfg_key_check_counter++;
+                    }
+
+                    bcmos_fastlock_lock(&gem_cfg_wait_lock);
+                    if (it->second) {
+                        // Push the result
+                        it->second->push(res);
+                    }
+                    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
                 }
             }
     }
@@ -1371,6 +1445,14 @@ Status SubscribeIndication() {
     rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "ITU PON Alloc Configuration Complete Indication subscribe failed");
+
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ITUPON_GEM;
+    rx_cfg.rx_cb = ItuPonGemConfigCompletedInd;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_itupon_gem_auto_subgroup_configuration_completed;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, "ITU PON Gem Configuration Complete Indication subscribe failed");
 #endif
 
     rx_cfg.obj_type = BCMOLT_OBJ_ID_GROUP;

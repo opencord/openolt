@@ -51,6 +51,10 @@ extern "C"
 }
 
 #define ALLOC_CFG_COMPLETE_WAIT_TIMEOUT 5000 // in milli-seconds
+#define GEM_CFG_COMPLETE_WAIT_TIMEOUT 5000 // in milli-seconds
+
+// max retry count to find gem config key in gem_cfg_compltd_map
+#define MAX_GEM_CFG_KEY_CHECK 5
 
 #define ONU_DEACTIVATE_COMPLETE_WAIT_TIMEOUT 5000 // in milli-seconds
 
@@ -118,6 +122,31 @@ typedef struct {
     AllocCfgStatus status;
 } alloc_cfg_complete_result;
 
+enum GemCfgAction {
+    GEM_OBJECT_CREATE,
+    GEM_OBJECT_DELETE,
+    GEM_OBJECT_ENCRYPT
+};
+
+enum GemObjectState {
+    GEM_OBJECT_STATE_NOT_CONFIGURED,
+    GEM_OBJECT_STATE_INACTIVE,
+    GEM_OBJECT_STATE_PROCESSING,
+    GEM_OBJECT_STATE_ACTIVE
+};
+
+enum GemCfgStatus {
+    GEM_CFG_STATUS_SUCCESS,
+    GEM_CFG_STATUS_FAIL
+};
+
+typedef struct {
+    uint32_t pon_intf_id;
+    uint32_t gem_port_id;
+    GemObjectState state;
+    GemCfgStatus status;
+} gem_cfg_complete_result;
+
 typedef struct {
     uint32_t pon_intf_id;
     uint32_t onu_id;
@@ -127,6 +156,9 @@ typedef struct {
 
 // key for map used for tracking ITU PON Alloc Configuration results from BAL
 typedef std::tuple<uint32_t, uint32_t> alloc_cfg_compltd_key;
+
+// key for map used for tracking ITU PON Gem Configuration results from BAL
+typedef std::tuple<uint32_t, uint32_t> gem_cfg_compltd_key;
 
 // key for map used for tracking Onu Deactivation Completed Indication
 typedef std::tuple<uint32_t, uint32_t> onu_deact_compltd_key;
@@ -240,13 +272,27 @@ extern std::map<int, std::vector < uint32_t > > qmp_id_to_qmp_map;
 // The key is alloc_cfg_compltd_key and value is a concurrent thread-safe queue which is
 // used for pushing (from BAL) and popping (at application) the results.
 extern std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *> alloc_cfg_compltd_map;
+
+// Map used to track response from BAL for ITU PON Gem Configuration.
+// The key is gem_cfg_compltd_key and value is a concurrent thread-safe queue which is
+// used for pushing (from BAL) and popping (at application) the results.
+extern std::map<gem_cfg_compltd_key,  Queue<gem_cfg_complete_result> *> gem_cfg_compltd_map;
+
+/* This represents the Key to 'gemport_status_map' map.
+ Represents (pon_intf_id, onu_id, uni_id, gemport_id) */
+typedef std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> gemport_status_map_key_tuple;
+/* 'gemport_status_map' maps gemport_status_map_key_tuple to boolean value */
+extern std::map<gemport_status_map_key_tuple, bool> gemport_status_map;
+
 // Map used to track response from BAL for Onu Deactivation Completed Indication
-// The key is alloc_cfg_compltd_key and value is a concurrent thread-safe queue which is
+// The key is onu_deact_compltd_key and value is a concurrent thread-safe queue which is
 // used for pushing (from BAL) and popping (at application) the results.
 extern std::map<onu_deact_compltd_key,  Queue<onu_deactivate_complete_result> *> onu_deact_compltd_map;
 
 // Lock to protect critical section data structure used for handling AllocObject configuration response.
 extern bcmos_fastlock alloc_cfg_wait_lock;
+// Lock to protect critical section data structure used for handling GemObject configuration response.
+extern bcmos_fastlock gem_cfg_wait_lock;
 // Lock to protect critical section data structure used for handling Onu deactivation completed Indication
 extern bcmos_fastlock onu_deactivate_wait_lock;
 

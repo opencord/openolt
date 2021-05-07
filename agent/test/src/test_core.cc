@@ -25,10 +25,6 @@
 using namespace testing;
 using namespace std;
 
-extern std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *> alloc_cfg_compltd_map;
-extern dev_log_id openolt_log_id;
-extern bcmos_fastlock alloc_cfg_wait_lock;
-
 class TestOltEnable : public Test {
  protected:
   virtual void SetUp() {
@@ -1431,6 +1427,47 @@ class TestFlowAdd : public Test {
 
         virtual void TearDown() {
         }
+
+    public:
+        static int PushGemCfgResult(GemObjectState state, GemCfgStatus status, uint32_t gem_port_id) {
+            gem_cfg_compltd_key k(0, gem_port_id);
+            gem_cfg_complete_result res;
+            res.pon_intf_id = 0;
+            res.gem_port_id = gem_port_id;
+            res.state = state;
+            res.status = status;
+
+            uint32_t gem_cfg_key_check_counter = 1;
+            std::map<gem_cfg_compltd_key,  Queue<gem_cfg_complete_result> *>::iterator it;
+            while(true) {
+                bcmos_fastlock_lock(&gem_cfg_wait_lock);
+                it = gem_cfg_compltd_map.find(k);
+
+                if (it != gem_cfg_compltd_map.end()) {
+                    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+                    break;
+                } else if (it == gem_cfg_compltd_map.end() && gem_cfg_key_check_counter < MAX_GEM_CFG_KEY_CHECK) {
+                    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+
+                    // We need to wait for some time to allow the Gem Cfg Request to be triggered
+                    // before we push the result.
+                    bcmos_usleep(6000);
+                } else {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "gem config key not found for gem_port_id = %u, pon_intf = %u\n", gem_port_id, 0);
+                    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+                    return 0;
+                }
+                gem_cfg_key_check_counter++;
+            }
+
+            bcmos_fastlock_lock(&gem_cfg_wait_lock);
+            if (it->second) {
+                it->second->push(res);
+                OPENOLT_LOG(INFO, openolt_log_id, "Pushed mocked gem cfg result\n");
+            }
+            bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+            return 0;
+        }
 };
 
 // Test 1 - FlowAdd - success case(HSIA-upstream FixedQueue)
@@ -1574,9 +1611,16 @@ TEST_F(TestFlowAdd, FlowAddHsiaPriorityQueueUpstreamSuccess) {
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__flow_stub, bcmolt_cfg_get__flow_stub(_, _))
                      .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
-    CreateTrafficQueues_(traffic_queues);
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+    future<Status> future_res = async(launch::async, CreateTrafficQueues_, traffic_queues);
+    future<int> push_gem_cfg_complt = \
+                async(launch::async, TestFlowAdd::PushGemCfgResult, GEM_OBJECT_STATE_ACTIVE, GEM_CFG_STATUS_SUCCESS, 1024);
+    push_gem_cfg_complt = \
+                async(launch::async, TestFlowAdd::PushGemCfgResult, GEM_OBJECT_STATE_ACTIVE, GEM_CFG_STATUS_SUCCESS, 1025);
+    Status status = future_res.get();
+    int res = push_gem_cfg_complt.get();
+
+    status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
         gemport_id, *classifier, *action, priority_value, cookie, group_id, tech_profile_id);
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
@@ -1626,8 +1670,13 @@ TEST_F(TestFlowAdd, FlowAddDownstreamEncryptedGemSuccess) {
                      .WillRepeatedly(DoAll(SetArg1ToBcmOltFlowCfg(flow_cfg), Return(flow_cfg_get_stub_res)));
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
-    Status status = FlowAdd_(access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
+    future<Status> future_res = async(launch::async, FlowAdd_, access_intf_id, onu_id, uni_id, port_no, flow_id, flow_type, alloc_id, network_intf_id,
         gemport_id, *classifier, *action, priority_value, cookie, group_id, tech_profile_id, enable_encryption);
+
+    future<int> push_gem_cfg_complt = \
+                async(launch::async, TestFlowAdd::PushGemCfgResult, GEM_OBJECT_STATE_ACTIVE, GEM_CFG_STATUS_SUCCESS, 1024);
+    Status status = future_res.get();
+    int res = push_gem_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -2531,11 +2580,51 @@ class TestCreateTrafficQueues : public Test {
 
         virtual void TearDown() {
         }
+
+    public:
+        static int PushGemCfgResult(GemObjectState state, GemCfgStatus status, uint32_t gem_port_id) {
+            gem_cfg_compltd_key k(0, gem_port_id);
+            gem_cfg_complete_result res;
+            res.pon_intf_id = 0;
+            res.gem_port_id = gem_port_id;
+            res.state = state;
+            res.status = status;
+
+            uint32_t gem_cfg_key_check_counter = 1;
+            std::map<gem_cfg_compltd_key,  Queue<gem_cfg_complete_result> *>::iterator it;
+            while(true) {
+                bcmos_fastlock_lock(&gem_cfg_wait_lock);
+                it = gem_cfg_compltd_map.find(k);
+
+                if (it != gem_cfg_compltd_map.end()) {
+                    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+                    break;
+                } else if (it == gem_cfg_compltd_map.end() && gem_cfg_key_check_counter < MAX_GEM_CFG_KEY_CHECK) {
+                    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+
+                    // We need to wait for some time to allow the Gem Cfg Request to be triggered
+                    // before we push the result.
+                    bcmos_usleep(6000);
+                } else {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "gem config key not found for gem_port_id = %u, pon_intf = %u\n", gem_port_id, 0);
+                    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+                    return 0;
+                }
+                gem_cfg_key_check_counter++;
+            }
+
+            bcmos_fastlock_lock(&gem_cfg_wait_lock);
+            if (it->second) {
+                it->second->push(res);
+                OPENOLT_LOG(INFO, openolt_log_id, "Pushed mocked gem cfg result\n");
+            }
+            bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+            return 0;
+        }
 };
 
 // Test 1 - CreateTrafficQueues-Upstream/Downstream FIXED_QUEUE success case
 TEST_F(TestCreateTrafficQueues, CreateUpstreamDownstreamFixedQueueSuccess) {
-    Status status;
     traffic_queues->set_uni_id(0);
     traffic_queues->set_port_no(16);
     traffic_queue_1->set_direction(tech_profile::Direction::UPSTREAM);
@@ -2543,7 +2632,11 @@ TEST_F(TestCreateTrafficQueues, CreateUpstreamDownstreamFixedQueueSuccess) {
     bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
-    status = CreateTrafficQueues_(traffic_queues);
+    future<Status> future_res = async(launch::async, CreateTrafficQueues_, traffic_queues);
+    future<int> push_gem_cfg_complt = \
+                async(launch::async, TestCreateTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_ACTIVE, GEM_CFG_STATUS_SUCCESS, 1024);
+    Status status = future_res.get();
+    int res = push_gem_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 
     traffic_queue_1->set_direction(tech_profile::Direction::DOWNSTREAM);
@@ -2576,7 +2669,14 @@ TEST_F(TestCreateTrafficQueues, CreateUpstreamPriorityQueueSuccess) {
     bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
-    Status status = CreateTrafficQueues_(traffic_queues);
+    future<Status> future_res = async(launch::async, CreateTrafficQueues_, traffic_queues);
+    future<int> push_gem_cfg_complt = \
+                async(launch::async, TestCreateTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_ACTIVE, GEM_CFG_STATUS_SUCCESS, 1024);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    push_gem_cfg_complt = \
+                async(launch::async, TestCreateTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_ACTIVE, GEM_CFG_STATUS_SUCCESS, 1025);
+    Status status = future_res.get();
+    int res = push_gem_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
@@ -2634,12 +2734,19 @@ TEST_F(TestCreateTrafficQueues, CreateUpstreamPriorityQueueTMQMPAlreadyPresent) 
     bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
-    Status status = CreateTrafficQueues_(traffic_queues);
+    future<Status> future_res = async(launch::async, CreateTrafficQueues_, traffic_queues);
+    future<int> push_gem_cfg_complt = \
+                async(launch::async, TestCreateTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_ACTIVE, GEM_CFG_STATUS_SUCCESS, 1024);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    push_gem_cfg_complt = \
+                async(launch::async, TestCreateTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_ACTIVE, GEM_CFG_STATUS_SUCCESS, 1025);
+    Status status = future_res.get();
+    int res = push_gem_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
-// Test 5 - CreateTrafficQueues-Upstream PRIORITY_TO_QUEUE TM QMP Max count reached case
-TEST_F(TestCreateTrafficQueues, CreateUpstreamPriorityQueueReachedMaxTMQMPCount) {
+// Test 5 - CreateTrafficQueues-Downstream PRIORITY_TO_QUEUE TM QMP Max count reached case
+TEST_F(TestCreateTrafficQueues, CreateDownstreamPriorityQueueReachedMaxTMQMPCount) {
     int uni_ids[17] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
     int port_nos[17] = {16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 256, 272};
     std::string pbit_maps[17] = {"0b00001010", "0b10001010", "0b00000001", "0b00000010", "0b00000100", "0b00001000", "0b00010000", "0b00100000", "0b01000000", "0b10000000", "0b10000001", "0b10000010", "0b10000100", "0b10001000", "0b10010000", "0b10100000", "0b11000000"};
@@ -2648,7 +2755,7 @@ TEST_F(TestCreateTrafficQueues, CreateUpstreamPriorityQueueReachedMaxTMQMPCount)
     for(int i=0; i<sizeof(uni_ids)/sizeof(uni_ids[0]); i++) {
         traffic_queues->set_uni_id(uni_ids[i]);
         traffic_queues->set_port_no(port_nos[i]);
-        traffic_queue_1->set_direction(tech_profile::Direction::UPSTREAM);
+        traffic_queue_1->set_direction(tech_profile::Direction::DOWNSTREAM);
 
         traffic_queue_2->set_gemport_id(1025);
         traffic_queue_2->set_pbit_map(pbit_maps[i]);
@@ -2663,12 +2770,20 @@ TEST_F(TestCreateTrafficQueues, CreateUpstreamPriorityQueueReachedMaxTMQMPCount)
         tail_drop_discard_config_2->set_queue_size(8);
         discard_config_2->set_allocated_tail_drop_discard_config(tail_drop_discard_config_2);
         traffic_queue_2->set_allocated_discard_config(discard_config_2);
-        traffic_queue_2->set_direction(tech_profile::Direction::UPSTREAM);
+        traffic_queue_2->set_direction(tech_profile::Direction::DOWNSTREAM);
 
         bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
         ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
-        Status status = CreateTrafficQueues_(traffic_queues);
+        future<Status> future_res = async(launch::async, CreateTrafficQueues_, traffic_queues);
+        future<int> push_gem_cfg_complt = \
+                    async(launch::async, TestCreateTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_ACTIVE, GEM_CFG_STATUS_SUCCESS, 1024);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        push_gem_cfg_complt = \
+                    async(launch::async, TestCreateTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_ACTIVE, GEM_CFG_STATUS_SUCCESS, 1025);
+        Status status = future_res.get();
+        int res = push_gem_cfg_complt.get();
+
         if(i==16)
             ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
         else
@@ -2699,6 +2814,7 @@ class TestRemoveTrafficQueues : public Test {
         tech_profile::TrafficQueues* traffic_queues;
         tech_profile::TrafficQueue* traffic_queue_1;
         tech_profile::TrafficQueue* traffic_queue_2;
+        uint32_t pon_id = 0;
 
         virtual void SetUp() {
             traffic_queues = new tech_profile::TrafficQueues;
@@ -2711,11 +2827,51 @@ class TestRemoveTrafficQueues : public Test {
 
         virtual void TearDown() {
         }
+
+    public:
+        static int PushGemCfgResult(GemObjectState state, GemCfgStatus status, uint32_t gem_port_id) {
+            gem_cfg_compltd_key k(0, gem_port_id);
+            gem_cfg_complete_result res;
+            res.pon_intf_id = 0;
+            res.gem_port_id = gem_port_id;
+            res.state = state;
+            res.status = status;
+
+            uint32_t gem_cfg_key_check_counter = 1;
+            std::map<gem_cfg_compltd_key,  Queue<gem_cfg_complete_result> *>::iterator it;
+            while(true) {
+                bcmos_fastlock_lock(&gem_cfg_wait_lock);
+                it = gem_cfg_compltd_map.find(k);
+
+                if (it != gem_cfg_compltd_map.end()) {
+                    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+                    break;
+                } else if (it == gem_cfg_compltd_map.end() && gem_cfg_key_check_counter < MAX_GEM_CFG_KEY_CHECK) {
+                    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+
+                    // We need to wait for some time to allow the Gem Cfg Request to be triggered
+                    // before we push the result.
+                    bcmos_usleep(6000);
+                } else {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "gem config key not found for gem_port_id = %u, pon_intf = %u\n", gem_port_id, 0);
+                    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+                    return 0;
+                }
+                gem_cfg_key_check_counter++;
+            }
+
+            bcmos_fastlock_lock(&gem_cfg_wait_lock);
+            if (it->second) {
+                it->second->push(res);
+                OPENOLT_LOG(INFO, openolt_log_id, "Pushed mocked gem cfg result\n");
+            }
+            bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+            return 0;
+        }
 };
 
 // Test 1 - RemoveTrafficQueues-Upstream/Downstream FIXED_QUEUE success case
 TEST_F(TestRemoveTrafficQueues, RemoveUpstreamDownstreamFixedQueueSuccess) {
-    Status status;
     traffic_queues->set_uni_id(0);
     traffic_queues->set_port_no(16);
     traffic_queue_1->set_direction(tech_profile::Direction::UPSTREAM);
@@ -2723,7 +2879,21 @@ TEST_F(TestRemoveTrafficQueues, RemoveUpstreamDownstreamFixedQueueSuccess) {
     bcmos_errno olt_cfg_clear_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
 
-    status = RemoveTrafficQueues_(traffic_queues);
+    bcmolt_pon_interface_key pon_key;
+    bcmolt_pon_interface_cfg pon_cfg;
+    pon_key.pon_ni = pon_id;
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
+    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+
+    future<Status> future_res = async(launch::async, RemoveTrafficQueues_, traffic_queues);
+    future<int> push_gem_cfg_complt = \
+    async(launch::async, TestRemoveTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_NOT_CONFIGURED, GEM_CFG_STATUS_SUCCESS, 1024);
+
+    Status status = future_res.get();
+    int res = push_gem_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 
     traffic_queue_1->set_direction(tech_profile::Direction::DOWNSTREAM);
@@ -2733,7 +2903,6 @@ TEST_F(TestRemoveTrafficQueues, RemoveUpstreamDownstreamFixedQueueSuccess) {
 
 // Test 2 - RemoveTrafficQueues-Downstream FIXED_QUEUE failure case
 TEST_F(TestRemoveTrafficQueues, RemoveUpstreamDownstreamFixedQueueFailure) {
-    Status status;
     traffic_queues->set_uni_id(0);
     traffic_queues->set_port_no(16);
     traffic_queue_1->set_direction(tech_profile::Direction::DOWNSTREAM);
@@ -2741,7 +2910,7 @@ TEST_F(TestRemoveTrafficQueues, RemoveUpstreamDownstreamFixedQueueFailure) {
     bcmos_errno olt_cfg_clear_res = BCM_ERR_INTERNAL;
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
 
-    status = RemoveTrafficQueues_(traffic_queues);
+    Status status = RemoveTrafficQueues_(traffic_queues);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
@@ -2782,41 +2951,100 @@ TEST_F(TestRemoveTrafficQueues, RemoveUpstreamPriorityQueueNotRemovingTMQMP) {
     traffic_queue_2->set_priority(1);
     traffic_queue_2->set_direction(tech_profile::Direction::UPSTREAM);
 
-    Status status = RemoveTrafficQueues_(traffic_queues);
+    bcmolt_pon_interface_key pon_key;
+    bcmolt_pon_interface_cfg pon_cfg;
+    pon_key.pon_ni = pon_id;
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
+    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+
+    future<Status> future_res = async(launch::async, RemoveTrafficQueues_, traffic_queues);
+    future<int> push_gem_cfg_complt = \
+    async(launch::async, TestRemoveTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_NOT_CONFIGURED, GEM_CFG_STATUS_SUCCESS, 1024);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    push_gem_cfg_complt = \
+    async(launch::async, TestRemoveTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_NOT_CONFIGURED, GEM_CFG_STATUS_SUCCESS, 1025);
+
+    Status status = future_res.get();
+    int res = push_gem_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
-/* Test 5 - RemoveTrafficQueues-Upstream PRIORITY_TO_QUEUE, removing TM QMP as it
+/* Test 5 - RemoveTrafficQueues-Downstream PRIORITY_TO_QUEUE, removing TM QMP as it
 is not getting referred by any other queues case */
-TEST_F(TestRemoveTrafficQueues, RemoveUpstreamPriorityQueueRemovingTMQMP) {
-    traffic_queues->set_uni_id(1);
-    traffic_queues->set_port_no(32);
-    traffic_queue_1->set_direction(tech_profile::Direction::UPSTREAM);
+TEST_F(TestRemoveTrafficQueues, RemoveDownstreamPriorityQueueRemovingTMQMP) {
+    traffic_queues->set_uni_id(5);
+    traffic_queues->set_port_no(80);
+    traffic_queue_1->set_direction(tech_profile::Direction::DOWNSTREAM);
     traffic_queue_2 = traffic_queues->add_traffic_queues();
     traffic_queue_2->set_gemport_id(1025);
     traffic_queue_2->set_priority(1);
+    traffic_queue_2->set_direction(tech_profile::Direction::DOWNSTREAM);
+
+    bcmolt_pon_interface_key pon_key;
+    bcmolt_pon_interface_cfg pon_cfg;
+    pon_key.pon_ni = pon_id;
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
+    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
 
     bcmos_errno olt_cfg_clear_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
 
-    Status status = RemoveTrafficQueues_(traffic_queues);
+    future<Status> future_res = async(launch::async, RemoveTrafficQueues_, traffic_queues);
+    future<int> push_gem_cfg_complt = \
+    async(launch::async, TestRemoveTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_NOT_CONFIGURED, GEM_CFG_STATUS_SUCCESS, 1024);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    push_gem_cfg_complt = \
+    async(launch::async, TestRemoveTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_NOT_CONFIGURED, GEM_CFG_STATUS_SUCCESS, 1025);
+
+    Status status = future_res.get();
+    int res = push_gem_cfg_complt.get();
     ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
 }
 
-/* Test 6 - RemoveTrafficQueues-Upstream PRIORITY_TO_QUEUE, error while removing TM QMP
+/* Test 6 - RemoveTrafficQueues-Downstream PRIORITY_TO_QUEUE, error while removing TM QMP
 having no reference to any other queues case */
-TEST_F(TestRemoveTrafficQueues, RemoveUpstreamPriorityQueueErrorRemovingTMQMP) {
+TEST_F(TestRemoveTrafficQueues, RemoveDownstreamPriorityQueueErrorRemovingTMQMP) {
     traffic_queues->set_uni_id(4);
     traffic_queues->set_port_no(64);
-    traffic_queue_1->set_direction(tech_profile::Direction::UPSTREAM);
+    traffic_queue_1->set_direction(tech_profile::Direction::DOWNSTREAM);
     traffic_queue_2 = traffic_queues->add_traffic_queues();
     traffic_queue_2->set_gemport_id(1025);
     traffic_queue_2->set_priority(1);
+    traffic_queue_2->set_direction(tech_profile::Direction::DOWNSTREAM);
 
-    bcmos_errno olt_cfg_clear_res = BCM_ERR_INTERNAL;
-    ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
+    bcmolt_pon_interface_key pon_key;
+    bcmolt_pon_interface_cfg pon_cfg;
+    pon_key.pon_ni = pon_id;
+    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
+    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
+    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
+    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
 
-    Status status = RemoveTrafficQueues_(traffic_queues);
+    bcmos_errno olt_cfg_clear_res_success = BCM_ERR_OK;
+    bcmos_errno olt_cfg_clear_res_failure = BCM_ERR_INTERNAL;
+    EXPECT_CALL(balMock, bcmolt_cfg_clear(_, _))
+                         .WillOnce(Return(olt_cfg_clear_res_success))
+                         .WillOnce(Return(olt_cfg_clear_res_success))
+                         .WillOnce(Return(olt_cfg_clear_res_success))
+                         .WillOnce(Return(olt_cfg_clear_res_success))
+                         .WillRepeatedly(Return(olt_cfg_clear_res_failure));
+
+    future<Status> future_res = async(launch::async, RemoveTrafficQueues_, traffic_queues);
+    future<int> push_gem_cfg_complt = \
+    async(launch::async, TestRemoveTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_NOT_CONFIGURED, GEM_CFG_STATUS_SUCCESS, 1024);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    push_gem_cfg_complt = \
+    async(launch::async, TestRemoveTrafficQueues::PushGemCfgResult, GEM_OBJECT_STATE_NOT_CONFIGURED, GEM_CFG_STATUS_SUCCESS, 1025);
+
+    Status status = future_res.get();
+    int res = push_gem_cfg_complt.get();
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 

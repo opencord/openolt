@@ -573,7 +573,9 @@ std::string GetDirection(int direction) {
 bcmos_errno wait_for_alloc_action(uint32_t intf_id, uint32_t alloc_id, AllocCfgAction action) {
     Queue<alloc_cfg_complete_result> cfg_result;
     alloc_cfg_compltd_key k(intf_id, alloc_id);
+    bcmos_fastlock_lock(&alloc_cfg_wait_lock);
     alloc_cfg_compltd_map[k] =  &cfg_result;
+    bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
     bcmos_errno err = BCM_ERR_OK;
 
     // Try to pop the result from BAL with a timeout of ALLOC_CFG_COMPLETE_WAIT_TIMEOUT ms
@@ -619,6 +621,71 @@ bcmos_errno wait_for_alloc_action(uint32_t intf_id, uint32_t alloc_id, AllocCfgA
     bcmos_fastlock_lock(&alloc_cfg_wait_lock);
     alloc_cfg_compltd_map.erase(k);
     bcmos_fastlock_unlock(&alloc_cfg_wait_lock, 0);
+    return err;
+}
+
+// This method handles waiting for GemObject configuration.
+// Returns error if the GemObject is not in the appropriate state based on action requested.
+bcmos_errno wait_for_gem_action(uint32_t intf_id, uint32_t gem_port_id, GemCfgAction action) {
+    Queue<gem_cfg_complete_result> cfg_result;
+    gem_cfg_compltd_key k(intf_id, gem_port_id);
+    bcmos_fastlock_lock(&gem_cfg_wait_lock);
+    gem_cfg_compltd_map[k] =  &cfg_result;
+    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+    bcmos_errno err = BCM_ERR_OK;
+
+    // Try to pop the result from BAL with a timeout of GEM_CFG_COMPLETE_WAIT_TIMEOUT ms
+    std::pair<gem_cfg_complete_result, bool> result = cfg_result.pop(GEM_CFG_COMPLETE_WAIT_TIMEOUT);
+    if (result.second == false) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "timeout waiting for gem cfg complete indication intf_id %d, gem_port_id %d\n",
+                    intf_id, gem_port_id);
+        // Invalidate the queue pointer.
+        bcmos_fastlock_lock(&gem_cfg_wait_lock);
+        gem_cfg_compltd_map[k] = NULL;
+        bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
+        err = BCM_ERR_INTERNAL;
+    }
+    else if (result.first.status == GEM_CFG_STATUS_FAIL) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "error processing gem cfg request intf_id %d, gem_port_id %d\n",
+                    intf_id, gem_port_id);
+        err = BCM_ERR_INTERNAL;
+    }
+
+    if (err == BCM_ERR_OK) {
+        if (action == GEM_OBJECT_CREATE) {
+            if (result.first.state != GEM_OBJECT_STATE_ACTIVE) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "gem object not in active state intf_id %d, gem_port_id %d gem_obj_state %d\n",
+                            intf_id, gem_port_id, result.first.state);
+               err = BCM_ERR_INTERNAL;
+            } else {
+                OPENOLT_LOG(INFO, openolt_log_id, "Create itupon gem object success, intf_id %d, gem_port_id %d\n",
+                            intf_id, gem_port_id);
+            }
+        } else if (action == GEM_OBJECT_ENCRYPT) {
+            if (result.first.state != GEM_OBJECT_STATE_ACTIVE) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "gem object not in active state intf_id %d, gem_port_id %d gem_obj_state %d\n",
+                            intf_id, gem_port_id, result.first.state);
+               err = BCM_ERR_INTERNAL;
+            } else {
+                OPENOLT_LOG(INFO, openolt_log_id, "Enable itupon gem object encryption success, intf_id %d, gem_port_id %d\n",
+                            intf_id, gem_port_id);
+            }
+        } else { // GEM_OBJECT_DELETE
+              if (result.first.state != GEM_OBJECT_STATE_NOT_CONFIGURED) {
+                  OPENOLT_LOG(ERROR, openolt_log_id, "gem object is not reset intf_id %d, gem_port_id %d gem_obj_state %d\n",
+                              intf_id, gem_port_id, result.first.state);
+                  err = BCM_ERR_INTERNAL;
+              } else {
+                  OPENOLT_LOG(INFO, openolt_log_id, "Remove itupon gem object success, intf_id %d, gem_port_id %d\n",
+                              intf_id, gem_port_id);
+              }
+        }
+    }
+
+    // Remove entry from map
+    bcmos_fastlock_lock(&gem_cfg_wait_lock);
+    gem_cfg_compltd_map.erase(k);
+    bcmos_fastlock_unlock(&gem_cfg_wait_lock, 0);
     return err;
 }
 
@@ -886,7 +953,20 @@ bcmos_errno get_nni_interface_status(bcmolt_interface id, bcmolt_interface_state
     return err;
 }
 
-Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t gemport_id) {
+Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id) {
+    gemport_status_map_key_tuple gem_status_key(intf_id, onu_id, uni_id, gemport_id);
+
+    bcmos_fastlock_lock(&data_lock);
+    std::map<gemport_status_map_key_tuple, bool>::const_iterator it = gemport_status_map.find(gem_status_key);
+    if (it != gemport_status_map.end()) {
+        if (it->second) {
+            bcmos_fastlock_unlock(&data_lock, 0);
+            OPENOLT_LOG(INFO, openolt_log_id, "gem port already installed = %d\n", gemport_id);
+            return Status::OK;
+        }
+    }
+    bcmos_fastlock_unlock(&data_lock, 0);
+
     bcmos_errno err;
     bcmolt_itupon_gem_cfg cfg; /* declare main API struct */
     bcmolt_itupon_gem_key key = {}; /* declare key */
@@ -927,18 +1007,43 @@ Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t gemport_id) {
         return bcm_to_grpc_err(err, "Access_Control set ITU PON Gem port failed");
     }
 
+#ifndef SCALE_AND_PERF
+    err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_CREATE);
+    if (err) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "failed to install gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "Access_Control set ITU PON Gem port failed");
+    }
+#endif
+
     OPENOLT_LOG(INFO, openolt_log_id, "gem port installed successfully = %d\n", gemport_id);
+
+    bcmos_fastlock_lock(&data_lock);
+    gemport_status_map[gem_status_key] = true;
+    bcmos_fastlock_unlock(&data_lock, 0);
 
     return Status::OK;
 }
 
-Status remove_gem_port(int32_t intf_id, int32_t gemport_id) {
+Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id) {
+    gemport_status_map_key_tuple gem_status_key(intf_id, onu_id, uni_id, gemport_id);
+
+    bcmos_fastlock_lock(&data_lock);
+    std::map<gemport_status_map_key_tuple, bool>::const_iterator it = gemport_status_map.find(gem_status_key);
+    if (it == gemport_status_map.end()) {
+        bcmos_fastlock_unlock(&data_lock, 0);
+        OPENOLT_LOG(INFO, openolt_log_id, "gem port already removed = %d\n", gemport_id);
+        return Status::OK;
+    }
+    bcmos_fastlock_unlock(&data_lock, 0);
+
     bcmolt_itupon_gem_cfg gem_cfg;
     bcmolt_itupon_gem_key key = {
         .pon_ni = (bcmolt_interface)intf_id,
         .gem_port_id = (bcmolt_gem_port_id)gemport_id
     };
     bcmos_errno err;
+    bcmolt_interface_state state;
+    bcmolt_status los_status;
 
     BCMOLT_CFG_INIT(&gem_cfg, itupon_gem, key);
     err = bcmolt_cfg_clear(dev_id, &gem_cfg.hdr);
@@ -948,7 +1053,41 @@ Status remove_gem_port(int32_t intf_id, int32_t gemport_id) {
         return bcm_to_grpc_err(err, "Access_Control clear ITU PON Gem port failed");
     }
 
+    err = get_pon_interface_status((bcmolt_interface)intf_id, &state, &los_status);
+    if (err == BCM_ERR_OK) {
+        if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_OFF) {
+#ifndef SCALE_AND_PERF
+            OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled and LoS status is OFF, waiting for gem cfg clear response\n",
+                intf_id);
+            err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_DELETE);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "failed to remove gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
+                return bcm_to_grpc_err(err, "Access_Control clear ITU PON Gem port failed");
+            }
+#endif
+        }
+        else if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_ON) {
+            OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled but LoS status is ON, not waiting for gem cfg clear response\n",
+                intf_id);
+        }
+        else if (state == BCMOLT_INTERFACE_STATE_INACTIVE) {
+            OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is disabled, not waiting for gem cfg clear response\n",
+                intf_id);
+        }
+    } else {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch PON interface status, intf_id = %d, err = %s\n",
+            intf_id, bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "Access_Control clear ITU PON Gem port failed");
+    }
+
     OPENOLT_LOG(INFO, openolt_log_id, "gem port removed successfully = %d\n", gemport_id);
+
+    bcmos_fastlock_lock(&data_lock);
+    it = gemport_status_map.find(gem_status_key);
+    if (it != gemport_status_map.end()) {
+        gemport_status_map.erase(it);
+    }
+    bcmos_fastlock_unlock(&data_lock, 0);
 
     return Status::OK;
 }
@@ -973,6 +1112,14 @@ Status enable_encryption_for_gem_port(int32_t intf_id, int32_t gemport_id) {
             intf_id, gemport_id, cfg.hdr.hdr.err_text, err);
         return bcm_to_grpc_err(err, "Failed to set encryption on GEM port");;
     }
+
+#ifndef SCALE_AND_PERF
+    err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_ENCRYPT);
+    if (err) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "failed to enable gemport encryption, gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "Access_Control ITU PON Gem port encryption failed");
+    }
+#endif
 
     OPENOLT_LOG(INFO, openolt_log_id, "encryption set successfully on pon = %d gem_port = %d\n", intf_id, gemport_id);
 

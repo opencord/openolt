@@ -129,8 +129,21 @@ std::map<alloc_cfg_compltd_key,  Queue<alloc_cfg_complete_result> *> alloc_cfg_c
 // Lock to protect critical section data structure used for handling AllocObject configuration response.
 bcmos_fastlock alloc_cfg_wait_lock;
 
+// Map used to track response from BAL for ITU PON Gem Configuration.
+// The key is gem_cfg_compltd_key and value is a concurrent thread-safe queue which is
+// used for pushing (from BAL) and popping (at application) the results.
+std::map<gem_cfg_compltd_key,  Queue<gem_cfg_complete_result> *> gem_cfg_compltd_map;
+// Lock to protect critical section data structure used for handling GemObject configuration response.
+bcmos_fastlock gem_cfg_wait_lock;
+
+/* This represents the Key to 'gemport_status_map' map.
+ Represents (pon_intf_id, onu_id, uni_id, gemport_id) */
+typedef std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> gemport_status_map_key_tuple;
+/* 'gemport_status_map' maps gemport_status_map_key_tuple to boolean value */
+std::map<gemport_status_map_key_tuple, bool> gemport_status_map;
+
 // Map used to track response from BAL for Onu Deactivation Completed Indication
-// The key is alloc_cfg_compltd_key and value is a concurrent thread-safe queue which is
+// The key is onu_deact_compltd_key and value is a concurrent thread-safe queue which is
 // used for pushing (from BAL) and popping (at application) the results.
 std::map<onu_deact_compltd_key,  Queue<onu_deactivate_complete_result> *> onu_deact_compltd_map;
 // Lock to protect critical section data structure used for handling Onu Deactivation Completed Indication

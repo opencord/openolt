@@ -77,6 +77,7 @@ bcmolt_egress_qos_type get_qos_type(uint32_t pon_intf_id, uint32_t onu_id, uint3
 void clear_qos_type(uint32_t pon_intf_id, uint32_t onu_id, uint32_t uni_id);
 std::string GetDirection(int direction);
 bcmos_errno wait_for_alloc_action(uint32_t intf_id, uint32_t alloc_id, AllocCfgAction action);
+bcmos_errno wait_for_gem_action(uint32_t intf_id, uint32_t gem_port_id, GemCfgAction action);
 bcmos_errno wait_for_onu_deactivate_complete(uint32_t intf_id, uint32_t onu_id);
 char* openolt_read_sysinfo(const char* field_name, char* field_val);
 Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state);
@@ -92,8 +93,8 @@ bcmos_errno bcmolt_cfg_get_mult_retry(bcmolt_oltid olt, bcmolt_cfg *cfg);
 unsigned NumNniIf_();
 unsigned NumPonIf_();
 bcmos_errno get_nni_interface_status(bcmolt_interface id, bcmolt_interface_state *state);
-Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t gemport_id);
-Status remove_gem_port(int32_t intf_id, int32_t gemport_id);
+Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id);
+Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id);
 Status enable_encryption_for_gem_port(int32_t intf_id, int32_t gemport_id);
 Status update_acl_interface(int32_t intf_id, bcmolt_interface_type intf_type, uint32_t access_control_id,
                 bcmolt_members_update_command acl_cmd);
