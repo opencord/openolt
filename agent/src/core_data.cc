@@ -211,6 +211,14 @@ bcmos_fastlock flow_id_bitset_lock;
 std::map<uint64_t, device_flow> voltha_flow_to_device_flow;
 bcmos_fastlock voltha_flow_to_device_flow_lock;
 
+// Map of symmetric_datapath_flow_id_map_key to voltha-flow-id
+std::map<symmetric_datapath_flow_id_map_key, uint64_t> symmetric_datapath_flow_id_map;
+bcmos_fastlock symmetric_datapath_flow_id_lock;
+
+// Map of {pon-port-id, gem-port-id} to {onu-id, uni-id}
+std::map<pon_gem, onu_uni> pon_gem_to_onu_uni_map;
+bcmos_fastlock pon_gem_to_onu_uni_map_lock;
+
 // Lock to protect critical section around handling data associated with ACL trap packet handling
 bcmos_fastlock acl_packet_trap_handler_lock;
 

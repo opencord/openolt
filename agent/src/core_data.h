@@ -205,6 +205,13 @@ typedef struct {
     double rx_power_mean_dbm;
 } onu_rssi_complete_result;
 
+// Key for map used for tracking symmetric datapath flows ==> <pon, onu, uni, tp_id, flow_type>
+typedef std::tuple<int32_t, int32_t, int32_t, uint32_t, std::string> symmetric_datapath_flow_id_map_key;
+
+// Key and value for the pon_gem_to_onu_uni_map
+typedef std::tuple<uint32_t, uint32_t> pon_gem;
+typedef std::tuple<uint32_t, uint32_t> onu_uni;
+
 // *******************************************************//
 // Extern Variable/Constant declarations used by the core //
 // *******************************************************//
@@ -377,6 +384,12 @@ extern bcmos_fastlock flow_id_bitset_lock;
 
 extern std::map<uint64_t, device_flow> voltha_flow_to_device_flow;
 extern bcmos_fastlock voltha_flow_to_device_flow_lock;
+
+extern std::map<symmetric_datapath_flow_id_map_key, uint64_t> symmetric_datapath_flow_id_map;
+extern bcmos_fastlock symmetric_datapath_flow_id_lock;
+
+extern std::map<pon_gem, onu_uni> pon_gem_to_onu_uni_map;
+extern bcmos_fastlock pon_gem_to_onu_uni_map_lock;
 
 // Lock to protect critical section around handling data associated with ACL trap packet handling
 extern bcmos_fastlock acl_packet_trap_handler_lock;

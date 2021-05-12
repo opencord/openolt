@@ -514,14 +514,28 @@ static void PacketIndication(bcmolt_devid olt, bcmolt_msg *msg) {
                     pkt_ind->set_intf_id((bcmolt_interface_id)pkt_data->interface_ref.intf_id);
                     pkt_ind->set_pkt(pkt_data->buffer.arr, pkt_data->buffer.len);
                     pkt_ind->set_gemport_id(pkt_data->svc_port_id);
+		    if (pkt_data->svc_port_id != BCMOLT_SERVICE_PORT_ID_INVALID) { // case of packet-in from the PON interface
+                        pon_gem pg((uint32_t)pkt_data->interface_ref.intf_id, pkt_data->svc_port_id);
+                        // Find to onu-uni mapping for the pon-gem key
+                        bcmos_fastlock_lock(&pon_gem_to_onu_uni_map_lock);
+                        auto it = pon_gem_to_onu_uni_map.find(pg);
+                        bcmos_fastlock_unlock(&pon_gem_to_onu_uni_map_lock, 0);
+                        if (it == pon_gem_to_onu_uni_map.end()) {
+                            bcmolt_msg_free(msg);
+                            OPENOLT_LOG(ERROR, openolt_log_id, "onu-uni reference not found for packet-in on gemport=%d, pon_intf_id=%d", pkt_data->svc_port_id,  pkt_data->interface_ref.intf_id);
+                            return;
+                        }
+                        pkt_ind->set_onu_id(std::get<0>(it->second));
+                        pkt_ind->set_uni_id(std::get<1>(it->second));
+                    }
                     ind.set_allocated_pkt_ind(pkt_ind);
 
                     if (pkt_data->interface_ref.intf_type == BCMOLT_INTERFACE_TYPE_PON) {
-                        OPENOLT_LOG(INFO, openolt_log_id, "packet indication, ingress intf_type %s, ingress intf_id %d, gem_port %d\n",
-                            pkt_ind->intf_type().c_str(), pkt_ind->intf_id(), pkt_data->svc_port_id);
+                        OPENOLT_LOG(INFO, openolt_log_id,"packet indication, ingress intf_type %s, ingress intf_id %d, gem_port %d, onu_id=%d, uni_id=%d\n",
+                            pkt_ind->intf_type().c_str(), pkt_ind->intf_id(), pkt_ind->gemport_id(), pkt_ind->onu_id(), pkt_ind->uni_id());
                     } else if (pkt_data->interface_ref.intf_type == BCMOLT_INTERFACE_TYPE_NNI ) {
-                        OPENOLT_LOG(INFO, openolt_log_id, "packet indication, ingress intf_type %s, ingress intf_id %d, gem_port %d \n",
-                            pkt_ind->intf_type().c_str(), pkt_ind->intf_id(), pkt_data->svc_port_id);
+                        OPENOLT_LOG(INFO, openolt_log_id, "packet indication, ingress intf_type %s, ingress intf_id %d\n",
+                            pkt_ind->intf_type().c_str(), pkt_ind->intf_id());
                     }
                 }
             }
