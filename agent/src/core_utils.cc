@@ -1723,3 +1723,25 @@ std::pair<std::string, bool> read_from_txt_file(const std::string& file_name) {
 
     return {buffer.str(), in_file.good()};
 }
+
+bool save_to_txt_file(const std::string& file_name, const std::string& content) {
+    std::ofstream out_file;
+    out_file.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+
+    try {
+        out_file.open(file_name, std::ios::out | std::ios::trunc);
+
+        if (!out_file.is_open()) {
+            std::cerr << "error while opening file '" << file_name << "'\n";
+            return false;
+        }
+
+        out_file << content;
+        out_file.close();
+
+        return true;
+    } catch (const std::ofstream::failure& e) {
+        std::cerr << "exception while writing to file '" << file_name << "' | err: " << e.what() << '\n';
+        return false;
+    }
+}

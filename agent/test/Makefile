@@ -21,7 +21,7 @@
 TOP_DIR=`pwd`
 OPENOLTDEVICE ?= asfvolt16
 
-OPENOLT_PROTO_VER ?= v4.0.15
+OPENOLT_PROTO_VER ?= v4.1.5
 
 ########################################################################
 ##

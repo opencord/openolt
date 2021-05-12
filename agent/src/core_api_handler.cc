@@ -75,6 +75,7 @@ static bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, u
                                bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id, uint32_t tech_profile_id);
 static bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction);
 static bcmos_errno CreateDefaultQueue(uint32_t intf_id, const std::string direction);
+static const std::chrono::milliseconds ONU_RSSI_COMPLETE_WAIT_TIMEOUT = std::chrono::seconds(10);
 
 inline const char *get_flow_acton_command(uint32_t command) {
     char actions[200] = { };
@@ -3297,4 +3298,70 @@ Status GetGemPortStatistics_(uint32_t intf_id, uint32_t gemport_id, openolt::Gem
 
     OPENOLT_LOG(INFO, openolt_log_id, "retrieved GEMPORT statistics for PON ID = %d, GEMPORT ID = %d\n", (int)intf_id, (int)gemport_id);
     return Status::OK;
+}
+
+Status GetPonRxPower_(uint32_t intf_id, uint32_t onu_id, openolt::PonRxPowerData* response) {
+    bcmos_errno err = BCM_ERR_OK;
+
+    // check the PON intf id
+    if (intf_id >= MAX_SUPPORTED_PON) {
+        err = BCM_ERR_PARM;
+        OPENOLT_LOG(ERROR, openolt_log_id, "invalid pon intf_id - intf_id: %d, onu_id: %d\n",
+            intf_id, onu_id);
+        return bcm_to_grpc_err(err, "invalid pon intf_id");
+    }
+
+    bcmolt_onu_rssi_measurement onu_oper; /* declare main API struct */
+    bcmolt_onu_key onu_key; /**< Object key. */
+    onu_rssi_compltd_key key(intf_id, onu_id);
+    Queue<onu_rssi_complete_result> queue;
+
+    OPENOLT_LOG(INFO, openolt_log_id, "GetPonRxPower - intf_id %d, onu_id %d\n", intf_id, onu_id);
+
+    onu_key.onu_id = onu_id;
+    onu_key.pon_ni = intf_id;
+    /* Initialize the API struct. */
+    BCMOLT_OPER_INIT(&onu_oper, onu, rssi_measurement, onu_key);
+    err = bcmolt_oper_submit(dev_id, &onu_oper.hdr);
+    if (err == BCM_ERR_OK) {
+        // initialize map
+        bcmos_fastlock_lock(&onu_rssi_wait_lock);
+        onu_rssi_compltd_map.insert({key, &queue});
+        bcmos_fastlock_unlock(&onu_rssi_wait_lock, 0);
+    } else {
+        OPENOLT_LOG(ERROR, openolt_log_id, "failed to measure rssi rx power - intf_id: %d, onu_id: %d, err = %s (%d): %s\n",
+            intf_id, onu_id, bcmos_strerror(err), err, onu_oper.hdr.hdr.err_text);
+        return bcm_to_grpc_err(err, "failed to measure rssi rx power");
+    }
+
+    onu_rssi_complete_result completed{};
+    if (!queue.pop(completed, ONU_RSSI_COMPLETE_WAIT_TIMEOUT)) {
+        // invalidate the queue pointer
+        bcmos_fastlock_lock(&onu_rssi_wait_lock);
+        onu_rssi_compltd_map[key] = NULL;
+        bcmos_fastlock_unlock(&onu_rssi_wait_lock, 0);
+        err = BCM_ERR_TIMEOUT;
+        OPENOLT_LOG(ERROR, openolt_log_id, "timeout waiting for RSSI Measurement Completed indication intf_id %d, onu_id %d\n",
+                    intf_id, onu_id);
+    } else {
+        OPENOLT_LOG(INFO, openolt_log_id, "RSSI Rx power - intf_id: %d, onu_id: %d, status: %s, fail_reason: %d, rx_power_mean_dbm: %f\n",
+            completed.pon_intf_id, completed.onu_id, completed.status.c_str(), completed.reason, completed.rx_power_mean_dbm);
+
+        response->set_intf_id(completed.pon_intf_id);
+        response->set_onu_id(completed.onu_id);
+        response->set_status(completed.status);
+        response->set_fail_reason(static_cast<::openolt::PonRxPowerData_RssiMeasurementFailReason>(completed.reason));
+        response->set_rx_power_mean_dbm(completed.rx_power_mean_dbm);
+    }
+
+    // Remove entry from map
+    bcmos_fastlock_lock(&onu_rssi_wait_lock);
+    onu_rssi_compltd_map.erase(key);
+    bcmos_fastlock_unlock(&onu_rssi_wait_lock, 0);
+
+    if (err == BCM_ERR_OK) {
+        return Status::OK;
+    } else {
+        return bcm_to_grpc_err(err, "timeout waiting for pon rssi measurement complete indication");
+    }
 }

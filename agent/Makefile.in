@@ -43,7 +43,7 @@ ONL_KERN_VER_MAJOR != if [ "$(OPENOLTDEVICE)" = "phoenix" ]; then echo "4.19"; e
 # This specifies the GIT tag in https://github.com/opencord/voltha-protos
 # repo that we need to refer to, to pick the right version of
 # openolt.proto and tech_profile.proto
-OPENOLT_PROTO_VER ?= v4.0.15
+OPENOLT_PROTO_VER ?= v4.1.5
 
 # Variables used for Inband build
 INBAND = "n"
@@ -57,6 +57,9 @@ PORT_10G_SPEED ?= 10g
 
 # Build directory
 BUILD_DIR = build
+
+# Rx optical power test app
+RXTX_POWER_EXE = read_rxtx_power
 
 # initialiaze path of protoc binary
 protoc-bin = $(shell which protoc)
@@ -296,13 +299,14 @@ endif
 src/%.o: src/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) $(CPPFLAGS) -I./common -c $< -o $@
 
-deb:
+deb: rxtx-power
 	cp $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/openolt device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/libz.so.1 device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/libstdc++.so.6 device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/libbal_host_api.so device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp -a scripts/init.d device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp -a $(RXTX_POWER_EXE) device/$(OPENOLTDEVICE)/mkdebian/debian
 ifeq ("$(strip $(OPENOLTDEVICE))","phoenix")
 	sed -i '/\/opt\/bcm68650\/svk_init.sh/c\    \/opt\/bcm68650\/svk_init.sh -qsfp_speed=$(PORT_40G_SPEED) -sfp_speed=$(PORT_10G_SPEED)' device/$(OPENOLTDEVICE)/mkdebian/debian/init.d/dev_mgmt_daemon
 endif
@@ -358,7 +362,10 @@ ansible:
 src/%.o: %.cpp
 	$(CXX) -MMD -c $< -o $@
 
-deb-cleanup:
+rxtx-power: clean-rxtx-power
+	$(CXX) -std=c++11 -DRXTX_POWER_EXE_MODE src/trx_eeprom_reader.cc -o $(RXTX_POWER_EXE) && ls -l $(RXTX_POWER_EXE)
+
+deb-cleanup: clean-rxtx-power
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).debhelper.log
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).postinst.debhelper
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(OPENOLTDEVICE).postrm.debhelper
@@ -373,6 +380,7 @@ deb-cleanup:
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz
 	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/tmp/
 	@rm -f device/$(OPENOLTDEVICE)/$(OPENOLTDEVICE)_$(BAL_VER)+edgecore-V$(DEV_VER)_amd64.changes
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(RXTX_POWER_EXE)
 
 inband-onl-cleanup:
 	@rm -f $(ONL_DIR)/OpenNetworkLinux/*.patch
@@ -390,6 +398,10 @@ clean: protos-clean deb-cleanup
 
 clean-src: protos-clean
 	@rm -f $(OBJS) $(DEPS)
+
+clean-rxtx-power:
+	@rm -f src/$(RXTX_POWER_EXE)
+	@rm -f $(RXTX_POWER_EXE)
 
 distclean: clean-src clean
 	@rm -rf $(BUILD_DIR)

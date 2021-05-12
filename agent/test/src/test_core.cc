@@ -20,6 +20,8 @@
 #include "core_data.h"
 #include "server.h"
 #include <future>
+#include <fstream>
+#include "trx_eeprom_reader.h"
 using namespace testing;
 using namespace std;
 
@@ -3323,4 +3325,138 @@ TEST_F(TestSecureServer, StartWithValidTLSOption) {
         std::cerr << "directory ./keystore could not be prepared, err: " << res << '\n';
         FAIL();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////
+// For testing RxTx Power Read functionality
+////////////////////////////////////////////////////////////////////////////
+
+class TestPowerRead : public Test {
+    protected:
+        virtual void SetUp() {
+            std::array<char, 600> content = {};
+            content.fill(0x00); // not required for 0x00
+
+            // for asfvolt16
+            content[102] = 0x5D;
+            content[103] = 0x38;
+            content[104] = 0x1A;
+            content[105] = 0xB5;
+
+            // for asgvolt64
+            content[358] = 0x5C;
+            content[359] = 0x82;
+            content[360] = 0x04;
+            content[361] = 0xBE;
+
+            std::ofstream test_file;
+            test_file.open(file_name, std::ios::binary | std::ios::out);
+            test_file.write(content.data(), content.size());
+            test_file.close();
+
+            const std::string cmd = "exec hexdump -C " + file_name + " > " + hex_dump;
+
+            int res = std::system(cmd.c_str());
+            if (res == 0) {
+                std::ifstream dump_file(hex_dump) ;
+                std::string hexdump = { std::istreambuf_iterator<char>(dump_file), std::istreambuf_iterator<char>() };
+                std::cout << cmd << '\n';
+                std::cout << hexdump << '\n';
+            } else {
+                std::cerr << "hexdump capture failed\n";
+            }
+        }
+        virtual void TearDown() {
+            std::remove(file_name.c_str());
+            std::remove(hex_dump.c_str());
+        }
+
+        const std::string file_name = "eeprom.bin";
+        const std::string hex_dump = file_name + ".hexdump";
+};
+
+TEST_F(TestPowerRead, TestAsfvolt16) {
+    std::cout << "Test Power Reads on XGS-PON OLT:\n";
+
+    int port = 20;
+    auto trx_eeprom_reader1 = TrxEepromReader{TrxEepromReader::DEVICE_XGSPON, TrxEepromReader::RX_AND_TX_POWER, port};
+
+    std::cout << "\tis port #" << port << " valid? " << std::boolalpha << trx_eeprom_reader1.is_valid_port() << '\n';
+
+    ASSERT_FALSE(trx_eeprom_reader1.is_valid_port());
+
+    port = 0;
+    auto trx_eeprom_reader2 = TrxEepromReader{TrxEepromReader::DEVICE_XGSPON, TrxEepromReader::RX_AND_TX_POWER, port};
+
+    std::cout << "\tis port #" << port << " valid? " << trx_eeprom_reader2.is_valid_port() << '\n';
+    std::cout << "\tbuffer size: " << trx_eeprom_reader2.get_buf_size() << '\n';
+    std::cout << "\tread offset: " << trx_eeprom_reader2.get_read_offset() << '\n';
+    std::cout << "\tread num bytes: " << trx_eeprom_reader2.get_read_num_bytes() << '\n';
+    std::cout << "\tmax ports: " << trx_eeprom_reader2.get_max_ports() << '\n';
+
+    auto rxtx_power_raw = trx_eeprom_reader2.read_power_raw();
+
+    ASSERT_TRUE(rxtx_power_raw.second);
+
+    std::cout << "\tRx power - raw: (hex) " << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << rxtx_power_raw.first.first
+              << ", (dec) " << std::dec << std::setfill(' ') << std::setw(5) << rxtx_power_raw.first.first
+              << "  | " << std::dec << std::fixed << std::setprecision(5) << std::setw(8) << trx_eeprom_reader2.raw_rx_to_mw(rxtx_power_raw.first.first) << " mW, "
+              << std::dec << std::setw(9) << trx_eeprom_reader2.mw_to_dbm(trx_eeprom_reader2.raw_rx_to_mw(rxtx_power_raw.first.first)) << " dBm\n";
+    std::cout << "\tTx power - raw: (hex) " << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << rxtx_power_raw.first.second
+              << ", (dec) " << std::dec << std::setfill(' ') << std::setw(5) << rxtx_power_raw.first.second
+              << "  | " << std::dec << std::fixed << std::setprecision(5) << std::setw(8) << trx_eeprom_reader2.raw_tx_to_mw(rxtx_power_raw.first.second) << " mW, "
+              << std::dec << std::setw(9) << trx_eeprom_reader2.mw_to_dbm(trx_eeprom_reader2.raw_tx_to_mw(rxtx_power_raw.first.second)) << " dBm\n";
+    std::cout << "\tnode path: " << trx_eeprom_reader2.get_node_path() << '\n';
+
+    ASSERT_TRUE(trx_eeprom_reader2.is_valid_port());
+    ASSERT_EQ(trx_eeprom_reader2.get_buf_size(), 256);
+    ASSERT_EQ(trx_eeprom_reader2.get_read_offset(), 104);
+    ASSERT_EQ(trx_eeprom_reader2.get_read_num_bytes(), 2);
+    ASSERT_EQ(trx_eeprom_reader2.get_max_ports(), 20);
+    ASSERT_EQ(rxtx_power_raw.first.first, 0x1AB5);   // 6837
+    ASSERT_EQ(rxtx_power_raw.first.second, 0x5D38);  // 23864
+    ASSERT_STREQ(trx_eeprom_reader2.get_node_path(), "/sys/bus/i2c/devices/47-0050/sfp_eeprom");
+}
+
+TEST_F(TestPowerRead, TestAsgvolt64) {
+    std::cout << "Test Power Reads on GPON OLT:\n";
+
+    int port = 80;
+    auto trx_eeprom_reader1 = TrxEepromReader{TrxEepromReader::DEVICE_GPON, TrxEepromReader::RX_AND_TX_POWER, port};
+
+    std::cout << "\tis port #" << port << " valid? " << std::boolalpha << trx_eeprom_reader1.is_valid_port() << '\n';
+
+    ASSERT_FALSE(trx_eeprom_reader1.is_valid_port());
+
+    port = 0;
+    auto trx_eeprom_reader2 = TrxEepromReader{TrxEepromReader::DEVICE_GPON, TrxEepromReader::RX_AND_TX_POWER, port};
+
+    std::cout << "\tis port #" << port << " valid? " << trx_eeprom_reader2.is_valid_port() << '\n';
+    std::cout << "\tbuffer size: " << trx_eeprom_reader2.get_buf_size() << '\n';
+    std::cout << "\tread offset: " << trx_eeprom_reader2.get_read_offset() << '\n';
+    std::cout << "\tread num bytes: " << trx_eeprom_reader2.get_read_num_bytes() << '\n';
+    std::cout << "\tmax ports: " << trx_eeprom_reader2.get_max_ports() << '\n';
+
+    auto rxtx_power_raw = trx_eeprom_reader2.read_power_raw();
+
+    ASSERT_TRUE(rxtx_power_raw.second);
+
+    std::cout << "\tRx power - raw: (hex) " << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << rxtx_power_raw.first.first
+              << ", (dec) " << std::dec << std::setfill(' ') << std::setw(5) << rxtx_power_raw.first.first
+              << "  | " << std::dec << std::fixed << std::setprecision(5) << std::setw(8) << trx_eeprom_reader2.raw_rx_to_mw(rxtx_power_raw.first.first) << " mW, "
+              << std::dec << std::setw(9) << trx_eeprom_reader2.mw_to_dbm(trx_eeprom_reader2.raw_rx_to_mw(rxtx_power_raw.first.first)) << " dBm\n";
+    std::cout << "\tTx power - raw: (hex) " << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << rxtx_power_raw.first.second
+              << ", (dec) " << std::dec << std::setfill(' ') << std::setw(5) << rxtx_power_raw.first.second
+              << "  | " << std::dec << std::fixed << std::setprecision(5) << std::setw(8) << trx_eeprom_reader2.raw_tx_to_mw(rxtx_power_raw.first.second) << " mW, "
+              << std::dec << std::setw(9) << trx_eeprom_reader2.mw_to_dbm(trx_eeprom_reader2.raw_tx_to_mw(rxtx_power_raw.first.second)) << " dBm\n";
+    std::cout << "\tnode path: " << trx_eeprom_reader2.get_node_path() << '\n';
+
+    ASSERT_TRUE(trx_eeprom_reader2.is_valid_port());
+    ASSERT_EQ(trx_eeprom_reader2.get_buf_size(), 600);
+    ASSERT_EQ(trx_eeprom_reader2.get_read_offset(), 360);
+    ASSERT_EQ(trx_eeprom_reader2.get_read_num_bytes(), 2);
+    ASSERT_EQ(trx_eeprom_reader2.get_max_ports(), 74);
+    ASSERT_EQ(rxtx_power_raw.first.first, 0x04BE);   // 1214
+    ASSERT_EQ(rxtx_power_raw.first.second, 0x5C82);  // 23682
+    ASSERT_STREQ(trx_eeprom_reader2.get_node_path(), "/sys/bus/i2c/devices/41-0050/eeprom");
 }

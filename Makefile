@@ -27,7 +27,7 @@ export OPENOLT_ROOT_DIR=$(shell pwd)
 
 ## Variables
 OPENOLTDEVICE     ?= asfvolt16
-OPENOLT_PROTO_VER ?= v4.0.15
+OPENOLT_PROTO_VER ?= v4.1.5
 
 DOCKER                     ?= docker
 DOCKER_REGISTRY            ?=

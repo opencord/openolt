@@ -347,6 +347,16 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->gemport_id(),
             response);
     }
+
+    Status GetPonRxPower(
+            ServerContext* context,
+            const openolt::Onu* request,
+            openolt::PonRxPowerData* response) override {
+        return GetPonRxPower_(
+            request->intf_id(),
+            request->onu_id(),
+            response);
+    }
 };
 
 bool RunServer(int argc, char** argv) {

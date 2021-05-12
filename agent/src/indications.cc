@@ -21,6 +21,7 @@
 #include "stats_collection.h"
 #include "translation.h"
 #include "state.h"
+#include "trx_eeprom_reader.h"
 
 #include <string>
 
@@ -1055,6 +1056,66 @@ static void OnuDeactivationCompletedIndication(bcmolt_devid olt, bcmolt_msg *msg
     bcmolt_msg_free(msg);
 }
 
+static void OnuRssiMeasurementCompletedIndication(bcmolt_devid olt, bcmolt_msg *msg) {
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_RSSI_MEASUREMENT_COMPLETED:
+                {
+                    bcmolt_onu_key *key = &((bcmolt_onu_rssi_measurement_completed*)msg)->key;
+                    bcmolt_onu_rssi_measurement_completed_data *data = &((bcmolt_onu_rssi_measurement_completed*)msg)->data;
+                    double rx_power_mean_dbm = 0.0;
+
+                    OPENOLT_LOG(INFO, openolt_log_id, "ONU RSSI Measurement Completed indication - pon_id: %d, onu_id: %d, status: %d, fail_reason: %d\n",
+                                key->pon_ni, key->onu_id, data->status, data->fail_reason);
+
+                    if (data->status == BCMOLT_RESULT_SUCCESS) {
+                        auto trx_eeprom_reader =
+#ifdef ASGVOLT64
+                            TrxEepromReader{TrxEepromReader::DEVICE_GPON, TrxEepromReader::RX_POWER, key->pon_ni};
+#else
+                            TrxEepromReader{TrxEepromReader::DEVICE_XGSPON, TrxEepromReader::RX_POWER, key->pon_ni};
+#endif
+                        auto power = trx_eeprom_reader.read_power_mean_dbm();
+
+                        if (power.second) {
+                            rx_power_mean_dbm = power.first.first;
+                            OPENOLT_LOG(INFO, openolt_log_id, "ONU RSSI Measurement Completed indication - rx_power_mean_dbm: %f\n", rx_power_mean_dbm);
+                        } else {
+                            OPENOLT_LOG(ERROR, openolt_log_id, "ONU RSSI Measurement Completed indication - Rx power read failure\n");
+                        }
+                    } else {
+                        OPENOLT_LOG(ERROR, openolt_log_id, "ONU RSSI Measurement Completed indication - failure");
+                    }
+
+                    // for internal use insert into map
+                    onu_rssi_compltd_key onu_key((uint32_t)key->pon_ni, (uint32_t)key->onu_id);
+                    onu_rssi_complete_result res;
+                    res.pon_intf_id = (uint32_t)key->pon_ni;
+                    res.onu_id = (uint32_t)key->onu_id;
+                    res.status = bcmolt_result_to_string(data->status);
+                    res.reason = data->fail_reason;
+                    res.rx_power_mean_dbm = rx_power_mean_dbm;
+
+                    bcmos_fastlock_lock(&onu_rssi_wait_lock);
+                    auto it = onu_rssi_compltd_map.find(onu_key);
+                    if (it == onu_rssi_compltd_map.end()) {
+                        OPENOLT_LOG(ERROR, openolt_log_id, "ONU RSSI Measurement Completed key not found for pon intf %u, onu_id %u\n",
+                            key->pon_ni, key->onu_id);
+                    } else if (it->second) {
+                        it->second->push(res);
+                    } else {
+                        OPENOLT_LOG(WARNING, openolt_log_id, "ONU RSSI Measurement Completed queue not found for pon intf %u, onu_id %u\n",
+                            key->pon_ni, key->onu_id);
+                    }
+                    bcmos_fastlock_unlock(&onu_rssi_wait_lock, 0);
+                }
+            }
+    }
+
+    bcmolt_msg_free(msg);
+}
+
 /* removed by BAL v3.0
 bcmos_errno OnuProcessingErrorIndication(bcmbal_obj *obj) {
     openolt::Indication ind;
@@ -1319,6 +1380,14 @@ Status SubscribeIndication() {
     rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "Complete members update indication subscribe failed");
+
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuRssiMeasurementCompletedIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_rssi_measurement_completed;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, "ONU RSSI Measurement indication subscription failed");
 
     subscribed = true;
 

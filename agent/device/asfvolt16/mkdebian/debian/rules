@@ -24,7 +24,7 @@ DOCS=LEGAL_TERMS README LICENSE_APACHE20
 
 DEB_DH_INSTALL_SOURCEDIR = $(CURDIR)/debian/tmp
 
-override_dh_auto_install: 
+override_dh_auto_install:
 	mkdir -p $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 	cp -a $(CURDIR)/debian/release_asfvolt16_V3.4.9.6.202012040101.tar.gz $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 	cp -a $(CURDIR)/debian/libz.so.1 $(DEB_DH_INSTALL_SOURCEDIR)/tmp
@@ -34,6 +34,7 @@ override_dh_auto_install:
 	cp -a $(CURDIR)/debian/init.d $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 	cp -a $(CURDIR)/debian/logrotate.d $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 	cp -a $(CURDIR)/debian/watchdog $(DEB_DH_INSTALL_SOURCEDIR)/tmp
+	cp -a $(CURDIR)/debian/read_rxtx_power $(DEB_DH_INSTALL_SOURCEDIR)/tmp
 
 #override_dh_shlibdeps:
 #	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info -l$(ONLP_LIB_PATH):$(OFDPA_LIB_PATH)

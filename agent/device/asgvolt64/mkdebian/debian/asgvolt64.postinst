@@ -39,3 +39,6 @@ mv /tmp/libbal_host_api.so /usr/local/lib
 ldconfig /broadcom
 # create directory for certificates
 mkdir -p /broadcom/keystore/
+# Rx optical power test app
+cp -r /tmp/read_rxtx_power /broadcom/
+chmod +x /broadcom/read_rxtx_power

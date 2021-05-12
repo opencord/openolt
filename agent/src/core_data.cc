@@ -206,3 +206,7 @@ bcmos_fastlock data_lock;
 
 
 char* grpc_server_interface_name = NULL;
+
+// Read Rx optical power
+std::map<onu_rssi_compltd_key, Queue<onu_rssi_complete_result>*> onu_rssi_compltd_map;
+bcmos_fastlock onu_rssi_wait_lock;

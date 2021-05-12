@@ -162,6 +162,17 @@ typedef struct device_flow {
 
 } device_flow;
 
+// key for map used for tracking Onu RSSI Measurement Completed Indication
+typedef std::tuple<uint32_t, uint32_t> onu_rssi_compltd_key;
+
+typedef struct {
+    uint32_t pon_intf_id;
+    uint32_t onu_id;
+    std::string status;
+    bcmolt_rssi_measurement_fail_reason reason;
+    double rx_power_mean_dbm;
+} onu_rssi_complete_result;
+
 // *******************************************************//
 // Extern Variable/Constant declarations used by the core //
 // *******************************************************//
@@ -333,4 +344,7 @@ extern bcmos_fastlock data_lock;
 // Interface name on which grpc server is running on
 // and this can be used to get the mac adress based on interface name.
 extern char* grpc_server_interface_name;
+
+extern std::map<onu_rssi_compltd_key, Queue<onu_rssi_complete_result>*> onu_rssi_compltd_map;
+extern bcmos_fastlock onu_rssi_wait_lock;
 #endif // OPENOLT_CORE_DATA_H_

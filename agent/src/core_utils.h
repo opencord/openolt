@@ -122,4 +122,5 @@ std::pair<grpc_ssl_client_certificate_request_type, bool> get_grpc_tls_option(co
 const std::string &get_grpc_tls_option();
 bool is_grpc_secure();
 std::pair<std::string, bool> read_from_txt_file(const std::string& file_name);
+bool save_to_txt_file(const std::string& file_name, const std::string& content);
 #endif // OPENOLT_CORE_UTILS_H_

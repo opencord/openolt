@@ -39,3 +39,8 @@ build
 
 # for unit tests
 keystore/
+
+# for Rx optical power test app and test data
+agent/src/read_rxtx_power
+agent/read_rxtx_power
+eeprom.bin
