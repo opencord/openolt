@@ -16,14 +16,14 @@
 
 rm -rf /opt/bcm686*
 rm -rf /broadcom
-tar zxf /tmp/release_phoenix_V*.tar.gz -C / 2>&1 > /dev/null
+tar zxf /tmp/release_rlt-3200g-w_V*.tar.gz -C / 2>&1 > /dev/null
 
 mkdir -p /opt/openolt && cp /tmp/watchdog/openolt_dev_mgmt_daemon_process_watchdog /opt/openolt && cp /tmp/watchdog/watchdog.config /opt/openolt
 
 sed -i -e '$i rm -rf \/tmp\/bcm68650_svk_init\/' /etc/rc.local
 [ -f /opt/openolt/openolt_dev_mgmt_daemon_process_watchdog ] && grep -q '\/opt\/openolt\/openolt_dev_mgmt_daemon_process_watchdog' /etc/rc.local || sed -i -e '$i nohup bash \/opt\/openolt\/openolt_dev_mgmt_daemon_process_watchdog &' /etc/rc.local
 
-rm -f /tmp/release_phoenix_V*.tar.gz
+rm -f /tmp/release_rlt-3200g-w_V*.tar.gz
 rm -f /run/bcm686*
 
 

@@ -10,7 +10,7 @@ adapter](https://github.com/opencord/voltha/tree/master/voltha/adapters/openolt)
 OpenOLT agent uses Broadcom's BAL (Broadband Adaptation Layer) software for
 interfacing with the Maple/Qumran chipsets in OLTs such as the Edgecore/Accton
 ASXvOLT16 and with Aspen/Qumran chipsets in OLTs such as the Radisys/Phoenix
-RLT-3200G.
+RLT-3200G-W.
 
 ```text
 
@@ -78,7 +78,7 @@ Install the *openolt.deb* package using *dpkg*:
 dpkg -i openolt_<OPENOLTDEVICE>-2.6.0-<GIT Commit ID>.deb
 ```
 
-The ONL version required for BAL v3.4.9.6 is ONL `4.14.151-OpenNetworkLinux`. Radisys RLT-3200G
+The ONL version required for BAL v3.4.9.6 is ONL `4.14.151-OpenNetworkLinux`. Radisys RLT-3200G-W
 requires BAL v3.4.9.8 and ONL version `4.19-OpenNetworkLinux`. This will be built as part of
 build procedure described in `Build OpenOLT` section.
 
@@ -162,7 +162,7 @@ cd /broadcom
 ./dev_mgmt_daemon -d -pcie -port_25g_speed 1000
 ```
 
-* 40G QSFP NNI port change to 10Gbps speed and 10G SFP NNI port to default speed (Phoenix/Radisys RLT-3200G).  
+* 40G QSFP NNI port change to 10Gbps speed and 10G SFP NNI port to default speed (Phoenix/Radisys RLT-3200G-W).  
   If no speed specified QSFP port speed defaults to 40G and SFP port speed defaults to 10G
 
 ```shell
@@ -289,7 +289,7 @@ Refer [BUILDING guide](BUILDING.md) for details on how to build openolt agent.
 ## FAQ
 
 The information here may be specific to specific OLT and ONU hardware such as
-Edgecore ASFVOLT16 OLT, Radisys RLT-3200G OLT and Broadcom based ONUs.
+Edgecore ASFVOLT16 OLT, Radisys RLT-3200G-W OLT and Broadcom based ONUs.
 
 ### How to change speed of ASFVOLT16 NNI interface?
 

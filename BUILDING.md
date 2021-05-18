@@ -19,7 +19,7 @@ The versions currently supported by the OpenOLT agent for Accton/Edgecore ASXvOL
 * `sdk-all-6.5.13.tar.gz`
 * `ACCTON_BAL_3.4.9.6-V202012040101.patch`. This is downloadable from the common CSP CS00003233745.
 
-The versions currently supported by the OpenOLT agent for Phoenix/Radisys RLT-3200G are:
+The versions currently supported by the OpenOLT agent for Phoenix/Radisys RLT-3200G-W are:
 
 * `SW-BCM686OLT_3_4_9_8.tgz`
 * `sdk-all-6.5.13.tar.gz`
@@ -41,7 +41,7 @@ Storage: 50GB of free space.
 
 **Software** :
 
-1. OpenOLT agent for Accton/Edgecore ASXvOLT16/ASGvOLT64 builds on *Debian GNU/Linux 8.11.1 (jessie)* and for Phoenix/Radisys RLT-3200G builds on *Debian GNU/Linux 9.13 (stretch)*. The *Debian 8.11.1 jessie* ISO installer image is downloadble from [here](https://cdimage.debian.org/cdimage/archive/8.11.1/amd64/iso-cd/debian-8.11.1-amd64-netinst.iso) and *Debian 9.13 stretch* ISO installer image is downloadable from [here](https://cdimage.debian.org/cdimage/archive/9.13.0/amd64/iso-cd/debian-9.13.0-amd64-netinst.iso).
+1. OpenOLT agent for Accton/Edgecore ASXvOLT16/ASGvOLT64 builds on *Debian GNU/Linux 8.11.1 (jessie)* and for Phoenix/Radisys RLT-3200G-W builds on *Debian GNU/Linux 9.13 (stretch)*. The *Debian 8.11.1 jessie* ISO installer image is downloadble from [here](https://cdimage.debian.org/cdimage/archive/8.11.1/amd64/iso-cd/debian-8.11.1-amd64-netinst.iso) and *Debian 9.13 stretch* ISO installer image is downloadable from [here](https://cdimage.debian.org/cdimage/archive/9.13.0/amd64/iso-cd/debian-9.13.0-amd64-netinst.iso).
 
 2. At least 4G of ram and 4G of swap -  compilation is memory intensive
 
@@ -58,7 +58,7 @@ sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 20
 sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 20
 ```
 
-Install the following packages for Phoenix/Radisys RLT-3200G based build
+Install the following packages for Phoenix/Radisys RLT-3200G-W based build
 
    `sudo apt-get update && sudo apt-get install -y git pkg-config build-essential autoconf libgflags-dev clang libc++-dev unzip libssl-dev gawk debhelper debhelper dh-systemd init-system-helpers curl cmake ccache g++ wget ca-certificates lcov libgoogle-glog-dev libpcap-dev libjansson-dev`
 
@@ -135,7 +135,7 @@ sudo make prefix=/usr/local install
 1. The build environment has been validated with only Jessie 8.11.1 64bit AMD64 OS only.
 2. Make sure you are using g++-4.9 as the default g++ compiler version on your build system. The grpc libraries and openolt agent code has to be compiled with this g++ version.
 
-**Radisys RLT-3200G build environment note** :
+**Radisys RLT-3200G-W build environment note** :
 
 1. The build environment has been validated with only Stretch 9.13 64bit AMD64 OS only.
 2. Make sure you are using g++-6 as the default g++ compiler version on your build system. The grpc libraries and openolt agent code has to be compiled with this g++ version.
@@ -262,7 +262,7 @@ make OPENOLTDEVICE=asfvolt16 clean
 make OPENOLTDEVICE=asfvolt16 distclean
 ```
 
-## Openolt build procedure for Radisys RLT-3200G
+## Openolt build procedure for Radisys RLT-3200G-W
 
 Clone the `openolt` repository either from OpenCORD Gerrit:
 
@@ -290,7 +290,7 @@ ONL and the Broadcom SDKs. Following runs will be much faster, as they only
 build the OpenOLT agent source.
 
 ```shell
-make OPENOLTDEVICE=phoenix
+make OPENOLTDEVICE=rlt-3200g-w
 ```
 
 Note that the required ONL version `4.19` is built as part of the above build
@@ -302,7 +302,7 @@ If you need to use a specific version of voltha-protos, then specify the git
 tag/branch corresponding to that specific version:
 
 ```shell
-make OPENOLTDEVICE=phoenix OPENOLT_PROTO_VER=master
+make OPENOLTDEVICE=rlt-3200g-w OPENOLT_PROTO_VER=master
 ```
 
 By default, the `OPENOLT_PROTO_VER` defaults to git tag *v4.1.5* of the
@@ -318,7 +318,7 @@ not included during inital make to reduce build time in case of different NNI po
 requirement.
 
 ```shell
-make OPENOLTDEVICE=phoenix deb
+make OPENOLTDEVICE=rlt-3200g-w deb
 ```
 
 Optionally, debian package can be built with one other NNI port speed option as below,
@@ -326,20 +326,20 @@ Optionally, debian package can be built with one other NNI port speed option as 
 * 40G QSFP NNI port change to 10Gbps speed (use Break-out cable)
 
 ```shell
-make OPENOLTDEVICE=phoenix deb PORT_40G_SPEED=10g PORT_10G_SPEED=10g
+make OPENOLTDEVICE=rlt-3200g-w deb PORT_40G_SPEED=10g PORT_10G_SPEED=10g
 ```
 
 If the build process succeeds, a `.deb` package will be created as well in the
 `openolt/agent/build` directory.
 
-## Radisys RLT-3200G build cleanup
+## Radisys RLT-3200G-W build cleanup
 
 To cleanup the repository and start the build procedure again, run:
 
 ```shell
 # cleans up the agent objects, protos compiled artificats and openolt deb packages
-make OPENOLTDEVICE=phoenix clean
+make OPENOLTDEVICE=rlt-3200g-w clean
 
 # cleans up the agent objects, protos compiled artificats, openolt deb packages and bal sources
-make OPENOLTDEVICE=phoenix distclean
+make OPENOLTDEVICE=rlt-3200g-w distclean
 ```

@@ -21,7 +21,7 @@ TOPOLOGY_CONFIG_FILE="$APPDIR/topology_config.ini"
 OLT_MODEL=`cat /sys/devices/virtual/dmi/id/board_name`
 PRODUCT_NAME=
 
-# phoenix - wait for onlp driver to load
+# RLT-3200G-W - wait for onlp driver to load
 if [ "$OLT_MODEL" = "Default string" ]; then
     RETRY_COUNT=0
     while [ -z "$PRODUCT_NAME" ]

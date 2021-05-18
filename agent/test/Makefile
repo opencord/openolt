@@ -30,7 +30,7 @@ OPENOLT_PROTO_VER ?= v4.1.5
 ##
 ##
 
-CXX != if [ "$(OPENOLTDEVICE)" = "phoenix" ]; then echo "g++-6"; else echo "g++-4.9"; fi
+CXX != if [ "$(OPENOLTDEVICE)" = "rlt-3200g-w" ]; then echo "g++-6"; else echo "g++-4.9"; fi
 CXXFLAGS += -g -O2
 CXXFLAGS += `pkg-config --cflags-only-I grpc++` -I/usr/local/include/pcapplusplus/
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
