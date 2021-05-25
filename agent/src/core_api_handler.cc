@@ -2075,7 +2075,7 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
     */
     if (aes_enabled && (access_intf_id >= 0) && (gemport_id >= GEM_PORT_ID_START) && (key.flow_type == BCMOLT_FLOW_TYPE_DOWNSTREAM)) {
         OPENOLT_LOG(INFO, openolt_log_id, "Setting encryption on pon = %d gem_port = %d through flow_id = %d\n", access_intf_id, gemport_id, flow_id);
-        enable_encryption_for_gem_port(access_intf_id, gemport_id);
+        enable_encryption_for_gem_port(access_intf_id, gemport_id, board_technology);
     } else {
         OPENOLT_LOG(WARNING, openolt_log_id, "Flow config for flow_id = %d is not suitable for setting downstream encryption on pon = %d gem_port = %d. No action taken.\n", flow_id, access_intf_id, gemport_id);
     }
@@ -2764,7 +2764,7 @@ sched_id %d, tm_q_set_id %d, intf_id %d, onu_id %d, uni_id %d, tech_profile_id %
     }
 
     if (direction == upstream || direction == downstream) {
-        Status st = install_gem_port(access_intf_id, onu_id, uni_id, gemport_id);
+        Status st = install_gem_port(access_intf_id, onu_id, uni_id, gemport_id, board_technology);
         if (st.error_code() != grpc::StatusCode::ALREADY_EXISTS && st.error_code() != grpc::StatusCode::OK) {
             OPENOLT_LOG(ERROR, openolt_log_id, "failed to created gemport=%d, access_intf=%d, onu_id=%d\n", gemport_id, access_intf_id, onu_id);
             return BCM_ERR_INTERNAL;
@@ -2847,7 +2847,7 @@ bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t
     // upstream/downstream queue (see CreateQueue function) and it makes sense to delete them when remove the queues.
     // For multicast case we do not manage the install/remove of gem port in agent application. It is managed by BAL.
     if (direction == upstream || direction == downstream) {
-        Status st = remove_gem_port(access_intf_id, onu_id, uni_id, gemport_id);
+        Status st = remove_gem_port(access_intf_id, onu_id, uni_id, gemport_id, board_technology);
         if (st.error_code() != grpc::StatusCode::OK) {
             OPENOLT_LOG(ERROR, openolt_log_id, "failed to remove gemport=%d, access_intf=%d, onu_id=%d\n", gemport_id, access_intf_id, onu_id);
             return BCM_ERR_INTERNAL;

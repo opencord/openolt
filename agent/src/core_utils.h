@@ -93,9 +93,9 @@ bcmos_errno bcmolt_cfg_get_mult_retry(bcmolt_oltid olt, bcmolt_cfg *cfg);
 unsigned NumNniIf_();
 unsigned NumPonIf_();
 bcmos_errno get_nni_interface_status(bcmolt_interface id, bcmolt_interface_state *state);
-Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id);
-Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id);
-Status enable_encryption_for_gem_port(int32_t intf_id, int32_t gemport_id);
+Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id, std::string board_technology);
+Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id, std::string board_technology);
+Status enable_encryption_for_gem_port(int32_t intf_id, int32_t gemport_id, std::string board_technology);
 Status update_acl_interface(int32_t intf_id, bcmolt_interface_type intf_type, uint32_t access_control_id,
                 bcmolt_members_update_command acl_cmd);
 Status install_acl(const acl_classifier_key acl_key);

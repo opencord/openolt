@@ -953,7 +953,7 @@ bcmos_errno get_nni_interface_status(bcmolt_interface id, bcmolt_interface_state
     return err;
 }
 
-Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id) {
+Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id, std::string board_technology) {
     gemport_status_map_key_tuple gem_status_key(intf_id, onu_id, uni_id, gemport_id);
 
     bcmos_fastlock_lock(&data_lock);
@@ -1008,10 +1008,12 @@ Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t
     }
 
 #ifndef SCALE_AND_PERF
-    err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_CREATE);
-    if (err) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "failed to install gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
-        return bcm_to_grpc_err(err, "Access_Control set ITU PON Gem port failed");
+    if (board_technology == "GPON") {
+        err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_CREATE);
+        if (err) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "failed to install gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
+            return bcm_to_grpc_err(err, "Access_Control set ITU PON Gem port failed");
+        }
     }
 #endif
 
@@ -1024,7 +1026,7 @@ Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t
     return Status::OK;
 }
 
-Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id) {
+Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id, std::string board_technology) {
     gemport_status_map_key_tuple gem_status_key(intf_id, onu_id, uni_id, gemport_id);
 
     bcmos_fastlock_lock(&data_lock);
@@ -1053,31 +1055,33 @@ Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t 
         return bcm_to_grpc_err(err, "Access_Control clear ITU PON Gem port failed");
     }
 
-    err = get_pon_interface_status((bcmolt_interface)intf_id, &state, &los_status);
-    if (err == BCM_ERR_OK) {
-        if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_OFF) {
+    if (board_technology == "GPON") {
+        err = get_pon_interface_status((bcmolt_interface)intf_id, &state, &los_status);
+        if (err == BCM_ERR_OK) {
+            if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_OFF) {
 #ifndef SCALE_AND_PERF
-            OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled and LoS status is OFF, waiting for gem cfg clear response\n",
-                intf_id);
-            err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_DELETE);
-            if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "failed to remove gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
-                return bcm_to_grpc_err(err, "Access_Control clear ITU PON Gem port failed");
-            }
+                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled and LoS status is OFF, waiting for gem cfg clear response\n",
+                    intf_id);
+                err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_DELETE);
+                if (err) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "failed to remove gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
+                    return bcm_to_grpc_err(err, "Access_Control clear ITU PON Gem port failed");
+                }
 #endif
+            }
+            else if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_ON) {
+                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled but LoS status is ON, not waiting for gem cfg clear response\n",
+                    intf_id);
+            }
+            else if (state == BCMOLT_INTERFACE_STATE_INACTIVE) {
+                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is disabled, not waiting for gem cfg clear response\n",
+                    intf_id);
+            }
+        } else {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch PON interface status, intf_id = %d, err = %s\n",
+                intf_id, bcmos_strerror(err));
+            return bcm_to_grpc_err(err, "Access_Control clear ITU PON Gem port failed");
         }
-        else if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_ON) {
-            OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled but LoS status is ON, not waiting for gem cfg clear response\n",
-                intf_id);
-        }
-        else if (state == BCMOLT_INTERFACE_STATE_INACTIVE) {
-            OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is disabled, not waiting for gem cfg clear response\n",
-                intf_id);
-        }
-    } else {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch PON interface status, intf_id = %d, err = %s\n",
-            intf_id, bcmos_strerror(err));
-        return bcm_to_grpc_err(err, "Access_Control clear ITU PON Gem port failed");
     }
 
     OPENOLT_LOG(INFO, openolt_log_id, "gem port removed successfully = %d\n", gemport_id);
@@ -1092,7 +1096,7 @@ Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t 
     return Status::OK;
 }
 
-Status enable_encryption_for_gem_port(int32_t intf_id, int32_t gemport_id) {
+Status enable_encryption_for_gem_port(int32_t intf_id, int32_t gemport_id, std::string board_technology) {
     bcmos_errno err;
     bcmolt_itupon_gem_cfg cfg;
     bcmolt_itupon_gem_key key = {
@@ -1114,10 +1118,12 @@ Status enable_encryption_for_gem_port(int32_t intf_id, int32_t gemport_id) {
     }
 
 #ifndef SCALE_AND_PERF
-    err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_ENCRYPT);
-    if (err) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "failed to enable gemport encryption, gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
-        return bcm_to_grpc_err(err, "Access_Control ITU PON Gem port encryption failed");
+    if (board_technology == "GPON") {
+        err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_ENCRYPT);
+        if (err) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "failed to enable gemport encryption, gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
+            return bcm_to_grpc_err(err, "Access_Control ITU PON Gem port encryption failed");
+        }
     }
 #endif
 

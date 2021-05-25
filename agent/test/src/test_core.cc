@@ -2886,7 +2886,7 @@ TEST_F(TestRemoveTrafficQueues, RemoveUpstreamDownstreamFixedQueueSuccess) {
     pon_cfg.data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
     bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
     EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+                     .WillRepeatedly(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
 
     future<Status> future_res = async(launch::async, RemoveTrafficQueues_, traffic_queues);
     future<int> push_gem_cfg_complt = \
