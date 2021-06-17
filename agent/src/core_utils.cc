@@ -1105,6 +1105,17 @@ Status enable_encryption_for_gem_port(int32_t intf_id, int32_t gemport_id, std::
     };
 
     BCMOLT_CFG_INIT(&cfg, itupon_gem, key);
+    BCMOLT_MSG_FIELD_GET(&cfg, encryption_mode);
+    err = bcmolt_cfg_get(dev_id, &cfg.hdr);
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "GEM port get encryption_mode failed\n");
+        return bcm_to_grpc_err(err, "GEM port get encryption_mode failed");
+    }
+
+    if (cfg.data.encryption_mode == BCMOLT_CONTROL_STATE_ENABLE) {
+        OPENOLT_LOG(INFO, openolt_log_id, "gem port already encrypted = %d\n", gemport_id);
+        return Status::OK;
+    }
 
     bcmolt_control_state encryption_mode;
     encryption_mode = BCMOLT_CONTROL_STATE_ENABLE;
