@@ -2,7 +2,7 @@
 
 ## Supported BAL API versions
 
-Currently, OpenOLT supports Broadcom's BAL API, version *3.4.9.6*.
+Currently, OpenOLT supports Broadcom's BAL API, version *3.4.9.9*.
 
 ## Proprietary software requirements
 
@@ -15,15 +15,16 @@ The following proprietary source code is required to build the OpenOLT agent.
 
 The versions currently supported by the OpenOLT agent for Accton/Edgecore ASXvOLT16/ASGvOLT64 are:
 
-* `SW-BCM686OLT_3_4_9_6.tgz`
+* `SW-BCM686OLT_3.4.9.9.tgz`
 * `sdk-all-6.5.13.tar.gz`
-* `ACCTON_BAL_3.4.9.6-V202012040101.patch`. This is downloadable from the common CSP CS00003233745.
+* `ACCTON_BAL_3.4.9.9-V202107300101-BROADCOM-IP.patch`. This is downloadable from the common CSP CS00003233745.
+* `ACCTON_BAL_3.4.9.9-V202107300101.patch`. This is provided by Edgecore.
 
 The versions currently supported by the OpenOLT agent for Phoenix/Radisys RLT-3200G-W are:
 
-* `SW-BCM686OLT_3_4_9_8.tgz`
+* `SW-BCM686OLT_3_4_9_9.tgz`
 * `sdk-all-6.5.13.tar.gz`
-* `PHOENIX_BAL_3.4.9.8_V20210420.patch`. This is downloadable from the common CSP CS00003233745.
+* `PHOENIX_BAL_3.4.9.9_V20210727.patch`. This is downloadable from the common CSP CS00003233745.
 
 > NOTE: the repository does not contain the above three source packages.  These
 > are needed to build the OpenOLT agent executable. Contact [Dave Baron at
@@ -152,7 +153,7 @@ Copy the Broadcom source and patch files to the openolt/agent/download directory
 
 ```shell
 cd <dir containing Broadcom source and patch files>
-cp ACCTON_BAL_3.4.9.6-V202012040101.patch SW-BCM686OLT_3_4_9_6.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
+cp ACCTON_BAL_3.4.9.9-V202107300101-BROADCOM-IP.patch ACCTON_BAL_3.4.9.9-V202107300101.patch SW-BCM686OLT_3.4.9.9.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
 ```
 
 Run the configure script to generate the appropriate Makefile scaffolding for
@@ -262,7 +263,7 @@ make OPENOLTDEVICE=asfvolt16 clean
 make OPENOLTDEVICE=asfvolt16 distclean
 ```
 
-## Openolt build procedure for Radisys RLT-3200G-W
+## Openolt build procedure for Radisys RLT-3200G-W/RLT-1600G-W/RLT-1600X-W
 
 Clone the `openolt` repository either from OpenCORD Gerrit:
 
@@ -274,7 +275,7 @@ Copy the Broadcom source and patch files to the openolt/agent/download directory
 
 ```shell
 cd <dir containing Broadcom source and patch files>
-cp PHOENIX_BAL_3.4.9.8_V20210420.patch SW-BCM686OLT_3_4_9_8.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
+cp PHOENIX_BAL_3.4.9.9_V20210727.patch SW-BCM686OLT_3_4_9_9.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
 ```
 
 Run the configure script to generate the appropriate Makefile scaffolding for
@@ -291,6 +292,21 @@ build the OpenOLT agent source.
 
 ```shell
 make OPENOLTDEVICE=rlt-3200g-w
+```
+
+NOTE:
+To compile for Radisys RLT-1600G-W 16 port GPON OLT, set `OPENOLTDEVICE` to
+`rlt-1600g-w` during build procedure like below.
+
+```shell
+make OPENOLTDEVICE=rlt-1600g-w
+```
+
+To compile for Radisys RLT-1600X-W 16 port GPON OLT, set `OPENOLTDEVICE` to
+`rlt-1600x-w` during build procedure like below.
+
+```shell
+make OPENOLTDEVICE=rlt-1600x-w
 ```
 
 Note that the required ONL version `4.19` is built as part of the above build
@@ -313,26 +329,41 @@ If the build process succeeds, libraries and executables will be created in the
 *openolt/agent/build* directory.
 
 Command to build debian package that will be installed on the OLT with default
-QSFP NNI port speed as 40g and SFP NNI port speed as 10g. NNI port speed configuration
-not included during inital make to reduce build time in case of different NNI port speed
+QSFP NNI port speed as 40g and SFP NNI port speed as 10g in case of RLT-3200G-w
+and RLT-1600G-w and with default QSFP NNI port speed as 100g and SFP NNI port
+speed as 25g in case of RLT_1600X-W. NNI port speed configuration not included
+during inital make to reduce build time in case of different NNI port speed
 requirement.
 
 ```shell
 make OPENOLTDEVICE=rlt-3200g-w deb
 ```
 
-Optionally, debian package can be built with one other NNI port speed option as below,
+Optionally, debian package can be built with other NNI port speed options as below
+for RLT-3200G-W/RLT-1600G-W/RLT-1600X-W,
 
-* 40G QSFP NNI port change to 10Gbps speed (use Break-out cable)
+* 40G QSFP NNI port change to 10Gbps speed (use Break-out cable) (Phoenix/Radisys RLT-3200G-W, RLT-1600G-W)
 
 ```shell
-make OPENOLTDEVICE=rlt-3200g-w deb PORT_40G_SPEED=10g PORT_10G_SPEED=10g
+make OPENOLTDEVICE=rlt-3200g-w deb PORT_QSFP_SPEED=10g PORT_SFP_SPEED=10g
+```
+
+* 100G QSFP NNI port change to 40Gbps speed and 25G SFP NNI port change to 10Gbps speed (Phoenix/Radisys RLT-1600X-W)
+
+```shell
+make OPENOLTDEVICE=rlt-1600x-w deb PORT_QSFP_SPEED=40g PORT_SFP_SPEED=10g
+```
+
+* 100G QSFP NNI port change to 10Gbps speed and 25G SFP NNI port change to 10Gbps speed (Phoenix/Radisys RLT-1600X-W)
+
+```shell
+make OPENOLTDEVICE=rlt-1600x-w deb PORT_QSFP_SPEED=10g PORT_SFP_SPEED=10g
 ```
 
 If the build process succeeds, a `.deb` package will be created as well in the
 `openolt/agent/build` directory.
 
-## Radisys RLT-3200G-W build cleanup
+## Radisys RLT-3200G-W/RLT-1600G-W/RLT-1600X-W build cleanup
 
 To cleanup the repository and start the build procedure again, run:
 

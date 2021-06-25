@@ -1844,7 +1844,7 @@ bool is_packet_allowed(bcmolt_access_control_receive_eth_packet_data *data, int3
 }
 
 std::pair<grpc_ssl_client_certificate_request_type, bool> get_grpc_tls_option(const char* tls_option) {
-    static std::map<std::string,grpc_ssl_client_certificate_request_type> grpc_security_option_map = {{"GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE",
+    static const std::map<std::string,grpc_ssl_client_certificate_request_type> grpc_security_option_map = {{"GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE",
                                                                                                         grpc_ssl_client_certificate_request_type::GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE},
                                                                                                       {"GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_BUT_DONT_VERIFY",
                                                                                                         grpc_ssl_client_certificate_request_type::GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_BUT_DONT_VERIFY},

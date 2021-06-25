@@ -57,7 +57,7 @@ navigate to `File_Station -> EdgecoreNAS`, and then the folder
 `.deb` package required for your testing.
 
 `voltha-2.6/openolt_<OPENOLTDEVICE>-2.6.0-<GIT Commit ID>.deb` is the latest version of package with support
-for BAL v3.4.9.6 .
+for BAL v3.4.9.9 .
 
 The pre-built debian packages have been tested on [Open Networking Linux
 (ONL)](http://opennetlinux.org/) version 4.14. The ONL Installer required for
@@ -78,8 +78,8 @@ Install the *openolt.deb* package using *dpkg*:
 dpkg -i openolt_<OPENOLTDEVICE>-2.6.0-<GIT Commit ID>.deb
 ```
 
-The ONL version required for BAL v3.4.9.6 is ONL `4.14.151-OpenNetworkLinux`. Radisys RLT-3200G-W
-requires BAL v3.4.9.8 and ONL version `4.19-OpenNetworkLinux`. This will be built as part of
+The ONL version required for BAL v3.4.9.9 is ONL `4.14.151-OpenNetworkLinux`. Radisys RLT-3200G-W
+requires BAL v3.4.9.9 and ONL version `4.19-OpenNetworkLinux`. This will be built as part of
 build procedure described in `Build OpenOLT` section.
 
 ## Run OpenOLT as a Linux service
@@ -162,13 +162,35 @@ cd /broadcom
 ./dev_mgmt_daemon -d -pcie -port_25g_speed 1000
 ```
 
-* 40G QSFP NNI port change to 10Gbps speed and 10G SFP NNI port to default speed (Phoenix/Radisys RLT-3200G-W).  
+* 40G QSFP NNI port change to 10Gbps speed and 10G SFP NNI port to default speed (Phoenix/Radisys RLT-3200G-W, RLT-1600G-W).\
   If no speed specified QSFP port speed defaults to 40G and SFP port speed defaults to 10G
 
 ```shell
 cd /opt/bcm68650/
 ./svk_init.sh -clean
 ./svk_init.sh -qsfp_speed=10g -sfp_speed=10g
+cd /broadcom
+./dev_mgmt_daemon -d -pcie
+```
+
+* 100G QSFP NNI port change to 10Gbps speed and 25G SFP NNI port change to 10Gbps speed (Phoenix/Radisys RLT-1600X-W).\
+  If no speed specified QSFP port speed defaults to 100G and SFP port speed defaults to 25G
+
+```shell
+cd /opt/bcm68650/
+./svk_init.sh -clean
+./svk_init.sh -qsfp_speed=10g -sfp_speed=10g
+cd /broadcom
+./dev_mgmt_daemon -d -pcie
+```
+
+* 100G QSFP NNI port change to 40Gbps speed and 25G SFP NNI port change to 10Gbps speed (Phoenix/Radisys RLT-1600X-W).\
+  If no speed specified QSFP port speed defaults to 100G and SFP port speed defaults to 25G
+
+```shell
+cd /opt/bcm68650/
+./svk_init.sh -clean
+./svk_init.sh -qsfp_speed=40g -sfp_speed=10g
 cd /broadcom
 ./dev_mgmt_daemon -d -pcie
 ```

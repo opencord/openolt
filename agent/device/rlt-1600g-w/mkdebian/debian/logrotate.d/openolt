@@ -1,0 +1,10 @@
+/var/log/dev_mgmt_daemon.log
+/var/log/openolt.log
+{
+  rotate 7
+  daily
+  compress
+  missingok
+  delaycompress
+  copytruncate
+}

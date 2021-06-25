@@ -17,9 +17,9 @@
 #ifndef __VENDOR_H__
 #define __VENDOR_H__
 #define VENDOR_ID "Radisys"
-#define RLT3200GW
-#define MODEL_ID  "rlt-3200g-w"
-#define MAX_SUPPORTED_PON 32
+#define RLT1600XW
+#define MODEL_ID  "rlt-1600x-w"
+#define MAX_SUPPORTED_PON 16 
 #define ONU_BIT_TRANSMISSION_DELAY 0.8038585/1000 /* unit: ns to us */
 #define MINIMUM_ONU_RESPONSE_RANGING_TIME 198075 /* hardcore: this is ranging time for the shortest distance, typically 35us */
 

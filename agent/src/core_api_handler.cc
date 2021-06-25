@@ -402,6 +402,14 @@ Status Enable_(int argc, char *argv[]) {
                 dev_key.device_id = dev;
                 BCMOLT_CFG_INIT(&dev_cfg, device, dev_key);
                 BCMOLT_MSG_FIELD_GET(&dev_cfg, system_mode);
+
+		/* FIXME: Single Phoenix BAL patch is prepared for all three variants of Radisys OLT
+		 * in which BCM_MAX_DEVS_PER_LINE_CARD macro need to be redefined as 1 incase of
+		 * "rlt-1600g-w" and "rlt-1600x-w", till then this workaround is required.*/
+                if (dev == 1 && (MODEL_ID == "rlt-1600g-w" || MODEL_ID == "rlt-1600x-w")) {
+		    continue;
+		}
+
                 err = bcmolt_cfg_get(dev_id, &dev_cfg.hdr);
                 if (err == BCM_ERR_NOT_CONNECTED) {
                     bcmolt_device_key key = {.device_id = dev};
@@ -420,13 +428,21 @@ Status Enable_(int argc, char *argv[]) {
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_FOUR_TO_ONE);
                         BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_GPON__16_X);
-                    } else if (MODEL_ID == "rlt-3200g-w") {
+                    } else if (MODEL_ID == "rlt-3200g-w" || MODEL_ID == "rlt-1600g-w") {
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_NONE);
                         if(dev == 1) {
                             BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_FOUR_TO_ONE);
                         }
                         BCMOLT_MSG_FIELD_SET (&oper, ras_ddr_mode, BCMOLT_RAS_DDR_USAGE_MODE_TWO_DDRS);
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
+                        BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_GPON__16_X);
+                    } else if (MODEL_ID == "rlt-1600x-w") {
+                        BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_NONE);
+                        BCMOLT_MSG_FIELD_SET (&oper, ras_ddr_mode, BCMOLT_RAS_DDR_USAGE_MODE_TWO_DDRS);
+                        BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
+                        /* By default setting device mode to GPON for rlt 1600x.
+                           In future device mode can be configured to XGSPON || GPON by reading
+                           device mode configuration from a static configuration file*/
                         BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_GPON__16_X);
                     }
                     err = bcmolt_oper_submit(dev_id, &oper.hdr);
@@ -441,7 +457,7 @@ Status Enable_(int argc, char *argv[]) {
                     bcmos_usleep(200000);
                 }
                 else {
-                    OPENOLT_LOG(WARNING, openolt_log_id, "PON deivce %d already connected\n", dev);
+                    OPENOLT_LOG(WARNING, openolt_log_id, "PON device %d already connected\n", dev);
                     state.activate();
                 }
             }

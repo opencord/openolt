@@ -14,31 +14,39 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-
-rm -rf /opt/bcm68620
+rm -rf /opt/bcm686*
 rm -rf /broadcom
-tar zxf /tmp/release_asgvolt64_V3.4.9.9.202107300101.tar.gz -C / 2>&1 > /dev/null
-grep -q '\/opt\/bcm68620\/svk_init.sh' /etc/rc.local || sed -i -e '$i \/opt\/bcm68620\/svk_init.sh' /etc/rc.local
-rm -f /run/bcm68620
+tar zxf /tmp/release_rlt-1600g-w_V*.tar.gz -C / 2>&1 > /dev/null
+
 mkdir -p /opt/openolt && cp /tmp/watchdog/openolt_dev_mgmt_daemon_process_watchdog /opt/openolt && cp /tmp/watchdog/watchdog.config /opt/openolt
+
+sed -i -e '$i rm -rf \/tmp\/bcm68650_svk_init\/' /etc/rc.local
 [ -f /opt/openolt/openolt_dev_mgmt_daemon_process_watchdog ] && grep -q '\/opt\/openolt\/openolt_dev_mgmt_daemon_process_watchdog' /etc/rc.local || sed -i -e '$i nohup bash \/opt\/openolt\/openolt_dev_mgmt_daemon_process_watchdog &' /etc/rc.local
-cp /tmp/init.d/dev_mgmt_daemon /etc/init.d
-cp /tmp/init.d/openolt /etc/init.d
-cp /tmp/logrotate.d/openolt /etc/logrotate.d
-chmod +x /etc/init.d/dev_mgmt_daemon
-chmod +x /etc/init.d/openolt
-chmod +x /opt/openolt/openolt_dev_mgmt_daemon_process_watchdog
-update-rc.d dev_mgmt_daemon defaults
-update-rc.d openolt defaults
+
+rm -f /tmp/release_rlt-1600g-w_V*.tar.gz
+rm -f /run/bcm686*
+
+
 mv /tmp/openolt /broadcom
 mv /tmp/libz.so.1 /usr/local/lib
 mv /tmp/libstdc++.so.6 /usr/local/lib
 mv /tmp/libbal_host_api.so /usr/local/lib
-/opt/bcm68620/svk_init.sh
+
+cp /tmp/logrotate.d/openolt /etc/logrotate.d
+chmod +x /opt/openolt/openolt_dev_mgmt_daemon_process_watchdog
+
+cp /tmp/init.d/dev_mgmt_daemon /etc/init.d
+chmod +x /etc/init.d/dev_mgmt_daemon
+update-rc.d dev_mgmt_daemon defaults
 [ "A`cat ~/.bashrc| grep LD_LIBRARY_PATH`" = "A" ] && echo "export LD_LIBRARY_PATH=/broadcom:\$LD_LIBRARY_PATH" >> ~/.bashrc; . ~/.bashrc
 ldconfig /broadcom
-# create directory for certificates
-mkdir -p /broadcom/keystore/
-# Rx optical power test app
-cp -r /tmp/read_rxtx_power /broadcom/
-chmod +x /broadcom/read_rxtx_power
+ln -s /broadcom/libbal_core_real.*.so /broadcom/libbal_core.so
+#cd /broadcom/ && export LD_LIBRARY_PATH=LD_LIBRARY_PATH:/broadcom && ./dev_mgmt_daemon -d -pcie
+service dev_mgmt_daemon start
+echo "Wait for 30 sec for BAL to be ready"
+sleep 30
+
+cp /tmp/init.d/openolt /etc/init.d
+chmod +x /etc/init.d/openolt
+update-rc.d openolt defaults
+service openolt start

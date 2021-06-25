@@ -1,11 +1,11 @@
-Source: asfvolt16
+Source: rlt-1600g-w
 Section: misc
 Priority: optional
-Maintainer: Jason Huang  <jasonsc_huang@edge-core.com>
+Maintainer: Thiyagarajan Subramani  <thiyagarajan.subramani@radisys.com>
 Build-Depends: debhelper (>= 4.0.0)
 Standards-Version: 3.6.2
 
-Package: asfvolt16
+Package: rlt-1600g-w
 Architecture: amd64
 Depends: ${shlibs:Depends}
 Description: Broadcom OLT drivers,CLI

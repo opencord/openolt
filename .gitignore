@@ -44,3 +44,6 @@ keystore/
 agent/src/read_rxtx_power
 agent/read_rxtx_power
 eeprom.bin
+
+# downloaded Accton patch files and BAL packages
+agent/download/*

@@ -43,7 +43,7 @@ elif [ "$OLT_MODEL" = "ASGvOLT64" ]; then
     [ "$Port_100G_SPEED" = "10000" ] && TOPOLOGY_CONFIG_FILE="$APPDIR/topology_config_16_ports.ini"
     Port_25G_SPEED=`cat $PORT_SPEED_FILE | awk -F "port_speed_for_25 " '{print $2}'`
     APPARGS="-pcie -d -port_100g_speed $Port_100G_SPEED -pcie -port_25g_speed $Port_25G_SPEED -topology_config_file $TOPOLOGY_CONFIG_FILE"
-elif [ "$OLT_MODEL" = "RLT-3200G" ] || [ "$OLT_MODEL" = "RLT-3200X" ] || [ "$OLT_MODEL" = "RLT-1600G" ] || [ "$OLT_MODEL" = "RLT-1600X" ]; then
+elif [ "$OLT_MODEL" = "RLT-3200G" ] || [ "$OLT_MODEL" = "RLT-1600G" ] || [ "$OLT_MODEL" = "RLT-1600X" ]; then
     APPARGS="-pcie -d"
 else
     Port_100G_SPEED="100000"
@@ -58,7 +58,7 @@ set -e
 start() {
   if [ "$OLT_MODEL" = "ASGvOLT64" ] || [ "$OLT_MODEL" = "ASXvOLT16" ]; then
     /opt/bcm68620/svk_init.sh
-  elif [ "$OLT_MODEL" = "RLT-3200G" ] || [ "$OLT_MODEL" = "RLT-3200X" ] || [ "$OLT_MODEL" = "RLT-1600G" ] || [ "$OLT_MODEL" = "RLT-1600X" ]; then
+  elif [ "$OLT_MODEL" = "RLT-3200G" ] || [ "$OLT_MODEL" = "RLT-1600G" ] || [ "$OLT_MODEL" = "RLT-1600X" ]; then
     /opt/bcm68650/svk_init.sh
   fi
 
