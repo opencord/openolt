@@ -262,7 +262,7 @@ make OPENOLTDEVICE=asfvolt16 clean
 make OPENOLTDEVICE=asfvolt16 distclean
 ```
 
-## Openolt build procedure for Radisys RLT-3200G-W
+## Openolt build procedure for Radisys RLT-3200G-W/RLT-1600G-W/RLT-1600X-W
 
 Clone the `openolt` repository either from OpenCORD Gerrit:
 
@@ -293,6 +293,21 @@ build the OpenOLT agent source.
 make OPENOLTDEVICE=rlt-3200g-w
 ```
 
+NOTE:
+To compile for Radisys RLT-1600G-W 16 port GPON OLT, set `OPENOLTDEVICE` to
+`rlt-1600g-w` during build procedure like below.
+
+```shell
+make OPENOLTDEVICE=rlt-1600g-w
+```
+
+To compile for Radisys RLT-1600X-W 16 port GPON OLT, set `OPENOLTDEVICE` to
+`rlt-1600x-w` during build procedure like below.
+
+```shell
+make OPENOLTDEVICE=rlt-1600x-w
+```
+
 Note that the required ONL version `4.19` is built as part of the above build
 procedure and is available at path
 `build/onl/OpenNetworkLinux/RELEASE/stretch/amd64/ONL-onl-4.19_ONL-OS9_2021-03-30.0455-72b95a7_AMD64_INSTALLED_INSTALLER`.
@@ -313,26 +328,41 @@ If the build process succeeds, libraries and executables will be created in the
 *openolt/agent/build* directory.
 
 Command to build debian package that will be installed on the OLT with default
-QSFP NNI port speed as 40g and SFP NNI port speed as 10g. NNI port speed configuration
-not included during inital make to reduce build time in case of different NNI port speed
+QSFP NNI port speed as 40g and SFP NNI port speed as 10g in case of RLT-3200G-w
+and RLT-1600G-w and with default QSFP NNI port speed as 100g and SFP NNI port
+speed as 25g in case of RLT_1600X-W. NNI port speed configuration not included
+during inital make to reduce build time in case of different NNI port speed
 requirement.
 
 ```shell
 make OPENOLTDEVICE=rlt-3200g-w deb
 ```
 
-Optionally, debian package can be built with one other NNI port speed option as below,
+Optionally, debian package can be built with other NNI port speed options as below
+for RLT-3200G-W/RLT-1600G-W/RLT-1600X-W,
 
-* 40G QSFP NNI port change to 10Gbps speed (use Break-out cable)
+* 40G QSFP NNI port change to 10Gbps speed (use Break-out cable) (Phoenix/Radisys RLT-3200G-W, RLT-1600G-W)
 
 ```shell
-make OPENOLTDEVICE=rlt-3200g-w deb PORT_40G_SPEED=10g PORT_10G_SPEED=10g
+make OPENOLTDEVICE=rlt-3200g-w deb PORT_QSFP_SPEED=10g PORT_SFP_SPEED=10g
+```
+
+* 100G QSFP NNI port change to 40Gbps speed and 25G SFP NNI port change to 10Gbps speed (Phoenix/Radisys RLT-1600X-W)
+
+```shell
+make OPENOLTDEVICE=rlt-1600x-w deb PORT_QSFP_SPEED=40g PORT_SFP_SPEED=10g
+```
+
+* 100G QSFP NNI port change to 10Gbps speed and 25G SFP NNI port change to 10Gbps speed (Phoenix/Radisys RLT-1600X-W)
+
+```shell
+make OPENOLTDEVICE=rlt-1600x-w deb PORT_QSFP_SPEED=10g PORT_SFP_SPEED=10g
 ```
 
 If the build process succeeds, a `.deb` package will be created as well in the
 `openolt/agent/build` directory.
 
-## Radisys RLT-3200G-W build cleanup
+## Radisys RLT-3200G-W/RLT-1600G-W/RLT-1600X-W build cleanup
 
 To cleanup the repository and start the build procedure again, run:
 

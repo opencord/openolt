@@ -1,0 +1,52 @@
+#!/bin/bash
+
+#Copyright 2018-present Open Networking Foundation
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
+
+rm -rf /opt/bcm686*
+rm -rf /broadcom
+tar zxf /tmp/release_rlt-1600g-w_V*.tar.gz -C / 2>&1 > /dev/null
+
+mkdir -p /opt/openolt && cp /tmp/watchdog/openolt_dev_mgmt_daemon_process_watchdog /opt/openolt && cp /tmp/watchdog/watchdog.config /opt/openolt
+
+sed -i -e '$i rm -rf \/tmp\/bcm68650_svk_init\/' /etc/rc.local
+[ -f /opt/openolt/openolt_dev_mgmt_daemon_process_watchdog ] && grep -q '\/opt\/openolt\/openolt_dev_mgmt_daemon_process_watchdog' /etc/rc.local || sed -i -e '$i nohup bash \/opt\/openolt\/openolt_dev_mgmt_daemon_process_watchdog &' /etc/rc.local
+
+rm -f /tmp/release_rlt-1600g-w_V*.tar.gz
+rm -f /run/bcm686*
+
+
+mv /tmp/openolt /broadcom
+mv /tmp/libz.so.1 /usr/local/lib
+mv /tmp/libstdc++.so.6 /usr/local/lib
+mv /tmp/libbal_host_api.so /usr/local/lib
+
+cp /tmp/logrotate.d/openolt /etc/logrotate.d
+chmod +x /opt/openolt/openolt_dev_mgmt_daemon_process_watchdog
+
+cp /tmp/init.d/dev_mgmt_daemon /etc/init.d
+chmod +x /etc/init.d/dev_mgmt_daemon
+update-rc.d dev_mgmt_daemon defaults
+[ "A`cat ~/.bashrc| grep LD_LIBRARY_PATH`" = "A" ] && echo "export LD_LIBRARY_PATH=/broadcom:\$LD_LIBRARY_PATH" >> ~/.bashrc; . ~/.bashrc
+ldconfig /broadcom
+ln -s /broadcom/libbal_core_real.*.so /broadcom/libbal_core.so
+#cd /broadcom/ && export LD_LIBRARY_PATH=LD_LIBRARY_PATH:/broadcom && ./dev_mgmt_daemon -d -pcie
+service dev_mgmt_daemon start
+echo "Wait for 30 sec for BAL to be ready"
+sleep 30
+
+cp /tmp/init.d/openolt /etc/init.d
+chmod +x /etc/init.d/openolt
+update-rc.d openolt defaults
+service openolt start

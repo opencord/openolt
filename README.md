@@ -162,13 +162,35 @@ cd /broadcom
 ./dev_mgmt_daemon -d -pcie -port_25g_speed 1000
 ```
 
-* 40G QSFP NNI port change to 10Gbps speed and 10G SFP NNI port to default speed (Phoenix/Radisys RLT-3200G-W).  
+* 40G QSFP NNI port change to 10Gbps speed and 10G SFP NNI port to default speed (Phoenix/Radisys RLT-3200G-W, RLT-1600G-W).\
   If no speed specified QSFP port speed defaults to 40G and SFP port speed defaults to 10G
 
 ```shell
 cd /opt/bcm68650/
 ./svk_init.sh -clean
 ./svk_init.sh -qsfp_speed=10g -sfp_speed=10g
+cd /broadcom
+./dev_mgmt_daemon -d -pcie
+```
+
+* 100G QSFP NNI port change to 10Gbps speed and 25G SFP NNI port change to 10Gbps speed (Phoenix/Radisys RLT-1600X-W).\
+  If no speed specified QSFP port speed defaults to 100G and SFP port speed defaults to 25G
+
+```shell
+cd /opt/bcm68650/
+./svk_init.sh -clean
+./svk_init.sh -qsfp_speed=10g -sfp_speed=10g
+cd /broadcom
+./dev_mgmt_daemon -d -pcie
+```
+
+* 100G QSFP NNI port change to 40Gbps speed and 25G SFP NNI port change to 10Gbps speed (Phoenix/Radisys RLT-1600X-W).\
+  If no speed specified QSFP port speed defaults to 100G and SFP port speed defaults to 25G
+
+```shell
+cd /opt/bcm68650/
+./svk_init.sh -clean
+./svk_init.sh -qsfp_speed=40g -sfp_speed=10g
 cd /broadcom
 ./dev_mgmt_daemon -d -pcie
 ```

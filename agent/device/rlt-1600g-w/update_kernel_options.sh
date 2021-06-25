@@ -1,0 +1,140 @@
+#!/bin/bash
+
+#Copyright 2018-present Open Networking Foundation
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
+
+TOPDIR=`pwd`
+KERNEL_CONFIG_FILE=${TOPDIR}/packages/base/any/kernels/4.19-lts/configs/x86_64-all/x86_64-all.config
+
+ADDITIONAL_OPTIONS=(
+CONFIG_CC_IS_GCC=y
+CONFIG_GCC_VERSION=80300
+CONFIG_CLANG_VERSION=0
+CONFIG_CC_HAS_ASM_GOTO=y
+CONFIG_IRQ_WORK=y
+CONFIG_BUILDTIME_EXTABLE_SORT=y
+CONFIG_THREAD_INFO_IN_TASK=y
+"# CONFIG_ACPI_IPMI is not set"
+CONFIG_HOTPLUG_PCI_ACPI_IBM=y
+CONFIG_BCM_NET_PHYLIB=y
+CONFIG_USB_NET_AX8817X=y
+CONFIG_USB_NET_AX88179_178A=y
+CONFIG_USB_NET_CDCETHER=y
+CONFIG_USB_NET_CDC_EEM=y
+CONFIG_USB_NET_CDC_NCM=y
+"# CONFIG_USB_NET_HUAWEI_CDC_NCM is not set"
+"# CONFIG_USB_NET_CDC_MBIM is not set"
+"# CONFIG_USB_NET_DM9601 is not set"
+"# CONFIG_USB_NET_SR9700 is not set"
+"# CONFIG_USB_NET_SR9800 is not set"
+"# CONFIG_USB_NET_SMSC75XX is not set"
+"# CONFIG_USB_NET_SMSC95XX is not set"
+"# CONFIG_USB_NET_GL620A is not set"
+CONFIG_USB_NET_NET1080=y
+"# CONFIG_USB_NET_PLUSB is not set"
+"# CONFIG_USB_NET_MCS7830 is not set"
+"# CONFIG_USB_NET_RNDIS_HOST is not set"
+CONFIG_USB_NET_CDC_SUBSET_ENABLE=y
+CONFIG_USB_NET_CDC_SUBSET=y
+"# CONFIG_USB_ALI_M5632 is not set"
+"# CONFIG_USB_AN2720 is not set"
+CONFIG_USB_BELKIN=y
+CONFIG_USB_ARMLINUX=y
+"# CONFIG_USB_EPSON2888 is not set"
+"# CONFIG_USB_KC2190 is not set"
+CONFIG_USB_NET_ZAURUS=y
+"# CONFIG_USB_NET_CX82310_ETH is not set"
+"# CONFIG_USB_NET_KALMIA is not set"
+"# CONFIG_USB_NET_QMI_WWAN is not set"
+"# CONFIG_USB_NET_INT51X1 is not set"
+"# CONFIG_USB_SIERRA_NET is not set"
+"# CONFIG_USB_VL600 is not set"
+"# CONFIG_USB_NET_CH9200 is not set"
+CONFIG_IPMI_DMI_DECODE=y
+CONFIG_IPMI_PANIC_EVENT=y
+"# CONFIG_IPMI_PANIC_STRING is not set"
+CONFIG_IPMI_DEVICE_INTERFACE=y
+CONFIG_IPMI_SI=y
+"# CONFIG_IPMI_SSIF is not set"
+"# CONFIG_IPMI_WATCHDOG is not set"
+CONFIG_IPMI_POWEROFF=y
+CONFIG_HW_RANDOM_TPM=y
+CONFIG_TCG_TIS_CORE=y
+CONFIG_TCG_TIS=y
+CONFIG_TCG_TIS_SPI=y
+CONFIG_TCG_TIS_I2C_ATMEL=y
+CONFIG_TCG_TIS_I2C_INFINEON=y
+CONFIG_TCG_TIS_I2C_NUVOTON=y
+CONFIG_TCG_NSC=y
+CONFIG_TCG_ATMEL=y
+CONFIG_TCG_INFINEON=y
+CONFIG_TCG_CRB=y
+CONFIG_TCG_VTPM_PROXY=y
+CONFIG_TCG_TIS_ST33ZP24=y
+CONFIG_TCG_TIS_ST33ZP24_I2C=y
+CONFIG_TCG_TIS_ST33ZP24_SPI=y
+CONFIG_I2C_MUX_PCA954X_BUSES_CREATE_FORCE=y
+"# CONFIG_SENSORS_IBMAEM is not set"
+"# CONFIG_SENSORS_IBMPEX is not set"
+"# CONFIG_TRUSTED_KEYS is not set"
+CONFIG_ENABLE_DEFAULT_TRACERS=y
+"# CONFIG_FTRACE_STARTUP_TEST is not set"
+)
+
+OPTIONS_TO_CHANGE=(
+CONFIG_HOTPLUG_PCI_PCIE=y
+CONFIG_HOTPLUG_PCI_ACPI=y
+CONFIG_HOTPLUG_PCI_SHPC=y
+CONFIG_EEPROM_AT24=y
+CONFIG_BROADCOM_PHY=y
+CONFIG_USB_USBNET=y
+CONFIG_DEVKMEM=y
+CONFIG_IPMI_HANDLER=y
+CONFIG_TCG_TPM=y
+CONFIG_I2C_ISMT=y
+CONFIG_GPIO_ICH=y
+CONFIG_X86_PKG_TEMP_THERMAL=y
+CONFIG_INTEL_PCH_THERMAL=y
+CONFIG_LPC_ICH=y
+CONFIG_SECURITYFS=y
+)
+
+OPTIONS_TO_COMMENT=(
+CONFIG_EEPROM_LEGACY
+CONFIG_I2C_MUX_REG
+CONFIG_I2C_MUX_MLXCPLD
+CONFIG_GENERIC_TRACER
+CONFIG_BLK_DEV_IO_TRACE
+)
+
+add_additional_options() {
+	for i in "${ADDITIONAL_OPTIONS[@]}"; do echo "$i" >> ${KERNEL_CONFIG_FILE}; done
+}
+
+modify_options() {
+	for i in "${OPTIONS_TO_CHANGE[@]}"; do
+		option=$(echo $i | cut -d= -f1);
+		sed -i "s/.*$option.*/$i/" ${KERNEL_CONFIG_FILE};
+	done
+}
+
+comment_options() {
+	for i in "${OPTIONS_TO_COMMENT[@]}"; do
+		sed -i "s/.*$i.*/# $i is not set/" ${KERNEL_CONFIG_FILE};
+	done
+}
+
+modify_options
+comment_options
+add_additional_options

@@ -1,0 +1,7 @@
+rlt-1600g-w (3.4.9.8+radisys-V20210420) stable; urgency=high
+
+    * Based on code from SW-BCM686OLT_3_4_9_8.tgz.
+    * Patches required for BAL to support RLT-1600G-W has been merged to
+      PHOENIX_BAL_3.4.9.8_V20210420.patch.
+
+ -- Thiyagarajan Subramani <thiyagarajan.subramani@radisys.com>  Tue, 20 APR 2021 09:30:00 +0400

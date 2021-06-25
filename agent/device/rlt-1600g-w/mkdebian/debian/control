@@ -1,0 +1,13 @@
+Source: rlt-1600g-w
+Section: misc
+Priority: optional
+Maintainer: Thiyagarajan Subramani  <thiyagarajan.subramani@radisys.com>
+Build-Depends: debhelper (>= 4.0.0)
+Standards-Version: 3.6.2
+
+Package: rlt-1600g-w
+Architecture: amd64
+Depends: ${shlibs:Depends}
+Description: Broadcom OLT drivers,CLI
+  ported from Broadcom SDK-3.4.9.8 package
+
