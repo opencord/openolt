@@ -1,0 +1,13 @@
+diff --git a/make/kbuild.mk b/make/kbuild.mk
+index 8be2961b..f5048c5b 100644
+--- a/make/kbuild.mk
++++ b/make/kbuild.mk
+@@ -114,7 +114,7 @@ K_DTBS_DIR := $(K_SOURCE_DIR)-dtbs
+ # The kernel source archive. Download if not present.
+ #
+ $(K_ARCHIVE_PATH):
+-	cd $(ONL_KERNELS)/archives && wget $(K_ARCHIVE_URL)
++	cd $(ONL_KERNELS)/archives && wget --no-check-certificate $(K_ARCHIVE_URL)
+ 
+ 
+ .PHONY : ksource kpatched

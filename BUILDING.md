@@ -2,7 +2,7 @@
 
 ## Supported BAL API versions
 
-Currently, OpenOLT supports Broadcom's BAL API, version *3.4.9.6*.
+Currently, OpenOLT supports Broadcom's BAL API, version *3.10.2.2*.
 
 ## Proprietary software requirements
 
@@ -15,14 +15,16 @@ The following proprietary source code is required to build the OpenOLT agent.
 
 The versions currently supported by the OpenOLT agent for Accton/Edgecore ASXvOLT16/ASGvOLT64 are:
 
-* `SW-BCM686OLT_3_4_9_6.tgz`
-* `sdk-all-6.5.13.tar.gz`
-* `ACCTON_BAL_3.4.9.6-V202012040101.patch`. This is downloadable from the common CSP CS00003233745.
+* `SW-BCM686OLT_3.10.2.2.tgz`
+* `sdk-all-6.5.21.tar.gz`
+* `ACCTON_BAL_3.10.2.2-V202111040101-BROADCOM-IP.patch`. This is downloadable from the common CSP CS00003233745.
+* `ACCTON_BAL_3.10.2.2-V202111040101.patch`. This is provided by Edgecore
+* `ACCTON_BAL_API_3.10.2.2-V202111090101.patch`. This is provided by Edgecore
 
 The versions currently supported by the OpenOLT agent for Phoenix/Radisys RLT-3200G-W are:
 
 * `SW-BCM686OLT_3_4_9_9.tgz`
-* `sdk-all-6.5.13.tar.gz`
+* `sdk-all-6.5.21.tar.gz`
 * `PHOENIX_BAL_3.4.9.9_V20210727.patch`. This is downloadable from the common CSP CS00003233745.
 
 > NOTE: the repository does not contain the above three source packages.  These
@@ -110,6 +112,7 @@ sudo cp `find . -name grpc_cpp_plugin` /usr/local/bin/
 
 ```shell
 git clone -b v20.08 https://github.com/seladb/PcapPlusPlus.git
+cd PcapPlusPlus
 ./configure-linux.sh —default
 make all
 sudo make install
@@ -152,7 +155,7 @@ Copy the Broadcom source and patch files to the openolt/agent/download directory
 
 ```shell
 cd <dir containing Broadcom source and patch files>
-cp ACCTON_BAL_3.4.9.6-V202012040101.patch SW-BCM686OLT_3_4_9_6.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
+cp ACCTON_BAL_API_3.10.2.2-V202111090101.patch ACCTON_BAL_3.10.2.2-V202111040101-BROADCOM-IP.patch ACCTON_BAL_3.10.2.2-V202111040101.patch SW-BCM686OLT_3.10.2.2.tgz sdk-all-6.5.21.tar.gz <cloned openolt repo path>/agent/download
 ```
 
 Run the configure script to generate the appropriate Makefile scaffolding for
@@ -183,7 +186,7 @@ tag/branch corresponding to that specific version:
 make OPENOLTDEVICE=asfvolt16 OPENOLT_PROTO_VER=master
 ```
 
-By default, the `OPENOLT_PROTO_VER` defaults to git tag *v4.2.0* of the
+By default, the `OPENOLT_PROTO_VER` defaults to git tag *v5.1.0* of the
 [voltha-protos](https://gerrit.opencord.org/gitweb?p=voltha-protos.git;a=summary)
 repo.
 
@@ -320,7 +323,7 @@ tag/branch corresponding to that specific version:
 make OPENOLTDEVICE=rlt-3200g-w OPENOLT_PROTO_VER=master
 ```
 
-By default, the `OPENOLT_PROTO_VER` defaults to git tag *v4.2.0* of the
+By default, the `OPENOLT_PROTO_VER` defaults to git tag *v5.1.0* of the
 [voltha-protos](https://gerrit.opencord.org/gitweb?p=voltha-protos.git;a=summary)
 repo.
 

@@ -2373,6 +2373,7 @@ bcmos_errno CreateSched(std::string direction, uint32_t intf_id, uint32_t onu_id
         // bcmbal_tm_sched_parent
         // The parent for the sub_term scheduler is the PON scheduler in the downstream
         BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.u.tm_sched.tm_sched_id, get_default_tm_sched_id(intf_id, direction));
+        BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.u.tm_sched.tm_sched_param.type, BCMOLT_TM_SCHED_PARAM_TYPE_PRIORITY);
         BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.u.tm_sched.tm_sched_param.u.priority.priority, priority);
         /* removed by BAL v3.0, N/A - No direct attachment point of type ONU, same functionality may
            be achieved using the' virtual' type of attachment.
@@ -2820,6 +2821,7 @@ gemport_id = %d, tech_profile_id = %d\n", direction.c_str(), access_intf_id, onu
 
     BCMOLT_CFG_INIT(&cfg, tm_queue, key);
     BCMOLT_MSG_FIELD_SET(&cfg, tm_sched_param.u.priority.priority, priority);
+    BCMOLT_MSG_FIELD_SET(&cfg, tm_sched_param.type, BCMOLT_TM_SCHED_PARAM_TYPE_PRIORITY);
 
     err = bcmolt_cfg_set(dev_id, &cfg.hdr);
     if (err) {

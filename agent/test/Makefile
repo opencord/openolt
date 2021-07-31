@@ -19,9 +19,9 @@
 ##
 ##
 TOP_DIR=`pwd`
-OPENOLTDEVICE ?= asfvolt16
+OPENOLTDEVICE ?= sim
 
-OPENOLT_PROTO_VER ?= v4.2.0
+OPENOLT_PROTO_VER ?= v5.1.0
 
 ########################################################################
 ##
@@ -41,8 +41,14 @@ CXXFLAGSDEVICE = -I../device -I../device/$(OPENOLTDEVICE)
 
 export CXX CXXFLAGS OPENOLT_PROTO_VER
 
-BAL_API_VER ?= bal-api-3.4.9.9
-BAL_API_DIR=$(BAL_API_VER)
+BAL_MAJOR_VER = 3
+BAL_MINOR_VER = 10
+BAL_REV_HOST_VER = 2
+BAL_REV_EMBEDDED_VER = 2
+BAL_API_SO_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_HOST_VER)
+BAL_API_VER = $(BAL_API_SO_VER).$(BAL_REV_EMBEDDED_VER)
+
+BAL_API_DIR=bal-oss-api-$(BAL_API_VER)
 BALLIBNAME=bcm_host_api_stubs
 BALLIBDIR=$(BAL_API_DIR)/stubs
 BAL_INC = -I$(BAL_API_DIR)/include \
@@ -93,10 +99,17 @@ bcm_host_api_stubs:
 	if [ -d $(BAL_API_DIR) ]; then \
 		echo "$(BAL_API_DIR) exists"; \
 	else \
-		git clone https://github.com/balapi/$(BAL_API_VER).git ;\
-		sed -i "\$$i #include \"$(OPENOLT_ROOT_DIR)/agent/test/inc/bcmos_system_test.h\"" ./$(BAL_API_DIR)/include/bcmos_system.h; \
-		sed -i "\$$i #include \"$(OPENOLT_ROOT_DIR)/agent/test/inc/bcmos_common_test.h\"" ./$(BAL_API_DIR)/include/bcmos_common.h; \
-		sed -i "\$$i #include \"$(OPENOLT_ROOT_DIR)/agent/test/inc/bcmolt_api_model_api_structs_test.h\"" ./$(BAL_API_DIR)/include/object_model/bcmolt_api_model_api_structs.h; \
+		mkdir -p $(BAL_API_DIR); \
+		mkdir -p lib; \
+		cd $(BAL_API_DIR); \
+		git clone https://github.com/balapi/bal-sdk.git -b $(BAL_API_VER); \
+		mv bal-sdk bal-sdk-$(BAL_API_VER); \
+		cd bal-sdk-$(BAL_API_VER); \
+		make BOARD=$(OPENOLTDEVICE); \
+		cp build/fs/libbal_host_api-oss.$(BAL_API_SO_VER).so ../../lib/libbal_host_api-oss.so; \
+		cd .. && ln -s bal-sdk-$(BAL_API_VER)/build/fs/include include; \
+		sed -i 's/BUG_ON_PRINT((condition),/printf(/g' include/bcmos_system.h; \
+		cd ..;\
 	fi
 
 # openoltapi

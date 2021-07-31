@@ -36,30 +36,10 @@ void bcmos_usleep(uint32_t us) {
     usleep (10000);
 }
 
-void* bcmos_calloc(uint32_t size) {
-    void *ptr = malloc(size);
-    if (ptr) {
-       memset(ptr, 0, size);
-    }
-    return ptr;
-}
-
 void bcmos_free(void *ptr) {
     if (ptr) {
        free(ptr);
     }
-}
-
-void bcmos_fastlock_init(bcmos_fastlock *lock, uint32_t flags)  {
-    pthread_mutex_init(&(lock->lock), NULL);
-}
-
-long bcmos_fastlock_lock(bcmos_fastlock *lock) {
-    pthread_mutex_lock(&(lock->lock));
-}
-
-void bcmos_fastlock_unlock(bcmos_fastlock *lock, long flags) {
-    pthread_mutex_unlock(&(lock->lock));
 }
 
 /* Initialize API layer */
@@ -323,4 +303,45 @@ bcmos_bool bcmolt_api_conn_mgr_is_connected(bcmolt_goid olt) {
     printf ("-- stub bcmolt_api_conn_mgr_is_connected called --\n");
     return true;
 }
+
+bcmos_errno bcmos_mutex_create(bcmos_mutex *mutex, uint32_t flags, const char *name)
+{
+    pthread_mutexattr_t attr;
+    if (pthread_mutexattr_init(&attr) != 0) {
+      printf("pthread_mutex_attr_init() error");
+      exit(1);
+    }
+    pthread_mutex_init(&mutex->m, &attr);
+    return BCM_ERR_OK;
+}
+
+/* Destroy mutex */
+void bcmos_mutex_destroy(bcmos_mutex *mutex)
+{
+    pthread_mutex_destroy(&mutex->m);
+}
+
+/* Lock mutex */
+void bcmos_mutex_lock(bcmos_mutex *mutex)
+{
+    pthread_mutex_lock(&mutex->m);
+}
+
+/* Release mutex */
+void bcmos_mutex_unlock(bcmos_mutex *mutex)
+{
+    pthread_mutex_unlock(&mutex->m);
+}
+
+void *bcmos_alloc(uint32_t size)
+{
+    return malloc(size);
+}
+
+bcmos_errno bcmcli_cmd_add(bcmcli_entry *dir, const char *name, bcmcli_cmd_cb cmd_cb,
+                  const char *help, bcmcli_access_right access_right,
+                  const bcmcli_cmd_extra_parm *extras, bcmcli_cmd_parm parms[]) {
+    return BCM_ERR_OK;
+}
+
 }

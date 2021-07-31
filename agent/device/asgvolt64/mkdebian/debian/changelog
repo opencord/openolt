@@ -1,6 +1,6 @@
-asgvolt64 (3.4.9.9+edgecore-V202107300101) stable; urgency=high
+asgvolt64 (3.10.2.2+edgecore-V202111040101) stable; urgency=high
 
-    * Based on code from SW-BCM686OLT_3.4.9.9.tgz.
-    * Merged the Accton's fixed to ACCTON_BAL_3.4.9.9-V202107300101.patch.
+    * Based on code from SW-BCM686OLT_3.10.2.2.tgz.
+    * Merged the Accton's fixed to ACCTON_BAL_3.10.2.2-V202111040101.patch.
 
- -- Jason Huang <jasonsc_huang@edge-core.com>  Mon, 30 NOV 2020 01:01:03 +0800
+ -- Jason Huang <jasonsc_huang@edge-core.com>  Thu, 21 Oct 2021 01:01:03 +0800

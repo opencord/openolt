@@ -20,17 +20,25 @@
 typedef int bcmcli_session;
 typedef char bcmcli_entry[50];
 typedef char bcmcli_cmd_parm;
-struct bcmos_task {
-    char task_name[50];
-};
 
 typedef struct bcmcli_session_parm {
     void *get_prompt;
     int access_right;
 } bcmcli_session_parm;
 
+typedef struct bcmcli_cmd_cb {
+    int dummy;
+} bcmcli_cmd_cb;
+
+typedef struct bcmcli_access_right {
+    int dummy;
+} bcmcli_access_right;
+
+typedef struct bcmcli_cmd_extra_parm {
+    int dummy;
+} bcmcli_cmd_extra_parm;
+
 #define BCMCLI_ACCESS_ADMIN 0xff
-#define BUG_ON //
 #define BCMCLI_MAKE_CMD_NOPARM(ptr, command1, command2, command3)
 #define BAL_API_VERSION 3
 

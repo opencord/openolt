@@ -38,7 +38,9 @@ build
 .vscode
 
 # for unit tests
-keystore/
+agent/test/keystore/
+agent/test/lib
+agent/test/bal-oss-api-*
 
 # for Rx optical power test app and test data
 agent/src/read_rxtx_power
@@ -47,3 +49,6 @@ eeprom.bin
 
 # downloaded Accton patch files and BAL packages
 agent/download/*
+
+# debian build artifacts
+**/.debhelper

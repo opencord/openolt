@@ -871,7 +871,6 @@ bcmos_errno get_pon_interface_status(bcmolt_interface pon_ni, bcmolt_interface_s
     BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
     BCMOLT_FIELD_SET_PRESENT(&pon_cfg.data, pon_interface_cfg_data, state);
     BCMOLT_FIELD_SET_PRESENT(&pon_cfg.data, pon_interface_cfg_data, los_status);
-    BCMOLT_FIELD_SET_PRESENT(&pon_cfg.data, pon_interface_cfg_data, itu);
     #ifdef TEST_MODE
     // It is impossible to mock the setting of pon_cfg.data.state because
     // the actual bcmolt_cfg_get passes the address of pon_cfg.hdr and we cannot

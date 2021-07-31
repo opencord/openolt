@@ -26,8 +26,8 @@ SHELL = bash -e -o pipefail
 export OPENOLT_ROOT_DIR=$(shell pwd)
 
 ## Variables
-OPENOLTDEVICE     ?= asfvolt16
-OPENOLT_PROTO_VER ?= v4.2.0
+OPENOLTDEVICE     ?= sim
+OPENOLT_PROTO_VER ?= v5.1.0
 
 DOCKER                     ?= docker
 DOCKER_REGISTRY            ?=

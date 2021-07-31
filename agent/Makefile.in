@@ -18,7 +18,7 @@
 ##        Config
 ##
 ##
-TOP_DIR=`pwd`
+TOP_DIR=$(shell pwd)
 OPENOLTDEVICE ?= generic
 
 #
@@ -27,27 +27,28 @@ OPENOLTDEVICE ?= generic
 # sdk-all-<SDK_VER>.tar.gz - Broadcom Qumran SDK.
 # ACCTON_BAL_<BAL_VER>-<DEV_VER>.patch - Accton/Edgecore's patch.
 BAL_MAJOR_VER = 3
-BAL_MINOR_VER = 4
-BAL_REV_A_VER = 9
+BAL_MINOR_VER = 10
+BAL_REV_HOST_VER = 2
+BAL_REV_EMBEDDED_VER = 2
+BAL_API_SO_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_HOST_VER)
+BAL_VER = $(BAL_API_SO_VER).$(BAL_REV_EMBEDDED_VER)
 ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt-3200g-w" "rlt-1600g-w" "rlt-1600x-w"))
-BAL_REV_B_VER = 9
-DEV_VER = 20210727
+DEV_VER = 202111040101
 # Version of Open Network Linux (ONL).
 ONL_KERN_VER_MAJOR = 4.19
 else
-BAL_REV_B_VER = 9
-DEV_VER = 202107300101
+DEV_VER = 202111040101
+API_VER = 202111090101
+# Version of Open Network Linux (ONL).
 ONL_KERN_VER_MAJOR = 4.14
 endif
-BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
-BAL_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
-SDK_VER = 6.5.13
+SDK_VER = 6.5.21
 
 # OpenOLT Proto version.
 # This specifies the GIT tag in https://github.com/opencord/voltha-protos
 # repo that we need to refer to, to pick the right version of
 # openolt.proto and tech_profile.proto
-OPENOLT_PROTO_VER ?= v4.2.0
+OPENOLT_PROTO_VER ?= v5.1.0
 
 # Variables used for Inband build
 INBAND = "n"
@@ -115,10 +116,9 @@ CPPFLAGS += `pkg-config --cflags protobuf grpc`
 
 # Enabling SCALE_AND_PERF for higher performance and scaling to 512 subscribers. Enabling the flag will
 # disable the handling in FLOW_CHECKER and also disable flow statistics
-# Setting SW_UTIL_SHELL=y will enable QAX debug shell when compiling for Broadcom chip based OLT
 CPPFLAGS += -DVERSION=\"$(VERSION)\" -DBAL_VER=\"$(BAL_VER)\" -DLABEL_VCS_URL=\"$(LABEL_VCS_URL)\" \
             -DLABEL_VCS_REF=\"$(LABEL_VCS_REF)\" -DLABEL_BUILD_DATE=\"$(LABEL_BUILD_DATE)\" \
-            -DLABEL_COMMIT_DATE=\"$(LABEL_COMMIT_DATE)\" -DFLOW_CHECKER -USCALE_AND_PERF -DSW_UTIL_SHELL=n
+            -DLABEL_COMMIT_DATE=\"$(LABEL_COMMIT_DATE)\" -DFLOW_CHECKER -USCALE_AND_PERF
 CPPFLAGS += -I./
 CXXFLAGS += -std=c++11 -fpermissive -Wno-literal-suffix
 LDFLAGS += @LDFLAGS@
@@ -141,6 +141,7 @@ onl:
 		git clone https://github.com/opencomputeproject/OpenNetworkLinux.git $(ONL_DIR)/OpenNetworkLinux; \
 		cp download/Makefile.onl $(ONL_DIR)/Makefile; \
 		install -m 755 download/build-onl.sh $(ONL_DIR)/OpenNetworkLinux; \
+		cp download/disable-certificate-validation*.patch $(ONL_DIR)/OpenNetworkLinux; \
 		if [ "$(OPENOLTDEVICE)" = "rlt-3200g-w" ] || [ "$(OPENOLTDEVICE)" = "rlt-1600g-w" ] || [ "$(OPENOLTDEVICE)" = "rlt-1600x-w" ]; \
 		then \
 			cp $(TOP_DIR)/device/$(OPENOLTDEVICE)/update_kernel_options.sh $(ONL_DIR)/OpenNetworkLinux/.; \
@@ -157,88 +158,101 @@ onl-force:
 distclean-onl:
 	sudo rm -rf $(ONL_DIR)
 
+
 ########################################################################
 ##
 ##
-##        Broadcom LIBRARY APIs
+##        Broadcom LIBRARY OSS API
 ##
 ##
-BAL_API_DIR = $(BUILD_DIR)/bal-api-$(BAL_API_VER)
+BAL_API_DIR = $(TOP_DIR)/$(BUILD_DIR)/bal-oss-api-$(BAL_VER)
+BAL_API_PATCH = ACCTON_BAL_API_$(BAL_VER)-V$(API_VER).patch
 
-bal-api-$(BAL_API_VER):
+$(BUILD_DIR)/libbal_host_api-oss.so:
 	if [ ! -d "$(BAL_API_DIR)" ]; then \
 		mkdir -p $(BAL_API_DIR); \
-		git clone https://github.com/balapi/bal-api-$(BAL_API_VER).git $(BAL_API_DIR); \
+		cd $(BAL_API_DIR); \
+		git clone https://github.com/balapi/bal-sdk.git -b $(BAL_VER); \
+		mv bal-sdk bal-sdk-$(BAL_VER); \
+		cat $(TOP_DIR)/download/$(BAL_API_PATCH) | patch -p1 -d $(BAL_API_DIR)/bal-sdk-$(BAL_VER); \
+		cd $(BAL_API_DIR)/bal-sdk-$(BAL_VER); \
+		make BOARD=$(OPENOLTDEVICE); \
+		cp build/fs/libbal_host_api-oss.$(BAL_API_SO_VER).so ../../../$(BUILD_DIR)/libbal_host_api-oss.so; \
+		cp config/$(OPENOLTDEVICE)/bcm_config.h build/fs/include; \
+		cd .. && ln -s bal-sdk-$(BAL_VER)/build/fs/include include; \
+		cd; \
 	fi;
+
+
 bal-api-clean:
-	rm -rf $(BAL_API_DIR)
+	if [ -d "$(BAL_API_DIR)" ]; then \
+		rm -rf $(BAL_API_DIR); \
+	fi;
+	rm -rf $(BUILD_DIR)/libbal_host_api-oss.so
+
+########################################################################
+#
+# Choose api type: open api (api-oss) or proprietary api (api-nda-req)
+BAL_API_TYPE = api-oss
+#BAL_API_TYPE = api-nda-req
 
 ########################################################################
 ##
 ##
-##        BAL
+##        BAL OSS API
 ##
 ##
-BAL_ZIP = SW-BCM686OLT_$(subst .,_,$(BAL_VER)).tgz
-SDK_ZIP = sdk-all-$(SDK_VER).tar.gz
-ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt-3200g-w" "rlt-1600g-w" "rlt-1600x-w"))
-PATCH_FILE = PHOENIX_BAL_$(BAL_VER)_V$(DEV_VER).patch
-else
-PATCH_FILE = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER).patch
-BAL_IP_PATCH_FILE = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER)-BROADCOM-IP.patch
-endif
 BAL_DIR = $(BUILD_DIR)/$(OPENOLTDEVICE)-bal
-BCM_SDK = $(BAL_DIR)/switch_sdk/$(SDK_VER)
-BALLIBDIR = $(BAL_DIR)/build/host_reference/host_api
-BALLIBNAME = bal_host_api
-BAL_INC = -I$(BAL_DIR)/host_driver/bal/bal_include \
-          -I$(BAL_DIR)/host_driver/topology \
-          -I$(BAL_DIR)/host_driver/utils \
-          -I$(BAL_DIR)/host_driver/api \
-          -I$(BAL_DIR)/host_driver/metadata \
-          -I$(BAL_DIR)/host_customized/os_abstraction \
-          -I$(BAL_DIR)/host_customized/os_abstraction/posix \
-          -I$(BAL_DIR)/host_customized/config \
-          -I$(BAL_DIR)/host_driver/api_conn_mgr \
-          -I$(BAL_DIR)/host_driver/conn_mgr \
-          -I$(BAL_DIR)/host_driver/api/host/topology \
-          -I$(BAL_DIR)/host_reference/cli \
-          -I$(BAL_DIR)/host_reference/api_cli \
-          -I$(BAL_API_DIR)/include \
-          -I$(BAL_API_DIR)/include/object_model
-CXXFLAGS += $(BAL_INC) -I $(BAL_DIR)/lib/cmdline
+BALLIBDIR = $(BUILD_DIR)
+BALLIBNAME = bal_host_$(BAL_API_TYPE)
+BAL_INC = -I$(BAL_API_DIR)/include 
+CXXFLAGS += $(BAL_INC)
 CXXFLAGS += -DBCMOS_MSG_QUEUE_DOMAIN_SOCKET -DBCMOS_MSG_QUEUE_UDP_SOCKET -DBCMOS_MEM_CHECK -DBCMOS_SYS_UNITTEST -DENABLE_LOG -DENABLE_CLI
 PORT_SPEED_FILE = $(BAL_DIR)/switch_sdk/$(SDK_VER)/rc/$(OPENOLTDEVICE)/board_files/broadcom/port_speed.soc
 
-sdk: onl bal-api-$(BAL_API_VER)
+########################################################################
+##
+##  BAL proprietary elements - NDA is required with Broadcom
+##
+##  For Accton patch - contact Accton corporation
+##
+##  Not required when building the OpenOLT agent from github source
+##
+##  !!!NOTE: libbal_host_api-nda_req.so is proprietary and must not be
+##           published in any open debian package or otherwise made
+##           available to third parties that do not have an SLA and
+##           NDA with Broadcom
+##
+BAL_SDK_ZIP = SW-BCM686OLT_$(subst .,_,$(BAL_VER)).tgz
+CSG_SDK_ZIP = sdk-all-$(SDK_VER).tar.gz
+ACCTON_PATCH = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER).patch
+BROADCOM_IP_PATCH = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER)-BROADCOM-IP.patch 
+BCM_SWITCH_SDK = $(BAL_DIR)/switch_sdk/$(SDK_VER)
+
+sdk: onl
 ifeq ("$(wildcard $(BAL_DIR))","")
 	mkdir $(BAL_DIR)
-	tar zxvf download/$(BAL_ZIP) --strip 1 -C $(BAL_DIR)
-	cp download/$(SDK_ZIP) $(BCM_SDK)
+	tar zxvf download/$(BAL_SDK_ZIP) --strip 1 -C $(BAL_DIR)
+	cp download/$(CSG_SDK_ZIP) $(BCM_SWITCH_SDK)
 	chmod -R 744 $(BAL_DIR)
-	cat download/$(PATCH_FILE) | patch -p1 -d $(BAL_DIR)
-	cat download/$(BAL_IP_PATCH_FILE) | patch -p1 -d $(BAL_DIR)
+	cat download/$(ACCTON_PATCH) | patch -p1 -d $(BAL_DIR)
+	cat download/$(BROADCOM_IP_PATCH) | patch -p1 -d $(BAL_DIR)
+
 ifeq ("$(strip $(OPENOLTDEVICE))","asfvolt16")
 	echo "setenv port_speed_for_100 $(PORT_100G_SPEED)" > $(PORT_SPEED_FILE)
 else ifeq ("$(strip $(OPENOLTDEVICE))","asgvolt64")
 	echo "setenv port_speed_for_100 $(PORT_100G_SPEED)" > $(PORT_SPEED_FILE)
 	echo "setenv port_speed_for_25 $(PORT_25G_SPEED)" >> $(PORT_SPEED_FILE)
 endif
+
 ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt-3200g-w" "rlt-1600g-w" "rlt-1600x-w"))
 	chmod 0755 $(BAL_DIR)/onu_mgmt/libomcistack/me_codegen/omci_stack_codegen
-	make -C $(BAL_DIR) BOARD=phoenix ONL=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux ONL_DEBIAN_SUITE=$(shell lsb_release -c -s) OPEN_SOURCE=y
+	make -C $(BAL_DIR) BOARD=phoenix ONL=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux ONL_DEBIAN_SUITE=$(shell lsb_release -c -s)
 	make -C $(BAL_DIR) BOARD=phoenix release_board
 else
-	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) ONL_DIR=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux OPEN_SOURCE=y
+	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) ONL_DIR=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
 endif
-endif
-
-bal-release: sdk
-ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt-3200g-w" "rlt-1600g-w" "rlt-1600x-w"))
-	make -C $(BAL_DIR) BOARD=phoenix release_board
-else
-	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
 endif
 
 bal-clean:
@@ -300,15 +314,9 @@ OBJS = $(SRCS:.cc=.o)
 DEPS = $(SRCS:.cc=.d)
 .DEFAULT_GOAL := all
 all: $(BUILD_DIR)/openolt
-$(BUILD_DIR)/openolt: sdk protos $(OBJS)
+$(BUILD_DIR)/openolt: $(BUILD_DIR)/lib$(BALLIBNAME).so sdk protos $(OBJS)
 	$(CXX) $(LDFLAGS) -L$(BALLIBDIR) $(OBJS) $(OPENOLT_API_LIB) $(LIBPROTOBUF_PATH)/libprotobuf.a -o $@ -l$(BALLIBNAME) $(shell pkg-config --libs protobuf grpc++ grpc) $(PCAPPLUSPLUS_LIB_PATH)
-ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt-3200g-w" "rlt-1600g-w" "rlt-1600x-w"))
-	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/phoenix/release/release_phoenix_v$(BAL_VER).tar.gz $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz
-else
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
-endif
-	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_reference/host_api/strip/libbal_host_api.so $(BUILD_DIR)/.
-	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/host_driver/dev_mgmt_daemon/dev_mgmt_daemon $(BUILD_DIR)/.
 	ln -sf $(LIBGRPC_PATH)/libz.so.1 $(BUILD_DIR)/libz.so.1
 	ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 $(BUILD_DIR)/libstdc++.so.6
 	strip $(BUILD_DIR)/openolt
@@ -327,7 +335,7 @@ deb: rxtx-power
 	cp $(BUILD_DIR)/openolt device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/libz.so.1 device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp $(BUILD_DIR)/libstdc++.so.6 device/$(OPENOLTDEVICE)/mkdebian/debian
-	cp $(BUILD_DIR)/libbal_host_api.so device/$(OPENOLTDEVICE)/mkdebian/debian
+	cp $(BUILD_DIR)/libbal_host_api-oss.so device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp -a scripts/init.d device/$(OPENOLTDEVICE)/mkdebian/debian
 	cp -a $(RXTX_POWER_EXE) device/$(OPENOLTDEVICE)/mkdebian/debian
 ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt-3200g-w" "rlt-1600g-w" "rlt-1600x-w"))
@@ -397,7 +405,7 @@ deb-cleanup: clean-rxtx-power
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/debhelper-build-stamp
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libz.so.1
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libstdc++.so.6
-	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libbal_host_api.so
+	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/libbal_host_api-oss.so
 	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/init.d/
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/openolt
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz
@@ -414,7 +422,7 @@ clean: protos-clean deb-cleanup
 	@rm -f $(OBJS) $(DEPS)
 	@rm -rf $(OPENOLT_PROTOS_DIR)/googleapis
 	@rm -f $(BUILD_DIR)/libz.so.1
-	@rm -f $(BUILD_DIR)/libbal_host_api.so
+	@rm -f $(BUILD_DIR)/libbal_host_api-oss.so
 	@rm -f $(BUILD_DIR)/openolt
 	@rm -f $(BUILD_DIR)/dev_mgmt_daemon
 	@rm -f $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz

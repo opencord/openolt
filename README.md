@@ -11,6 +11,7 @@ OpenOLT agent uses Broadcom's BAL (Broadband Adaptation Layer) software for
 interfacing with the Maple/Qumran chipsets in OLTs such as the Edgecore/Accton
 ASXvOLT16 and with Aspen/Qumran chipsets in OLTs such as the Radisys/Phoenix
 RLT-3200G-W.
+The current version of the Broadcom BAL integrated with OpenOLT agent is BAL3.10.2.2.
 
 ```text
 
@@ -56,14 +57,6 @@ navigate to `File_Station -> EdgecoreNAS`, and then the folder
 `/ASXvOLT16/OpenOLT_Agent/From_ONF_Distribution/` and pick the right version of
 `.deb` package required for your testing.
 
-`voltha-2.6/openolt_<OPENOLTDEVICE>-2.6.0-<GIT Commit ID>.deb` is the latest version of package with support
-for BAL v3.4.9.6 .
-
-The pre-built debian packages have been tested on [Open Networking Linux
-(ONL)](http://opennetlinux.org/) version 4.14. The ONL Installer required for
-`voltha-2.6/openolt_<OPENOLTDEVICE>-2.6.0-<GIT Commit ID>.deb` is also available at in the same path, i.e.,
-voltha-2.6/.
-
 ## Install OpenOLT
 
 Copy the debian package to the OLT. For example:
@@ -75,12 +68,8 @@ scp openolt.deb root@10.6.0.201:~/.
 Install the *openolt.deb* package using *dpkg*:
 
 ```shell
-dpkg -i openolt_<OPENOLTDEVICE>-2.6.0-<GIT Commit ID>.deb
+dpkg -i openolt_<OPENOLTDEVICE>-<Version>-<GIT Commit ID>.deb
 ```
-
-The ONL version required for BAL v3.4.9.6 is ONL `4.14.151-OpenNetworkLinux`. Radisys RLT-3200G-W
-requires BAL v3.4.9.9 and ONL version `4.19-OpenNetworkLinux`. This will be built as part of
-build procedure described in `Build OpenOLT` section.
 
 ## Run OpenOLT as a Linux service
 
@@ -330,33 +319,7 @@ A restart of the `dev_mgmt_daemon` and `openolt` services is required after
 making this change.
 
 
-### Why does the Broadcom ONU not forward eapol packets?
 
-The firmware on the ONU is likely not setup to forward 802.1x EAPOL traffic on
-the Linux bridge. Drop down to the shell in the Broadcom ONU's console and
-configure the Linux bridge to forward 802.1x.
-
-```shell
-> sh
-# echo 8 > /sys/class/net/bronu513/bridge/group_fwd_mask
-```
-
-Version 1.7 of VOLTHA has a known issue where the ONU is only able to pass
-EAPOL packets from a specific LAN port (e.g. LAN port 1 on ALPHA ONUs)
-
-### How do I check packet counters on the ONU?
-
-LAN port packet counters:
-
-```shell
-bs /b/e port/index=lan{0,1,2,3,4,5,6}
-```
-
-WAN port packet counters:
-
-```shell
-bs /b/e port/index=wan0
-```
 
 ### How to get access to BAL CLI on OLT box
 
@@ -490,12 +453,3 @@ For more details about BW profile parameters, please refer below links.
 Bandwidth-Profiles-for-Ethernet-Services](https://wiki.mef.net/display/CESG/Bandwidth+Profile)
 [Technology Profile Implementation
 Note](https://www.opennetworking.org/wp-content/uploads/2019/09/2pm-Shaun-Missett-Technology-Profile-and-Speed-Profile-Implementation.pdf)
-
-
-## Known Issues
-
-* The Minimum BW that should be configured for ITU PON Alloc Object has changed from 16Kbps
-  to 32Kbps from BAL3.1 to BAL3.2 release if you are using ALPHA ONUs.
-  As per BAL3.x documents, when FEC is disabled, the minimum BW is 16Kbps on the ITU PON Alloc Object.
-  This seems to be a discrepancy on the ALPHA ONU. So, ensure that `cir` + `eir` value is greater than
-  equal to *32000* for XGSPON use case for ALPHA ONU.

@@ -22,9 +22,5 @@ typedef char bcmolt_cm_addr[100];
 
 typedef int bcmolt_goid;
 
-typedef struct bcmos_fastlock {
-    pthread_mutex_t lock;
-} bcmos_fastlock;
-
 }
 #endif
