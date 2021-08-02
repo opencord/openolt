@@ -35,12 +35,11 @@ DEV_VER = 20210727
 # Version of Open Network Linux (ONL).
 ONL_KERN_VER_MAJOR = 4.19
 else
-BAL_REV_B_VER = 6
-DEV_VER = 202012040101
+BAL_REV_B_VER = 9
+DEV_VER = 202107300101
 ONL_KERN_VER_MAJOR = 4.14
 endif
-BAL_API_REV_B_VER = 6
-BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_API_REV_B_VER)
+BAL_API_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
 BAL_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_A_VER).$(BAL_REV_B_VER)
 SDK_VER = 6.5.13
 
@@ -186,6 +185,7 @@ ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt
 PATCH_FILE = PHOENIX_BAL_$(BAL_VER)_V$(DEV_VER).patch
 else
 PATCH_FILE = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER).patch
+BAL_IP_PATCH_FILE = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER)-BROADCOM-IP.patch
 endif
 BAL_DIR = $(BUILD_DIR)/$(OPENOLTDEVICE)-bal
 BCM_SDK = $(BAL_DIR)/switch_sdk/$(SDK_VER)
@@ -217,6 +217,7 @@ ifeq ("$(wildcard $(BAL_DIR))","")
 	cp download/$(SDK_ZIP) $(BCM_SDK)
 	chmod -R 744 $(BAL_DIR)
 	cat download/$(PATCH_FILE) | patch -p1 -d $(BAL_DIR)
+	cat download/$(BAL_IP_PATCH_FILE) | patch -p1 -d $(BAL_DIR)
 ifeq ("$(strip $(OPENOLTDEVICE))","asfvolt16")
 	echo "setenv port_speed_for_100 $(PORT_100G_SPEED)" > $(PORT_SPEED_FILE)
 else ifeq ("$(strip $(OPENOLTDEVICE))","asgvolt64")
@@ -403,6 +404,7 @@ deb-cleanup: clean-rxtx-power
 	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/tmp/
 	@rm -f device/$(OPENOLTDEVICE)/$(OPENOLTDEVICE)_$(BAL_VER)+edgecore-V$(DEV_VER)_amd64.changes
 	@rm -f device/$(OPENOLTDEVICE)/mkdebian/debian/$(RXTX_POWER_EXE)
+	@rm -rf device/$(OPENOLTDEVICE)/mkdebian/debian/watchdog/
 
 inband-onl-cleanup:
 	@rm -f $(ONL_DIR)/OpenNetworkLinux/*.patch
