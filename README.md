@@ -79,7 +79,7 @@ dpkg -i openolt_<OPENOLTDEVICE>-2.6.0-<GIT Commit ID>.deb
 ```
 
 The ONL version required for BAL v3.4.9.6 is ONL `4.14.151-OpenNetworkLinux`. Radisys RLT-3200G-W
-requires BAL v3.4.9.8 and ONL version `4.19-OpenNetworkLinux`. This will be built as part of
+requires BAL v3.4.9.9 and ONL version `4.19-OpenNetworkLinux`. This will be built as part of
 build procedure described in `Build OpenOLT` section.
 
 ## Run OpenOLT as a Linux service

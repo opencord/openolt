@@ -21,9 +21,9 @@ The versions currently supported by the OpenOLT agent for Accton/Edgecore ASXvOL
 
 The versions currently supported by the OpenOLT agent for Phoenix/Radisys RLT-3200G-W are:
 
-* `SW-BCM686OLT_3_4_9_8.tgz`
+* `SW-BCM686OLT_3_4_9_9.tgz`
 * `sdk-all-6.5.13.tar.gz`
-* `PHOENIX_BAL_3.4.9.8_V20210420.patch`. This is downloadable from the common CSP CS00003233745.
+* `PHOENIX_BAL_3.4.9.9_V20210727.patch`. This is downloadable from the common CSP CS00003233745.
 
 > NOTE: the repository does not contain the above three source packages.  These
 > are needed to build the OpenOLT agent executable. Contact [Dave Baron at
@@ -274,7 +274,7 @@ Copy the Broadcom source and patch files to the openolt/agent/download directory
 
 ```shell
 cd <dir containing Broadcom source and patch files>
-cp PHOENIX_BAL_3.4.9.8_V20210420.patch SW-BCM686OLT_3_4_9_8.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
+cp PHOENIX_BAL_3.4.9.9_V20210727.patch SW-BCM686OLT_3_4_9_9.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
 ```
 
 Run the configure script to generate the appropriate Makefile scaffolding for

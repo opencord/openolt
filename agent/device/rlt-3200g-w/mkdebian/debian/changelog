@@ -1,7 +1,7 @@
-rlt-3200g-w (3.4.9.8+radisys-V20210420) stable; urgency=high
+rlt-3200g-w (3.4.9.9+radisys-V20210727) stable; urgency=high
 
-    * Based on code from SW-BCM686OLT_3_4_9_8.tgz.
+    * Based on code from SW-BCM686OLT_3_4_9_9.tgz.
     * Patches required for BAL to support RLT-3200G-W has been merged to
-      PHOENIX_BAL_3.4.9.8_V20210420.patch.
+      PHOENIX_BAL_3.4.9.9_V20210727.patch.
 
- -- Thiyagarajan Subramani <thiyagarajan.subramani@radisys.com>  Tue, 20 APR 2021 09:30:00 +0400
+ -- Naresh Kumar Palanisamy <nakumar@radisys.com>  Tue, 27 JUL 2021 09:30:00 +0400

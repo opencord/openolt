@@ -30,8 +30,8 @@ BAL_MAJOR_VER = 3
 BAL_MINOR_VER = 4
 BAL_REV_A_VER = 9
 ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt-3200g-w" "rlt-1600g-w" "rlt-1600x-w"))
-BAL_REV_B_VER = 8
-DEV_VER = 20210420
+BAL_REV_B_VER = 9
+DEV_VER = 20210727
 # Version of Open Network Linux (ONL).
 ONL_KERN_VER_MAJOR = 4.19
 else
