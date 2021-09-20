@@ -21,7 +21,7 @@ The values of this enumeration are described by the following table:
 
 ## Initialization with TLS
 
-The desired value is passed as an argument by the [init script](./agent/scripts/openolt) to the **openolt** application.
+The desired value is passed as an argument by the [init script](./agent/scripts/init.d/openolt) to the **openolt** application.
 
 If the TLS option is an empty string the gRPC server is insecure, otherwise the corresponding TLS level is set.
 
