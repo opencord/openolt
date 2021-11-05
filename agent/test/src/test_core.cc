@@ -1045,15 +1045,24 @@ class TestDeactivateOnu : public Test {
 
 // Test 1 - DeactivateOnu success case
 TEST_F(TestDeactivateOnu, DeactivateOnuSuccess) {
-    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
     bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
 
-    bcmolt_onu_cfg onu_cfg;
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
     bcmolt_onu_key onu_key;
-    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
+
 
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
 
@@ -1063,15 +1072,23 @@ TEST_F(TestDeactivateOnu, DeactivateOnuSuccess) {
 
 // Test 2 - DeactivateOnu failure case
 TEST_F(TestDeactivateOnu, DeactivateOnuFailure) {
-    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
     bcmos_errno onu_oper_sub_res = BCM_ERR_INTERNAL;
 
-    bcmolt_onu_cfg onu_cfg;
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
     bcmolt_onu_key onu_key;
-    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
 
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
 
@@ -1122,17 +1139,24 @@ class TestDeleteOnu : public Test {
 
 // Test 1 - DeleteOnu success case
 TEST_F(TestDeleteOnu, DeleteOnuSuccess) {
-    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
     bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
     bcmos_errno onu_cfg_clear_res = BCM_ERR_OK;
 
-    bcmolt_onu_cfg onu_cfg;
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
     bcmolt_onu_key onu_key;
-    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
 
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(onu_cfg_clear_res));
 
@@ -1146,16 +1170,25 @@ TEST_F(TestDeleteOnu, DeleteOnuSuccess) {
 
 // Test 2 - DeleteOnu failure case - BAL Clear ONU fails
 TEST_F(TestDeleteOnu, DeleteOnuFailureClearOnuFail) {
-    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
     bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
     bcmos_errno onu_cfg_clear_res = BCM_ERR_INTERNAL;
 
-    bcmolt_onu_cfg onu_cfg;
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
     bcmolt_onu_key onu_key;
-    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
+
 
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(onu_cfg_clear_res));
@@ -1171,15 +1204,23 @@ TEST_F(TestDeleteOnu, DeleteOnuFailureClearOnuFail) {
 
 // Test 3 - DeleteOnu failure case - onu deactivation fails
 TEST_F(TestDeleteOnu, DeleteOnuFailureDeactivationFail) {
-    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
     bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
 
-    bcmolt_onu_cfg onu_cfg;
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
     bcmolt_onu_key onu_key;
-    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
 
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
 
@@ -1194,15 +1235,23 @@ TEST_F(TestDeleteOnu, DeleteOnuFailureDeactivationFail) {
 
 // Test 4 - DeleteOnu failure case - onu deactivation timesout
 TEST_F(TestDeleteOnu, DeleteOnuFailureDeactivationTimeout) {
-    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
     bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
 
-    bcmolt_onu_cfg onu_cfg;
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
     bcmolt_onu_key onu_key;
-    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
 
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
 
@@ -1214,16 +1263,24 @@ TEST_F(TestDeleteOnu, DeleteOnuFailureDeactivationTimeout) {
 
 // Test 5 - DeleteOnu success case - Onu is Inactive so won't wait for onu deactivation response
 TEST_F(TestDeleteOnu, DeleteOnuSuccessDontwaitforDeactivationResp) {
-    bcmos_errno onu_cfg_get_stub_res = BCM_ERR_OK;
     bcmos_errno onu_oper_sub_res = BCM_ERR_OK;
     bcmos_errno onu_cfg_clear_res = BCM_ERR_OK;
 
-    bcmolt_onu_cfg onu_cfg;
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
     bcmolt_onu_key onu_key;
-    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
 
     ON_CALL(balMock, bcmolt_oper_submit(_, _)).WillByDefault(Return(onu_oper_sub_res));
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(onu_cfg_clear_res));
@@ -1238,12 +1295,22 @@ TEST_F(TestDeleteOnu, DeleteOnuSuccessDontwaitforDeactivationResp) {
 TEST_F(TestDeleteOnu, DeleteOnuFailureFetchOnuStatusFailed) {
     bcmos_errno onu_cfg_get_stub_res = BCM_ERR_INTERNAL;
 
-    bcmolt_onu_cfg onu_cfg;
+    bcmos_errno onu_cfg_get_res = BCM_ERR_INTERNAL;
+    bcmolt_onu_cfg onu_cfg_out;
     bcmolt_onu_key onu_key;
-    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    onu_cfg.data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__onu_state_stub, bcmolt_cfg_get__onu_state_stub(_, _))
-                     .WillRepeatedly(DoAll(SetArg1ToBcmOltOnuCfg(onu_cfg), Return(onu_cfg_get_stub_res)));
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
+
 
     future<Status> future_res = async(launch::async, DeleteOnu_, pon_id, onu_id, vendor_id.c_str(), vendor_specific.c_str());
 
@@ -1999,6 +2066,20 @@ TEST_F(TestCreateTrafficSchedulers, CreateTrafficSchedulersUpstreamSuccess) {
     bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
+
     future<Status> future_res = async(launch::async, CreateTrafficSchedulers_, traffic_scheds);
     future<int> push_alloc_cfg_complt = \
                 async(launch::async, TestCreateTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_ACTIVE, ALLOC_CFG_STATUS_SUCCESS);
@@ -2021,6 +2102,70 @@ TEST_F(TestCreateTrafficSchedulers, UpstreamAllocCfgTimeout) {
     bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
 
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
+
+    Status status = CreateTrafficSchedulers_(traffic_scheds);
+    ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
+}
+
+// Test 2A - CreateTrafficSchedulers-Upstream success case(ONU not in ACTIVE state)
+TEST_F(TestCreateTrafficSchedulers, CreateTrafficSchedulersUpstreamSuccessOnuNotInActive) {
+    scheduler->set_direction(tech_profile::Direction::UPSTREAM);
+    scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_BestEffort);
+    traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
+    traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_cir(64000);
+    traffic_shaping_info->set_pir(128000);
+    traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
+
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
+
+    Status status = CreateTrafficSchedulers_(traffic_scheds);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
+// Test 2B - CreateTrafficSchedulers-Upstream failure case. cfg-get failure
+TEST_F(TestCreateTrafficSchedulers, CreateTrafficSchedulersUpstreamCfgGetFailure) {
+    scheduler->set_direction(tech_profile::Direction::UPSTREAM);
+    scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_BestEffort);
+    traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
+    traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_cir(64000);
+    traffic_shaping_info->set_pir(128000);
+    traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
+
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    bcmos_errno olt_cfg_get_res = BCM_ERR_INTERNAL;
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+    ON_CALL(balMock, bcmolt_cfg_get(_, _)).WillByDefault(Return(olt_cfg_get_res));
+
     Status status = CreateTrafficSchedulers_(traffic_scheds);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
@@ -2037,6 +2182,20 @@ TEST_F(TestCreateTrafficSchedulers, UpstreamErrorProcessingAllocCfg) {
 
     bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
 
     future<Status> future_res = async(launch::async, CreateTrafficSchedulers_, traffic_scheds);
     future<int> push_alloc_cfg_complt = \
@@ -2060,6 +2219,20 @@ TEST_F(TestCreateTrafficSchedulers, UpstreamAllocObjNotinActiveState) {
 
     bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
 
     future<Status> future_res = async(launch::async, CreateTrafficSchedulers_, traffic_scheds);
     future<int> push_alloc_cfg_complt = \
@@ -2410,14 +2583,22 @@ TEST_F(TestRemoveTrafficSchedulers, RemoveTrafficSchedulersUpstreamSuccess) {
     bcmos_errno olt_cfg_clear_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
 
-    bcmolt_pon_interface_key pon_key;
-    bcmolt_pon_interface_cfg pon_cfg;
-    pon_key.pon_ni = pon_id;
-    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
-    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
-    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
+
 
     future<Status> future_res = async(launch::async, RemoveTrafficSchedulers_, traffic_scheds);
     future<int> push_alloc_cfg_complt = \
@@ -2434,15 +2615,21 @@ TEST_F(TestRemoveTrafficSchedulers, UpstreamAllocObjNotReset) {
     bcmos_errno olt_cfg_clear_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
 
-    bcmolt_pon_interface_key pon_key;
-    bcmolt_pon_interface_cfg pon_cfg;
-    pon_key.pon_ni = pon_id;
-    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
-    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_ACTIVE_WORKING;
-    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
 
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
     future<Status> future_res = async(launch::async, RemoveTrafficSchedulers_, traffic_scheds);
     future<int> push_alloc_cfg_complt = \
     async(launch::async, TestRemoveTrafficSchedulers::PushAllocCfgResult, ALLOC_OBJECT_STATE_INACTIVE, ALLOC_CFG_STATUS_SUCCESS);
@@ -2452,20 +2639,28 @@ TEST_F(TestRemoveTrafficSchedulers, UpstreamAllocObjNotReset) {
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
 
-// Test 3 - RemoveTrafficSchedulers-Upstream success case(PON disable case - Don't wait for alloc object delete response)
+// Test 3 - RemoveTrafficSchedulers-Upstream success case(ONU case - Don't wait for alloc object delete response)
 TEST_F(TestRemoveTrafficSchedulers, UpstreamAllocObjPonDisable) {
     traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
     bcmos_errno olt_cfg_clear_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
 
-    bcmolt_pon_interface_key pon_key;
-    bcmolt_pon_interface_cfg pon_cfg;
-    pon_key.pon_ni = pon_id;
-    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
-    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_INACTIVE;
-    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_OK;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
+
 
     future<Status> future_res = async(launch::async, RemoveTrafficSchedulers_, traffic_scheds);
 
@@ -2479,14 +2674,21 @@ TEST_F(TestRemoveTrafficSchedulers, UpstreamAllocObjGetPonStateFailure) {
     bcmos_errno olt_cfg_clear_res = BCM_ERR_OK;
     ON_CALL(balMock, bcmolt_cfg_clear(_, _)).WillByDefault(Return(olt_cfg_clear_res));
 
-    bcmolt_pon_interface_key pon_key;
-    bcmolt_pon_interface_cfg pon_cfg;
-    pon_key.pon_ni = pon_id;
-    BCMOLT_CFG_INIT(&pon_cfg, pon_interface, pon_key);
-    pon_cfg.data.state = BCMOLT_INTERFACE_STATE_INACTIVE;
-    bcmos_errno olt_cfg_get_pon_stub_res = BCM_ERR_INTERNAL;
-    EXPECT_GLOBAL_CALL(bcmolt_cfg_get__pon_intf_stub, bcmolt_cfg_get__pon_intf_stub(_, _))
-                     .WillOnce(DoAll(SetArg1ToBcmOltPonCfg(pon_cfg), Return(olt_cfg_get_pon_stub_res)));
+    bcmos_errno onu_cfg_get_res = BCM_ERR_INTERNAL;
+    bcmolt_onu_cfg onu_cfg_out;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_INACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ));
 
     future<Status> future_res = async(launch::async, RemoveTrafficSchedulers_, traffic_scheds);
 

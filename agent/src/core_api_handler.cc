@@ -556,7 +556,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get onu_id, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get onu_id, err = %s (%d)\n", flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.onu_id;
@@ -567,7 +567,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get flow_type, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get flow_type, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.key.flow_type;
@@ -579,7 +579,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get svc_port_id, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get svc_port_id, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.svc_port_id;
@@ -591,7 +591,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get priority, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get priority, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.priority;
@@ -603,7 +603,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get cookie, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get cookie, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.cookie;
@@ -615,7 +615,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get ingress intf_type, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get ingress intf_type, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.ingress_intf.intf_type;
@@ -627,7 +627,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress intf_type, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress intf_type, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.egress_intf.intf_type;
@@ -639,7 +639,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get ingress intf_id, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get ingress intf_id, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.ingress_intf.intf_id;
@@ -651,7 +651,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress intf_id, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress intf_id, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.egress_intf.intf_id;
@@ -663,7 +663,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier o_vid, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier o_vid, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.classifier.o_vid;
@@ -675,7 +675,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier o_pbits, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier o_pbits, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.classifier.o_pbits;
@@ -687,7 +687,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier i_vid, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier i_vid, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.classifier.i_vid;
@@ -699,7 +699,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier i_pbits, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier i_pbits, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.classifier.i_pbits;
@@ -711,7 +711,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier ether_type, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier ether_type, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.classifier.ether_type;
@@ -723,7 +723,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier ip_proto, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier ip_proto, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.classifier.ip_proto;
@@ -735,7 +735,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier src_port, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier src_port, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.classifier.src_port;
@@ -747,7 +747,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier dst_port, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier dst_port, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.classifier.dst_port;
@@ -759,7 +759,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier pkt_tag_type, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get classifier pkt_tag_type, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.classifier.pkt_tag_type;
@@ -771,7 +771,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress_qos type, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress_qos type, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.egress_qos.type;
@@ -783,7 +783,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress_qos queue_id, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress_qos queue_id, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             switch (flow_cfg.data.egress_qos.type) {
@@ -807,7 +807,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress_qos tm_sched_id, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get egress_qos tm_sched_id, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.egress_qos.tm_sched.id;
@@ -819,7 +819,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action cmds_bitmask, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action cmds_bitmask, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.action.cmds_bitmask;
@@ -831,7 +831,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action o_vid, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action o_vid, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.action.o_vid;
@@ -843,7 +843,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action o_pbits, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action o_pbits, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.action.o_pbits;
@@ -855,7 +855,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action i_vid, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action i_vid, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.action.i_vid;
@@ -867,7 +867,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action i_pbits, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get action i_pbits, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.action.i_pbits;
@@ -879,7 +879,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             #endif
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get state, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get state, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.state;
@@ -887,7 +887,7 @@ inline uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t d
             BCMOLT_FIELD_SET_PRESENT(&flow_cfg.data, flow_cfg_data, group_id);
             err = bcmolt_cfg_get(dev_id, &flow_cfg.hdr);
             if (err) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get group_id, err = %s\n",bcmos_strerror(err));
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get group_id, err = %s (%d)\n",flow_cfg.hdr.hdr.err_text, err);
                 return err;
             }
             return flow_cfg.data.group_id;
@@ -1130,7 +1130,7 @@ Status DisablePonIf_(uint32_t intf_id) {
 
     err = bcmolt_cfg_set(dev_id, &interface_obj.hdr);
     if (err != BCM_ERR_OK) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to disable discovery of onu, PON interface %d, err %d\n", intf_id, err);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to disable discovery of onu, PON interface %d, err = %s (%d(\n", intf_id, interface_obj.hdr.hdr.err_text, err);
         return bcm_to_grpc_err(err, "Failed to disable discovery of onu");
     }
 
@@ -1213,7 +1213,7 @@ vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id,
         }
         err = bcmolt_cfg_set(dev_id, &onu_cfg.hdr);
         if (err != BCM_ERR_OK) {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to configure ONU %d on PON %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to configure ONU %d on PON %d, err = %s (%d)\n", onu_id, intf_id, onu_cfg.hdr.hdr.err_text, err);
             return bcm_to_grpc_err(err, "Failed to configure ONU");
         }
     }
@@ -1232,7 +1232,7 @@ vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id,
         BCMOLT_FIELD_SET(&gem_cfg.data, itupon_gem_cfg_data, encryption_mode, encryption_mode);
         err = bcmolt_cfg_set(dev_id, &gem_cfg.hdr);
         if(err != BCM_ERR_OK) {
-                OPENOLT_LOG(ERROR, openolt_log_id, "failed to configure omci gem_port encryption mode = %d\n", onu_id);
+                OPENOLT_LOG(ERROR, openolt_log_id, "failed to configure omci gem_port encryption mode = %d, err = %s (%d)\n", onu_id, gem_cfg.hdr.hdr.err_text, err);
                 return bcm_to_grpc_err(err, "Access_Control set ITU PON OMCI Gem port failed");
         }
     }
@@ -1268,16 +1268,7 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
     onu_key.pon_ni = intf_id;
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
     BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
-    #ifdef TEST_MODE
-    // It is impossible to mock the setting of onu_cfg.data.onu_state because
-    // the actual bcmolt_cfg_get passes the address of onu_cfg.hdr and we cannot
-    // set the onu_cfg.data.onu_state. So a new stub function is created and address
-    // of onu_cfg is passed. This is one-of case where we need to add test specific
-    // code in production code.
-    err = bcmolt_cfg_get__onu_state_stub(dev_id, &onu_cfg);
-    #else
     err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
-    #endif
     onu_state = onu_cfg.data.onu_state;
     if (err == BCM_ERR_OK) {
         switch (onu_state) {
@@ -1293,6 +1284,9 @@ Status DeactivateOnu_(uint32_t intf_id, uint32_t onu_id,
                 OPENOLT_LOG(INFO, openolt_log_id, "Deactivated ONU, onu_id %d on PON %d\n", onu_id, intf_id);
                 break;
         }
+    } else {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to deactivate ONU %d on PON %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "Failed to get onu config");
     }
 
     return Status::OK;
@@ -1302,14 +1296,18 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific) {
     bcmos_errno err = BCM_ERR_OK;
     bcmolt_onu_state onu_state;
+    Status st;
 
     OPENOLT_LOG(INFO, openolt_log_id,  "DeleteOnu ONU %d on PON %d : vendor id %s, vendor specific %s\n",
         onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str());
 
     // Need to deactivate before removing it (BAL rules)
-    DeactivateOnu_(intf_id, onu_id, vendor_id, vendor_specific);
+    st = DeactivateOnu_(intf_id, onu_id, vendor_id, vendor_specific);
+    if (st.error_code() != grpc::StatusCode::OK) {
+        return st;
+    }
 
-    err = get_onu_status((bcmolt_interface)intf_id, onu_id, &onu_state);
+    err = get_onu_state((bcmolt_interface)intf_id, onu_id, &onu_state);
     if (err == BCM_ERR_OK) {
         if (onu_state != BCMOLT_ONU_STATE_INACTIVE) {
             OPENOLT_LOG(INFO, openolt_log_id, "waiting for onu deactivate complete response: intf_id=%d, onu_id=%d\n",
@@ -1345,7 +1343,7 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     err = bcmolt_cfg_clear(dev_id, &cfg_obj.hdr);
     if (err != BCM_ERR_OK)
     {
-       OPENOLT_LOG(ERROR, openolt_log_id, "Failed to clear information for BAL onu_id %d, Interface ID %d, err = %s\n", onu_id, intf_id, bcmos_strerror(err));
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to clear information for BAL onu_id %d, Interface ID %d, err = %s (%d)\n", onu_id, intf_id, cfg_obj.hdr.hdr.err_text, err);
         return Status(grpc::StatusCode::INTERNAL, "Failed to delete ONU");
     }
 
@@ -1626,6 +1624,7 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                                 action, priority, cookie, group_id, tech_profile_id, enable_encryption);
             if (st.error_code() != grpc::StatusCode::OK && st.error_code() != grpc::StatusCode::ALREADY_EXISTS) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "failed to install device flow=%u for voltha flow=%lu", flow_id, voltha_flow_id);
+                free_flow_id(flow_id);
                 return st;
             }
 
@@ -1656,6 +1655,8 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                             FlowRemove_(flow_id, flow_type);
                         }
                     }
+                    // Note: We should not free the flow_ids here because the symmetric flow is already using that flow id.  
+                    // A call from voltha adapter should invoke a flow remove and then the flow ids would be freed in the process in this particular case
                     return st;
                 }
             }
@@ -2264,7 +2265,7 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
 
     bcmos_errno err = bcmolt_cfg_clear(dev_id, &cfg.hdr);
     if (err) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Error while removing %s flow, flow_id=%d, err = %s\n", flow_type.c_str(), flow_id, bcmos_strerror(err));
+        OPENOLT_LOG(ERROR, openolt_log_id, "Error while removing %s flow, flow_id=%d, err = %s (%d)\n", flow_type.c_str(), flow_id, cfg.hdr.hdr.err_text, err);
         return Status(grpc::StatusCode::INTERNAL, "Failed to remove flow");
     }
 
@@ -2307,7 +2308,7 @@ bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction) {
     err = bcmolt_cfg_get(dev_id, &tm_sched_cfg.hdr);
     #endif
     if (err) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "cfg: Failed to query TM scheduler, err = %s\n",bcmos_strerror(err));
+        OPENOLT_LOG(ERROR, openolt_log_id, "cfg: Failed to query TM scheduler, err = %s (%d)\n", tm_sched_cfg.hdr.hdr.err_text, err);
         return err;
     }
     else if (tm_sched_cfg.data.state == BCMOLT_CONFIG_STATE_CONFIGURED) {
@@ -2404,8 +2405,8 @@ bcmos_errno CreateSched(std::string direction, uint32_t intf_id, uint32_t onu_id
         err = bcmolt_cfg_set(dev_id, &tm_sched_cfg.hdr);
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create downstream subscriber scheduler, id %d, \
-intf_id %d, onu_id %d, uni_id %d, port_no %u, err = %s\n", tm_sched_key.id, intf_id, onu_id, uni_id, \
-port_no, bcmos_strerror(err));
+intf_id %d, onu_id %d, uni_id %d, port_no %u, err = %s (%d)\n", tm_sched_key.id, intf_id, onu_id, uni_id, \
+port_no, tm_sched_cfg.hdr.hdr.err_text, err);
             return err;
         }
         OPENOLT_LOG(INFO, openolt_log_id, "Create downstream subscriber sched, id %d, intf_id %d, onu_id %d, \
@@ -2525,18 +2526,29 @@ for additional bandwidth eligibility of type None\n");
         err = bcmolt_cfg_set(dev_id, &cfg.hdr);
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d,\
-port_no %u, alloc_id %d, err = %s (%s)\n", intf_id, onu_id,uni_id,port_no,alloc_id, bcmos_strerror(err), cfg.hdr.hdr.err_text);
+port_no %u, alloc_id %d, err = %s (%d)\n", intf_id, onu_id,uni_id,port_no,alloc_id, cfg.hdr.hdr.err_text, err);
             return err;
         }
-#ifndef SCALE_AND_PERF
-        err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_CREATE);
-        if (err) {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d,\
+        bcmolt_onu_state onu_state;
+        err = get_onu_state((bcmolt_interface)intf_id, (bcmolt_onu_id)onu_id, &onu_state);
+        if (err == BCM_ERR_OK) {
+            if (onu_state == BCMOLT_ONU_STATE_ACTIVE) {
+                err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_CREATE);
+                if (err) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d,\
 port_no %u, alloc_id %d, err = %s\n", intf_id, onu_id,uni_id,port_no,alloc_id, bcmos_strerror(err));
+                    return err;
+                }
+            }
+            else {
+                OPENOLT_LOG(INFO, openolt_log_id, "onu not active, not waiting for alloc cfg complete, onu_state = %d, intf = %d, onu=%d\n",
+                    onu_state, intf_id, onu_id);
+            }
+        } else {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch onu status, intf_id = %d, onu_id = %d, err = %s\n",
+                intf_id, onu_id, bcmos_strerror(err));
             return err;
         }
-#endif
-
         OPENOLT_LOG(INFO, openolt_log_id, "create upstream bandwidth allocation success, intf_id %d, onu_id %d, uni_id %d,\
 port_no %u, alloc_id %d\n", intf_id, onu_id,uni_id,port_no,alloc_id);
 
@@ -2589,8 +2601,7 @@ Status CreateTrafficSchedulers_(const ::tech_profile::TrafficSchedulers *traffic
 bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::string direction, int tech_profile_id) {
 
     bcmos_errno err;
-    bcmolt_interface_state state;
-    bcmolt_status los_status;
+    bcmolt_onu_state onu_state;
     uint16_t sched_id;
 
     if (direction == upstream) {
@@ -2603,36 +2614,31 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
         BCMOLT_CFG_INIT(&cfg, itupon_alloc, key);
         err = bcmolt_cfg_clear(dev_id, &cfg.hdr);
         if (err) {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler, direction = %s, intf_id %d, alloc_id %d, err = %s\n",
-                direction.c_str(), intf_id, alloc_id, bcmos_strerror(err));
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler, direction = %s, intf_id %d, alloc_id %d, err = %s (%d)\n",
+                direction.c_str(), intf_id, alloc_id, cfg.hdr.hdr.err_text, err);
             return err;
         }
 
-        err = get_pon_interface_status((bcmolt_interface)intf_id, &state, &los_status);
+        err = get_onu_state((bcmolt_interface)intf_id, (bcmolt_onu_id)onu_id, &onu_state);
         if (err == BCM_ERR_OK) {
-            if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_OFF) {
-#ifndef SCALE_AND_PERF
-                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled and LoS status is OFF, waiting for alloc cfg clear response\n",
-                    intf_id);
+            if (onu_state == BCMOLT_ONU_STATE_ACTIVE) {
+                // Wait for gem cfg complete indication only if ONU state is ACTIVE
+                OPENOLT_LOG(INFO, openolt_log_id, "onu state is active waiting for alloc cfg complete indication intf = %d onu = %d\n",
+                    intf_id, onu_id);
                 err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_DELETE);
                 if (err) {
                     OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler, direction = %s, intf_id %d, alloc_id %d, err = %s\n",
                         direction.c_str(), intf_id, alloc_id, bcmos_strerror(err));
                     return err;
                 }
-#endif
             }
-            else if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_ON) {
-                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled but LoS status is ON, not waiting for alloc cfg clear response\n",
-                    intf_id);
-            }
-            else if (state == BCMOLT_INTERFACE_STATE_INACTIVE) {
-                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is disabled, not waiting for alloc cfg clear response\n",
-                    intf_id);
+            else {
+                OPENOLT_LOG(INFO, openolt_log_id, "onu not active, not waiting for alloc cfg complete, onu_state = %d, intf = %d, onu=%d\n",
+                    onu_state, intf_id, onu_id);
             }
         } else {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch PON interface status, intf_id = %d, err = %s\n",
-                intf_id, bcmos_strerror(err));
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch onu status, intf_id = %d, onu_id = %d, err = %s\n",
+                intf_id, onu_id, bcmos_strerror(err));
             return err;
         }
     } else if (direction == downstream) {
@@ -2651,7 +2657,7 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
         err = bcmolt_cfg_clear(dev_id, &(cfg.hdr));
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler, direction = %s, sched_id %d, \
-intf_id %d, onu_id %d, tech_profile_id %d, err = %s\n", direction.c_str(), key.id, intf_id, onu_id, tech_profile_id, bcmos_strerror(err));
+intf_id %d, onu_id %d, tech_profile_id %d, err = %s (%d)\n", direction.c_str(), key.id, intf_id, onu_id, tech_profile_id, cfg.hdr.hdr.err_text, err);
             return err;
         }
     }
@@ -2818,8 +2824,8 @@ gemport_id = %d, tech_profile_id = %d\n", direction.c_str(), access_intf_id, onu
     err = bcmolt_cfg_set(dev_id, &cfg.hdr);
     if (err) {
         OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create subscriber tm queue, direction = %s, queue_id %d, \
-sched_id %d, tm_q_set_id %d, intf_id %d, onu_id %d, uni_id %d, tech_profile_id %d, err = %s\n", \
-            direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id, tech_profile_id, bcmos_strerror(err));
+sched_id %d, tm_q_set_id %d, intf_id %d, onu_id %d, uni_id %d, tech_profile_id %d, err = %s (%d)\n", \
+            direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id, tech_profile_id, cfg.hdr.hdr.err_text, err);
         return err;
     }
 
@@ -2918,7 +2924,8 @@ bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t
         Status st = remove_gem_port(access_intf_id, onu_id, uni_id, gemport_id, board_technology);
         if (st.error_code() != grpc::StatusCode::OK) {
             OPENOLT_LOG(ERROR, openolt_log_id, "failed to remove gemport=%d, access_intf=%d, onu_id=%d\n", gemport_id, access_intf_id, onu_id);
-            return BCM_ERR_INTERNAL;
+            // We should further cleanup proceed, do not return error yet..
+            // return BCM_ERR_INTERNAL;
         }
         if (direction == upstream) {
             // Remove the pon-gem to onu-uni mapping
@@ -2959,8 +2966,8 @@ bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t
     err = bcmolt_cfg_clear(dev_id, &(cfg.hdr));
     if (err) {
         OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove queue, direction = %s, queue_id %d, sched_id %d, \
-tm_q_set_id %d, intf_id %d, onu_id %d, uni_id %d, err = %s\n",
-                direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id, bcmos_strerror(err));
+tm_q_set_id %d, intf_id %d, onu_id %d, uni_id %d, err = %s (%d)\n",
+                direction.c_str(), key.id, key.sched_id, key.tm_q_set_id, access_intf_id, onu_id, uni_id, cfg.hdr.hdr.err_text, err);
         return err;
     }
 
@@ -2980,6 +2987,7 @@ Status RemoveTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues)
     std::string direction;
     bcmos_errno err;
     bcmolt_egress_qos_type qos_type = get_qos_type(intf_id, onu_id, uni_id, traffic_queues->traffic_queues_size());
+    Status ret_code = Status::OK;
 
     for (int i = 0; i < traffic_queues->traffic_queues_size(); i++) {
         ::tech_profile::TrafficQueue traffic_queue = traffic_queues->traffic_queues(i);
@@ -2991,7 +2999,8 @@ Status RemoveTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues)
         err = RemoveQueue(direction, intf_id, onu_id, uni_id, qos_type, traffic_queue.priority(), traffic_queue.gemport_id(), tech_profile_id);
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove queue, err = %s\n",bcmos_strerror(err));
-            return bcm_to_grpc_err(err, "Failed to remove queue");
+            ret_code = bcm_to_grpc_err(err, "Failed to remove one or more queues");
+            // Do not return here. We should continue to remove the remaining queues and its associated gem ports
         }
     }
 
@@ -3009,7 +3018,7 @@ Status RemoveTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues)
         }
     }
     clear_qos_type(intf_id, onu_id, uni_id);
-    return Status::OK;
+    return ret_code;
 }
 
 Status PerformGroupOperation_(const ::openolt::Group *group_cfg) {

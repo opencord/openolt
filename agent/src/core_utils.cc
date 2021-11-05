@@ -848,7 +848,7 @@ bcmos_errno bcmolt_apiend_cli_init() {
     }
 }
 
-bcmos_errno get_onu_status(bcmolt_interface pon_ni, int onu_id, bcmolt_onu_state *onu_state) {
+bcmos_errno get_onu_state(bcmolt_interface pon_ni, int onu_id, bcmolt_onu_state *onu_state) {
     bcmos_errno err;
     bcmolt_onu_cfg onu_cfg;
     bcmolt_onu_key onu_key;
@@ -856,18 +856,8 @@ bcmos_errno get_onu_status(bcmolt_interface pon_ni, int onu_id, bcmolt_onu_state
     onu_key.onu_id = onu_id;
 
     BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
-    BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
-    BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, itu);
-    #ifdef TEST_MODE
-    // It is impossible to mock the setting of onu_cfg.data.onu_state because
-    // the actual bcmolt_cfg_get passes the address of onu_cfg.hdr and we cannot
-    // set the onu_cfg.data.onu_state. So a new stub function is created and address
-    // of onu_cfg is passed. This is one-of case where we need to add test specific
-    // code in production code.
-    err = bcmolt_cfg_get__onu_state_stub(dev_id, &onu_cfg);
-    #else
+    BCMOLT_MSG_FIELD_GET(&onu_cfg, onu_state);
     err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
-    #endif
     *onu_state = onu_cfg.data.onu_state;
     return err;
 }
@@ -971,6 +961,7 @@ Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t
     bcmolt_itupon_gem_cfg cfg; /* declare main API struct */
     bcmolt_itupon_gem_key key = {}; /* declare key */
     bcmolt_gem_port_configuration configuration = {};
+    bcmolt_onu_state onu_state;
 
     key.pon_ni = intf_id;
     key.gem_port_id = gemport_id;
@@ -1007,15 +998,19 @@ Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t
         return bcm_to_grpc_err(err, "Access_Control set ITU PON Gem port failed");
     }
 
-#ifndef SCALE_AND_PERF
     if (board_technology == "GPON") {
-        err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_CREATE);
-        if (err) {
-            OPENOLT_LOG(ERROR, openolt_log_id, "failed to install gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
-            return bcm_to_grpc_err(err, "Access_Control set ITU PON Gem port failed");
+        // Wait for gem cfg complete indication only if ONU state is ACTIVE
+        err = get_onu_state((bcmolt_interface)intf_id, (bcmolt_onu_id)onu_id, &onu_state);
+        if (err == BCM_ERR_OK) {
+            if (onu_state == BCMOLT_ONU_STATE_ACTIVE) {
+                err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_CREATE);
+                if (err) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "failed to install gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
+                    return bcm_to_grpc_err(err, "Access_Control set ITU PON Gem port failed");
+                }
+            }
         }
     }
-#endif
 
     OPENOLT_LOG(INFO, openolt_log_id, "gem port installed successfully = %d\n", gemport_id);
 
@@ -1028,6 +1023,7 @@ Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t
 
 Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id, std::string board_technology) {
     gemport_status_map_key_tuple gem_status_key(intf_id, onu_id, uni_id, gemport_id);
+    bcmolt_onu_state onu_state;
 
     bcmos_fastlock_lock(&data_lock);
     std::map<gemport_status_map_key_tuple, bool>::const_iterator it = gemport_status_map.find(gem_status_key);
@@ -1044,8 +1040,6 @@ Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t 
         .gem_port_id = (bcmolt_gem_port_id)gemport_id
     };
     bcmos_errno err;
-    bcmolt_interface_state state;
-    bcmolt_status los_status;
 
     BCMOLT_CFG_INIT(&gem_cfg, itupon_gem, key);
     err = bcmolt_cfg_clear(dev_id, &gem_cfg.hdr);
@@ -1056,31 +1050,28 @@ Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t 
     }
 
     if (board_technology == "GPON") {
-        err = get_pon_interface_status((bcmolt_interface)intf_id, &state, &los_status);
+        err = get_onu_state((bcmolt_interface)intf_id, (bcmolt_onu_id)onu_id, &onu_state);
         if (err == BCM_ERR_OK) {
-            if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_OFF) {
+            if (onu_state == BCMOLT_ONU_STATE_ACTIVE) {
 #ifndef SCALE_AND_PERF
-                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled and LoS status is OFF, waiting for gem cfg clear response\n",
-                    intf_id);
+                OPENOLT_LOG(INFO, openolt_log_id, "onu state is active waiting for gem cfg complete indication intf = %d onu = %d\n",
+                    intf_id, onu_id);
                 err = wait_for_gem_action(intf_id, gemport_id, GEM_OBJECT_DELETE);
                 if (err) {
-                    OPENOLT_LOG(ERROR, openolt_log_id, "failed to remove gem_port = %d err = %s\n", gemport_id, bcmos_strerror(err));
-                    return bcm_to_grpc_err(err, "Access_Control clear ITU PON Gem port failed");
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove gem, intf_id %d, gemport_id %d, err = %s\n",
+                        intf_id, gemport_id, bcmos_strerror(err));
+                    return bcm_to_grpc_err(err, "failed to remove gem");
                 }
 #endif
             }
-            else if (state == BCMOLT_INTERFACE_STATE_ACTIVE_WORKING && los_status == BCMOLT_STATUS_ON) {
-                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is enabled but LoS status is ON, not waiting for gem cfg clear response\n",
-                    intf_id);
-            }
-            else if (state == BCMOLT_INTERFACE_STATE_INACTIVE) {
-                OPENOLT_LOG(INFO, openolt_log_id, "PON interface: %d is disabled, not waiting for gem cfg clear response\n",
-                    intf_id);
+            else {
+                OPENOLT_LOG(INFO, openolt_log_id, "onu not active, not waiting for gem cfg complete, onu_state = %d, intf = %d, gemport_id = %d, onu=%d\n",
+                    onu_state, intf_id, gemport_id, onu_id);
             }
         } else {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch PON interface status, intf_id = %d, err = %s\n",
-                intf_id, bcmos_strerror(err));
-            return bcm_to_grpc_err(err, "Access_Control clear ITU PON Gem port failed");
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch onu status, intf_id = %d, onu_id = %d, err = %s\n",
+                intf_id, onu_id, bcmos_strerror(err));
+            return bcm_to_grpc_err(err, "failed to get onu state");
         }
     }
 
@@ -1108,7 +1099,7 @@ Status enable_encryption_for_gem_port(int32_t intf_id, int32_t gemport_id, std::
     BCMOLT_MSG_FIELD_GET(&cfg, encryption_mode);
     err = bcmolt_cfg_get(dev_id, &cfg.hdr);
     if (err != BCM_ERR_OK) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "GEM port get encryption_mode failed\n");
+        OPENOLT_LOG(ERROR, openolt_log_id, "GEM port get encryption_mode failed err = %s (%d)\n", cfg.hdr.hdr.err_text, err);
         return bcm_to_grpc_err(err, "GEM port get encryption_mode failed");
     }
 
@@ -1252,7 +1243,7 @@ Status install_acl(const acl_classifier_key acl_key) {
 
     err = bcmolt_cfg_set(dev_id, &cfg.hdr);
     if (err != BCM_ERR_OK) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Access_Control set configuration failed, Error %d\n", err);
+        OPENOLT_LOG(ERROR, openolt_log_id, "Access_Control set configuration failed, err = %s (%d)\n", cfg.hdr.hdr.err_text, err);
         // Free the acl_id
         free_acl_id(acl_id);
         return bcm_to_grpc_err(err, "Access_Control set configuration failed");
@@ -1282,7 +1273,7 @@ Status remove_acl(int acl_id) {
     BCMOLT_FIELD_SET_PRESENT(&cfg.data, access_control_cfg_data, state);
     err = bcmolt_cfg_get(dev_id, &cfg.hdr);
     if (err != BCM_ERR_OK) {
-        OPENOLT_LOG(ERROR, openolt_log_id, "Access_Control get state failed\n");
+        OPENOLT_LOG(ERROR, openolt_log_id, "Access_Control get state failed, err = %s (%d)\n", cfg.hdr.hdr.err_text, err);
         return bcm_to_grpc_err(err, "Access_Control get state failed");
     }
 
@@ -1294,8 +1285,8 @@ Status remove_acl(int acl_id) {
         err = bcmolt_cfg_clear(dev_id, &cfg.hdr);
         if (err != BCM_ERR_OK) {
             // Should we free acl_id here ? We should ideally never land here..
-            OPENOLT_LOG(ERROR, openolt_log_id, "Error %d while removing Access_Control rule ID %d\n",
-                err, acl_id);
+            OPENOLT_LOG(ERROR, openolt_log_id, "Error %d while removing Access_Control rule ID err = %s (%d)\n",
+                acl_id, cfg.hdr.hdr.err_text, err);
             return Status(grpc::StatusCode::INTERNAL, "Failed to remove Access_Control");
         }
     }
@@ -1593,7 +1584,7 @@ bcmos_errno getOnuMaxLogicalDistance(uint32_t intf_id, uint32_t *mld) {
     err = bcmolt_cfg_get(dev_id, &pon_cfg.hdr);
     #endif
         if (err != BCM_ERR_OK) {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to retrieve ONU maximum logical distance for PON %d, err = %s (%d)\n", intf_id, bcmos_strerror(err), err);
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to retrieve ONU maximum logical distance for PON %d, err = %s (%d)\n", intf_id, pon_cfg.hdr.hdr.err_text, err);
             return err;
         }
         *mld = pon_distance.max_log_distance;
