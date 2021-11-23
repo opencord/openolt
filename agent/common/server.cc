@@ -260,32 +260,28 @@ class OpenoltService final : public openolt::Openolt::Service {
             ServerContext* context,
             const tech_profile::TrafficSchedulers* request,
             openolt::Empty* response) override {
-        CreateTrafficSchedulers_(request);
-        return Status::OK;
+        return CreateTrafficSchedulers_(request);
     };
 
     Status RemoveTrafficSchedulers(
             ServerContext* context,
             const tech_profile::TrafficSchedulers* request,
             openolt::Empty* response) override {
-        RemoveTrafficSchedulers_(request);
-        return Status::OK;
+        return RemoveTrafficSchedulers_(request);
     };
 
     Status CreateTrafficQueues(
             ServerContext* context,
             const tech_profile::TrafficQueues* request,
             openolt::Empty* response) override {
-        CreateTrafficQueues_(request);
-        return Status::OK;
+        return CreateTrafficQueues_(request);
     };
 
     Status RemoveTrafficQueues(
             ServerContext* context,
             const tech_profile::TrafficQueues* request,
             openolt::Empty* response) override {
-        RemoveTrafficQueues_(request);
-        return Status::OK;
+        return RemoveTrafficQueues_(request);
     };
 
     Status PerformGroupOperation(
