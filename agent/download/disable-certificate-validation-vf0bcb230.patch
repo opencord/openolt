@@ -1,5 +1,5 @@
 diff --git a/make/kbuild.mk b/make/kbuild.mk
-index 8be2961b..f5048c5b 100644
+index 06d39e2f..8ce74bc4 100644
 --- a/make/kbuild.mk
 +++ b/make/kbuild.mk
 @@ -114,7 +114,7 @@ K_DTBS_DIR := $(K_SOURCE_DIR)-dtbs

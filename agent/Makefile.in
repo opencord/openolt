@@ -360,6 +360,7 @@ inband-onl:
 	if [ "$(ONL_COMMIT_ID)" = "$(INBAND_PATCH_COMMIT_ID)" ]; then \
 	    echo "ONL commit and inband patch commit matched."; \
 	    cp $(TOP_DIR)/inband/patch/*.patch $(ONL_DIR)/OpenNetworkLinux; \
+	    cp $(TOP_DIR)/download/disable-certificate-validation-v*.patch $(ONL_DIR)/OpenNetworkLinux; \
 	else \
 	    echo "ONL commit and inband patch commit does not match. Exiting."; \
 	    exit 1; \
