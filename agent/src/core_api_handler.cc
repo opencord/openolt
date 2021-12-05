@@ -2524,32 +2524,34 @@ for additional bandwidth eligibility of type None\n");
         BCMOLT_MSG_FIELD_SET(&cfg, sla.priority, 0);
         BCMOLT_MSG_FIELD_SET(&cfg, onu_id, onu_id);
 
+        bcmolt_onu_state onu_state;
+        bool wait_for_alloc_cfg_cmplt = false;
+        err = get_onu_state((bcmolt_interface)intf_id, (bcmolt_onu_id)onu_id, &onu_state);
+        if (err) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch onu status, intf_id = %d, onu_id = %d, err = %s\n",
+                intf_id, onu_id, bcmos_strerror(err));
+            return err;
+        } else if (onu_state == BCMOLT_ONU_STATE_ACTIVE) {
+            wait_for_alloc_cfg_cmplt = true;
+        }
+
         err = bcmolt_cfg_set(dev_id, &cfg.hdr);
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d,\
 port_no %u, alloc_id %d, err = %s (%d)\n", intf_id, onu_id,uni_id,port_no,alloc_id, cfg.hdr.hdr.err_text, err);
             return err;
-        }
-        bcmolt_onu_state onu_state;
-        err = get_onu_state((bcmolt_interface)intf_id, (bcmolt_onu_id)onu_id, &onu_state);
-        if (err == BCM_ERR_OK) {
-            if (onu_state == BCMOLT_ONU_STATE_ACTIVE) {
-                err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_CREATE);
-                if (err) {
-                    OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d,\
+        } else if (wait_for_alloc_cfg_cmplt) {
+            err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_CREATE);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to create upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d,\
 port_no %u, alloc_id %d, err = %s\n", intf_id, onu_id,uni_id,port_no,alloc_id, bcmos_strerror(err));
-                    return err;
-                }
-            }
-            else {
-                OPENOLT_LOG(INFO, openolt_log_id, "onu not active, not waiting for alloc cfg complete, onu_state = %d, intf = %d, onu=%d\n",
-                    onu_state, intf_id, onu_id);
+                return err;
             }
         } else {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch onu status, intf_id = %d, onu_id = %d, err = %s\n",
-                intf_id, onu_id, bcmos_strerror(err));
-            return err;
+            OPENOLT_LOG(INFO, openolt_log_id, "onu not active, not waiting for alloc cfg complete, onu_state = %d, intf = %d, onu=%d\n",
+                onu_state, intf_id, onu_id);
         }
+
         OPENOLT_LOG(INFO, openolt_log_id, "create upstream bandwidth allocation success, intf_id %d, onu_id %d, uni_id %d,\
 port_no %u, alloc_id %d\n", intf_id, onu_id,uni_id,port_no,alloc_id);
 
@@ -2612,35 +2614,33 @@ bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::
         key.alloc_id = alloc_id;
         sched_id = alloc_id;
 
+        bcmolt_onu_state onu_state;
+        bool wait_for_alloc_cfg_cmplt = false;
+        err = get_onu_state((bcmolt_interface)intf_id, (bcmolt_onu_id)onu_id, &onu_state);
+        if (err) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch onu status, intf_id = %d, onu_id = %d, err = %s\n",
+                intf_id, onu_id, bcmos_strerror(err));
+            return err;
+        } else if (onu_state == BCMOLT_ONU_STATE_ACTIVE) {
+            wait_for_alloc_cfg_cmplt = true;
+        }
+
         BCMOLT_CFG_INIT(&cfg, itupon_alloc, key);
         err = bcmolt_cfg_clear(dev_id, &cfg.hdr);
         if (err) {
             OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler, direction = %s, intf_id %d, alloc_id %d, err = %s (%d)\n",
                 direction.c_str(), intf_id, alloc_id, cfg.hdr.hdr.err_text, err);
             return err;
-        }
-
-        err = get_onu_state((bcmolt_interface)intf_id, (bcmolt_onu_id)onu_id, &onu_state);
-        if (err == BCM_ERR_OK) {
-            if (onu_state == BCMOLT_ONU_STATE_ACTIVE) {
-                // Wait for gem cfg complete indication only if ONU state is ACTIVE
-                OPENOLT_LOG(INFO, openolt_log_id, "onu state is active waiting for alloc cfg complete indication intf = %d onu = %d\n",
-                    intf_id, onu_id);
-                err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_DELETE);
-                if (err) {
-                    OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove scheduler, direction = %s, intf_id %d, alloc_id %d, err = %s\n",
-                        direction.c_str(), intf_id, alloc_id, bcmos_strerror(err));
-                    return err;
-                }
-            }
-            else {
-                OPENOLT_LOG(INFO, openolt_log_id, "onu not active, not waiting for alloc cfg complete, onu_state = %d, intf = %d, onu=%d\n",
-                    onu_state, intf_id, onu_id);
-            }
+        } else if (wait_for_alloc_cfg_cmplt) {
+            err = wait_for_alloc_action(intf_id, alloc_id, ALLOC_OBJECT_DELETE);
+            if (err) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove upstream bandwidth allocation, intf_id %d, onu_id %d, uni_id %d,\
+pon_intf %u, alloc_id %d, err = %s\n", intf_id, onu_id,uni_id,intf_id,alloc_id, bcmos_strerror(err));
+                return err;
+            } 
         } else {
-            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch onu status, intf_id = %d, onu_id = %d, err = %s\n",
-                intf_id, onu_id, bcmos_strerror(err));
-            return err;
+            OPENOLT_LOG(INFO, openolt_log_id, "onu not active, not waiting for alloc cfg complete, onu_state = %d, intf = %d, onu=%d\n",
+                        onu_state, intf_id, onu_id);
         }
     } else if (direction == downstream) {
         bcmolt_tm_sched_cfg cfg;

@@ -2108,11 +2108,27 @@ TEST_F(TestCreateTrafficSchedulers, UpstreamAllocCfgTimeout) {
     onu_key.pon_ni = 0;
     onu_key.onu_id = 1;
     BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
-    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+
+    bcmos_errno alloc_cfg_get_res = BCM_ERR_OK;
+    bcmolt_itupon_alloc_cfg alloc_cfg;
+    bcmolt_itupon_alloc_key alloc_key;
+    alloc_key.pon_ni = 0;
+    alloc_key.alloc_id = 1024;
+    BCMOLT_CFG_INIT(&alloc_cfg, itupon_alloc, alloc_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).Times(2)
+    .WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
                                                                    bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
                                                                    o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
                                                                    memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
                                                                    return onu_cfg_get_res;
+                                                               }
+    ))
+    .WillOnce(Invoke([alloc_cfg_get_res, &alloc_cfg] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_itupon_alloc_cfg* o_cfg = (bcmolt_itupon_alloc_cfg*)cfg;
+                                                                   o_cfg->data.state = BCMOLT_ACTIVATION_STATE_PROCESSING;
+                                                                   memcpy(&alloc_cfg, o_cfg, sizeof(bcmolt_itupon_alloc_cfg));
+                                                                   return alloc_cfg_get_res;
                                                                }
     ));
 
@@ -2169,6 +2185,54 @@ TEST_F(TestCreateTrafficSchedulers, CreateTrafficSchedulersUpstreamCfgGetFailure
     Status status = CreateTrafficSchedulers_(traffic_scheds);
     ASSERT_TRUE( status.error_message() != Status::OK.error_message() );
 }
+
+// Test 2C - CreateTrafficSchedulers-Upstream Succes case(timeout waiting for alloc cfg indication, but itupon-alloc object is ACTIVE)
+TEST_F(TestCreateTrafficSchedulers, UpstreamAllocCfgTimeoutSuccess) {
+    scheduler->set_direction(tech_profile::Direction::UPSTREAM);
+    scheduler->set_additional_bw(tech_profile::AdditionalBW::AdditionalBW_BestEffort);
+    traffic_sched->set_direction(tech_profile::Direction::UPSTREAM);
+    traffic_sched->set_allocated_scheduler(scheduler);
+    traffic_shaping_info->set_cir(64000);
+    traffic_shaping_info->set_pir(128000);
+    traffic_sched->set_allocated_traffic_shaping_info(traffic_shaping_info);
+
+    bcmos_errno olt_cfg_set_res = BCM_ERR_OK;
+    ON_CALL(balMock, bcmolt_cfg_set(_, _)).WillByDefault(Return(olt_cfg_set_res));
+
+    bcmos_errno onu_cfg_get_res = BCM_ERR_OK;
+    bcmolt_onu_cfg onu_cfg_out;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = 0;
+    onu_key.onu_id = 1;
+    BCMOLT_CFG_INIT(&onu_cfg_out, onu, onu_key);
+
+    bcmos_errno alloc_cfg_get_res = BCM_ERR_OK;
+    bcmolt_itupon_alloc_cfg alloc_cfg;
+    bcmolt_itupon_alloc_key alloc_key;
+    alloc_key.pon_ni = 0;
+    alloc_key.alloc_id = 1024;
+    BCMOLT_CFG_INIT(&alloc_cfg, itupon_alloc, alloc_key);
+
+    EXPECT_CALL(balMock, bcmolt_cfg_get(_, _)).Times(2)
+    .WillOnce(Invoke([onu_cfg_get_res, &onu_cfg_out] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_onu_cfg* o_cfg = (bcmolt_onu_cfg*)cfg;
+                                                                   o_cfg->data.onu_state = BCMOLT_ONU_STATE_ACTIVE;
+                                                                   memcpy(&onu_cfg_out, o_cfg, sizeof(bcmolt_onu_cfg));
+                                                                   return onu_cfg_get_res;
+                                                               }
+    ))
+    .WillOnce(Invoke([alloc_cfg_get_res, &alloc_cfg] (bcmolt_oltid olt, bcmolt_cfg *cfg) {
+                                                                   bcmolt_itupon_alloc_cfg* o_cfg = (bcmolt_itupon_alloc_cfg*)cfg;
+                                                                   o_cfg->data.state = BCMOLT_ACTIVATION_STATE_ACTIVE;
+                                                                   memcpy(&alloc_cfg, o_cfg, sizeof(bcmolt_itupon_alloc_cfg));
+                                                                   return alloc_cfg_get_res;
+                                                               }
+    ));
+
+    Status status = CreateTrafficSchedulers_(traffic_scheds);
+    ASSERT_TRUE( status.error_message() == Status::OK.error_message() );
+}
+
 
 // Test 3 - CreateTrafficSchedulers-Upstream failure case(error processing alloc cfg request)
 TEST_F(TestCreateTrafficSchedulers, UpstreamErrorProcessingAllocCfg) {
