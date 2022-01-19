@@ -191,6 +191,7 @@ typedef struct device_flow {
                                        // 0 value means invalid or not-applicable
                                        // Applicable for bi-directional data path flows (one flow per direction)
                                        // Symmetric flows should share the same device_flow_id.
+    std::string flow_type; // upstream, downstream, multicast
 
 } device_flow;
 

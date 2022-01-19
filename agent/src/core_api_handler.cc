@@ -454,7 +454,7 @@ Status Enable_(int argc, char *argv[]) {
                             return Status(grpc::StatusCode::INTERNAL, "Failed to activate all PON ports");
                         }
                     }
-                    bcmos_usleep(200000);
+                    bcmos_usleep(MAC_DEVICE_ACTIVATION_DELAY);
                 }
                 else {
                     OPENOLT_LOG(WARNING, openolt_log_id, "PON device %d already connected\n", dev);
@@ -1632,6 +1632,7 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
             dev_fl.is_flow_replicated = false;
             dev_fl.symmetric_voltha_flow_id = symmetric_voltha_flow_id;
             dev_fl.voltha_flow_id = voltha_flow_id;
+            dev_fl.flow_type = flow_type;
             memcpy(dev_fl.params, dev_fl_symm_params, sizeof(device_flow_params));
             // update voltha flow to cache
             update_voltha_flow_to_cache(voltha_flow_id, dev_fl);
@@ -1664,6 +1665,7 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
             dev_fl.is_flow_replicated = true;
             dev_fl.symmetric_voltha_flow_id = symmetric_voltha_flow_id;
             dev_fl.voltha_flow_id = voltha_flow_id;
+            dev_fl.flow_type = flow_type;
             memcpy(dev_fl.params, dev_fl_symm_params, sizeof(device_flow_params)*NUMBER_OF_REPLICATED_FLOWS);
             // update voltha flow to cache
             update_voltha_flow_to_cache(voltha_flow_id, dev_fl);
@@ -1685,6 +1687,7 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                 dev_fl.is_flow_replicated = false;
                 dev_fl.symmetric_voltha_flow_id = INVALID_FLOW_ID; // Invalid
                 dev_fl.voltha_flow_id = voltha_flow_id;
+                dev_fl.flow_type = flow_type;
                 dev_fl.params[0].flow_id = flow_id;
                 dev_fl.params[0].gemport_id = gemport_id;
                 dev_fl.params[0].pbit = classifier.o_pbits();
@@ -1708,6 +1711,7 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                 dev_fl.is_flow_replicated = true;
                 dev_fl.voltha_flow_id = voltha_flow_id;
                 dev_fl.symmetric_voltha_flow_id = INVALID_FLOW_ID; // invalid
+                dev_fl.flow_type = flow_type;
                 for (google::protobuf::Map<unsigned int, unsigned int>::const_iterator it=pbit_to_gemport.begin(); it!=pbit_to_gemport.end(); it++) {
                     dev_fl.params[cnt].flow_id = flow_ids[cnt];
                     dev_fl.params[cnt].pbit = it->first;
@@ -2138,7 +2142,6 @@ Status FlowRemoveWrapper_(const ::openolt::Flow* request) {
     int32_t onu_id = request->onu_id();
     int32_t uni_id = request->uni_id();
     uint32_t tech_profile_id = request->tech_profile_id();
-    const std::string flow_type = request->flow_type();
     uint64_t voltha_flow_id = request->flow_id();
     Status st;
 
@@ -2156,14 +2159,14 @@ Status FlowRemoveWrapper_(const ::openolt::Flow* request) {
     if (dev_fl->is_flow_replicated) {
         // Note: Here we are ignoring FlowRemove failures
         for (int i=0; i<NUMBER_OF_REPLICATED_FLOWS; i++) {
-            st = FlowRemove_(dev_fl->params[i].flow_id, flow_type);
+            st = FlowRemove_(dev_fl->params[i].flow_id, dev_fl->flow_type);
             if (st.error_code() == grpc::StatusCode::OK) {
                 free_flow_id(dev_fl->params[i].flow_id);
             }
         }
     } else {
         // Note: Here we are ignoring FlowRemove failures
-        st = FlowRemove_(dev_fl->params[0].flow_id, flow_type);
+        st = FlowRemove_(dev_fl->params[0].flow_id, dev_fl->flow_type);
         if (st.error_code() == grpc::StatusCode::OK) {
             free_flow_id(dev_fl->params[0].flow_id);
         }
@@ -2171,7 +2174,7 @@ Status FlowRemoveWrapper_(const ::openolt::Flow* request) {
     // remove the flow from cache on voltha flow removal
     remove_voltha_flow_from_cache(voltha_flow_id);
 
-    symmetric_datapath_flow_id_map_key key(access_intf_id, onu_id, uni_id, tech_profile_id, flow_type);
+    symmetric_datapath_flow_id_map_key key(access_intf_id, onu_id, uni_id, tech_profile_id, dev_fl->flow_type);
     // Remove onu-uni mapping for the pon-gem key
     bcmos_fastlock_lock(&symmetric_datapath_flow_id_lock);
     symmetric_datapath_flow_id_map.erase(key);

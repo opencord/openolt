@@ -42,4 +42,6 @@
 #define MAX_FLOW_ID FLOW_ID_END
 #define INVALID_FLOW_ID 0
 
+#define MAC_DEVICE_ACTIVATION_DELAY 2000000 // in microseconds
+
 #endif
