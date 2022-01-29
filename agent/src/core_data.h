@@ -185,13 +185,13 @@ typedef struct device_flow_params {
 
 typedef struct device_flow {
     bool is_flow_replicated; // If true number of replicated flows is to the NUMBER_OF_PBITS, else 1
+    std::string flow_type; // upstream, downstream, multicast
     device_flow_params params[NUMBER_OF_REPLICATED_FLOWS]; // A voltha-flow cannot be replicated more than the number of pbits
     uint64_t voltha_flow_id; // This is corresponding voltha flow-id.
     uint64_t symmetric_voltha_flow_id; // Is not applicable for trap-to-controller voltha flows.
                                        // 0 value means invalid or not-applicable
                                        // Applicable for bi-directional data path flows (one flow per direction)
                                        // Symmetric flows should share the same device_flow_id.
-    std::string flow_type; // upstream, downstream, multicast
 
 } device_flow;
 

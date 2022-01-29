@@ -74,9 +74,9 @@ uint16_t get_dev_id(void) {
 }
 
 int get_default_tm_sched_id(int intf_id, std::string direction) {
-    if (direction.compare(upstream) == 0) {
+    if (direction == upstream) {
         return tm_upstream_sched_id_start + intf_id;
-    } else if (direction.compare(downstream) == 0) {
+    } else if (direction == downstream) {
         return tm_downstream_sched_id_start + intf_id;
     }
     else {
@@ -1406,8 +1406,8 @@ Status handle_acl_rule_install(int32_t onu_id, uint64_t flow_id, int32_t gemport
                                int32_t network_intf_id,
                                const ::openolt::Classifier& classifier) {
     int acl_id;
-    uint32_t intf_id = flow_type.compare(upstream) == 0? access_intf_id: network_intf_id;
-    const std::string intf_type = flow_type.compare(upstream) == 0? "pon": "nni";
+    uint32_t intf_id = flow_type == upstream? access_intf_id: network_intf_id;
+    const std::string intf_type = flow_type == upstream? "pon": "nni";
     bcmolt_interface_type olt_if_type = intf_type == "pon"? BCMOLT_INTERFACE_TYPE_PON: BCMOLT_INTERFACE_TYPE_NNI;
 
     Status resp;
@@ -1518,7 +1518,7 @@ Status handle_acl_rule_install(int32_t onu_id, uint64_t flow_id, int32_t gemport
 }
 
 Status handle_acl_rule_cleanup(int16_t acl_id, int32_t intf_id, const std::string flow_type) {
-    const std::string intf_type= flow_type.compare(upstream) == 0 ? "pon": "nni";
+    const std::string intf_type= flow_type == upstream? "pon": "nni";
     acl_id_intf_id_intf_type ac_id_inf_id_inf_type(acl_id, intf_id, intf_type);
     intf_acl_registration_ref_cnt[ac_id_inf_id_inf_type]--;
     if (intf_acl_registration_ref_cnt[ac_id_inf_id_inf_type] == 0) {

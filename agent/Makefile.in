@@ -181,6 +181,12 @@ $(BUILD_DIR)/libbal_host_api-oss.so:
 		cp config/$(OPENOLTDEVICE)/bcm_config.h build/fs/include; \
 		cd .. && ln -s bal-sdk-$(BAL_VER)/build/fs/include include; \
 		cd; \
+	else \
+		cd $(BAL_API_DIR)/bal-sdk-$(BAL_VER); \
+		cp build/fs/libbal_host_api-oss.$(BAL_API_SO_VER).so ../../../$(BUILD_DIR)/libbal_host_api-oss.so; \
+		cp config/$(OPENOLTDEVICE)/bcm_config.h build/fs/include; \
+		cd .. && ln -s bal-sdk-$(BAL_VER)/build/fs/include include; \
+		cd; \
 	fi;
 
 
@@ -268,7 +274,9 @@ OPENOLT_PROTOS_DIR = ../protos
 OPENOLT_API_LIB = $(OPENOLT_PROTOS_DIR)/libopenoltapi.a
 CXXFLAGS += -I$(OPENOLT_PROTOS_DIR) -I./device -I./device/$(OPENOLTDEVICE) -I$(OPENOLT_PROTOS_DIR)/googleapis/gens
 protos:
-	make -C $(OPENOLT_PROTOS_DIR) all
+	if [ ! -f "$(OPENOLT_API_LIB)" ]; then \
+		make -C $(OPENOLT_PROTOS_DIR) all; \
+	fi;
 protos-clean:
 	-make -C $(OPENOLT_PROTOS_DIR) clean
 

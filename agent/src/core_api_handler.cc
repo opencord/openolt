@@ -1571,7 +1571,7 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                         && flow_type != multicast && !action.cmd().trap_to_host();
 
     if (datapathFlow) {
-        const std::string inverse_flow_type = flow_type.compare(upstream) == 0 ? downstream : upstream;
+        const std::string inverse_flow_type = flow_type == upstream? downstream : upstream;
         symmetric_datapath_flow_id_map_key key(access_intf_id, onu_id, uni_id, tech_profile_id, inverse_flow_type);
         // Find the onu-uni mapping for the pon-gem key
         bcmos_fastlock_lock(&symmetric_datapath_flow_id_lock);
@@ -1781,11 +1781,11 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
     OPENOLT_LOG(INFO, openolt_log_id, "flow add received for flow_id=%u, flow_type=%s\n", flow_id, flow_type.c_str());
 
     key.flow_id = flow_id;
-    if (flow_type.compare(upstream) == 0 ) {
+    if (flow_type == upstream) {
         key.flow_type = BCMOLT_FLOW_TYPE_UPSTREAM;
-    } else if (flow_type.compare(downstream) == 0) {
+    } else if (flow_type == downstream) {
         key.flow_type = BCMOLT_FLOW_TYPE_DOWNSTREAM;
-    } else if (flow_type.compare(multicast) == 0) {
+    } else if (flow_type == multicast) {
         key.flow_type = BCMOLT_FLOW_TYPE_MULTICAST;
     } else {
         OPENOLT_LOG(ERROR, openolt_log_id, "Invalid flow type %s\n", flow_type.c_str());
@@ -2156,17 +2156,18 @@ Status FlowRemoveWrapper_(const ::openolt::Flow* request) {
         OPENOLT_LOG(ERROR, openolt_log_id, "device flow for voltha_flow_id=%lu in the cache is NULL\n", voltha_flow_id);
         return ::Status(grpc::StatusCode::INTERNAL, "device-flow-null-in-cache");
     }
+    std::string flow_type = dev_fl->flow_type;
     if (dev_fl->is_flow_replicated) {
         // Note: Here we are ignoring FlowRemove failures
         for (int i=0; i<NUMBER_OF_REPLICATED_FLOWS; i++) {
-            st = FlowRemove_(dev_fl->params[i].flow_id, dev_fl->flow_type);
+            st = FlowRemove_(dev_fl->params[i].flow_id, flow_type);
             if (st.error_code() == grpc::StatusCode::OK) {
                 free_flow_id(dev_fl->params[i].flow_id);
             }
         }
     } else {
         // Note: Here we are ignoring FlowRemove failures
-        st = FlowRemove_(dev_fl->params[0].flow_id, dev_fl->flow_type);
+        st = FlowRemove_(dev_fl->params[0].flow_id, flow_type);
         if (st.error_code() == grpc::StatusCode::OK) {
             free_flow_id(dev_fl->params[0].flow_id);
         }
@@ -2174,7 +2175,7 @@ Status FlowRemoveWrapper_(const ::openolt::Flow* request) {
     // remove the flow from cache on voltha flow removal
     remove_voltha_flow_from_cache(voltha_flow_id);
 
-    symmetric_datapath_flow_id_map_key key(access_intf_id, onu_id, uni_id, tech_profile_id, dev_fl->flow_type);
+    symmetric_datapath_flow_id_map_key key(access_intf_id, onu_id, uni_id, tech_profile_id, flow_type);
     // Remove onu-uni mapping for the pon-gem key
     bcmos_fastlock_lock(&symmetric_datapath_flow_id_lock);
     symmetric_datapath_flow_id_map.erase(key);
@@ -2190,11 +2191,11 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
 
     key.flow_id = (bcmolt_flow_id) flow_id;
     key.flow_id = flow_id;
-    if (flow_type.compare(upstream) == 0 ) {
+    if (flow_type == upstream) {
         key.flow_type = BCMOLT_FLOW_TYPE_UPSTREAM;
-    } else if (flow_type.compare(downstream) == 0) {
+    } else if (flow_type == downstream) {
         key.flow_type = BCMOLT_FLOW_TYPE_DOWNSTREAM;
-    } else if(flow_type.compare(multicast) == 0) {
+    } else if(flow_type == multicast) {
         key.flow_type = BCMOLT_FLOW_TYPE_MULTICAST;
     } else {
         OPENOLT_LOG(WARNING, openolt_log_id, "Invalid flow type %s\n", flow_type.c_str());
@@ -2325,10 +2326,10 @@ bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction) {
     /**< The output of the tm_sched object instance */
     BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.type, BCMOLT_TM_SCHED_OUTPUT_TYPE_INTERFACE);
 
-    if (direction.compare(upstream) == 0) {
+    if (direction == upstream) {
         // In upstream it is NNI scheduler
         BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.u.interface.interface_ref.intf_type, BCMOLT_INTERFACE_TYPE_NNI);
-    } else if (direction.compare(downstream) == 0) {
+    } else if (direction == downstream) {
         // In downstream it is PON scheduler
         BCMOLT_MSG_FIELD_SET(&tm_sched_cfg, attachment_point.u.interface.interface_ref.intf_type, BCMOLT_INTERFACE_TYPE_PON);
     }
@@ -2583,8 +2584,9 @@ Status CreateTrafficSchedulers_(const ::tech_profile::TrafficSchedulers *traffic
         ::tech_profile::TrafficScheduler traffic_sched = traffic_scheds->traffic_scheds(i);
 
         direction = GetDirection(traffic_sched.direction());
-        if (direction.compare("direction-not-supported") == 0)
+        if (direction == "direction-not-supported") {
             return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
+	}
 
         alloc_id = traffic_sched.alloc_id();
         sched_config = traffic_sched.scheduler();
@@ -2684,8 +2686,9 @@ Status RemoveTrafficSchedulers_(const ::tech_profile::TrafficSchedulers *traffic
         ::tech_profile::TrafficScheduler traffic_sched = traffic_scheds->traffic_scheds(i);
 
         direction = GetDirection(traffic_sched.direction());
-        if (direction.compare("direction-not-supported") == 0)
+        if (direction == "direction-not-supported") {
             return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
+	}
 
         int alloc_id = traffic_sched.alloc_id();
         int tech_profile_id = traffic_sched.tech_profile_id();
@@ -2791,7 +2794,7 @@ bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t
     OPENOLT_LOG(INFO, openolt_log_id, "creating %s queue. access_intf_id = %d, onu_id = %d, uni_id = %d \
 gemport_id = %d, tech_profile_id = %d\n", direction.c_str(), access_intf_id, onu_id, uni_id, gemport_id, tech_profile_id);
 
-    key.sched_id = (direction.compare(upstream) == 0) ? get_default_tm_sched_id(nni_intf_id, direction) : \
+    key.sched_id = (direction == upstream) ? get_default_tm_sched_id(nni_intf_id, direction) : \
         get_tm_sched_id(access_intf_id, onu_id, uni_id, direction, tech_profile_id);
 
     if (priority > 7) {
@@ -2872,8 +2875,9 @@ Status CreateTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues)
             ::tech_profile::TrafficQueue traffic_queue = traffic_queues->traffic_queues(i);
 
             direction = GetDirection(traffic_queue.direction());
-            if (direction.compare("direction-not-supported") == 0)
+            if (direction == "direction-not-supported") {
                 return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
+	    }
 
             queues_priority_q[i] = traffic_queue.priority();
             queues_pbit_map[i] = traffic_queue.pbit_map();
@@ -2882,7 +2886,7 @@ Status CreateTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues)
         std::vector<uint32_t> tmq_map_profile(8, 0);
         tmq_map_profile = get_tmq_map_profile(get_valid_queues_pbit_map(queues_pbit_map, COUNT_OF(queues_pbit_map)), \
                                               queues_priority_q, COUNT_OF(queues_priority_q));
-        sched_id = (direction.compare(upstream) == 0) ? get_default_tm_sched_id(nni_intf_id, direction) : \
+        sched_id = (direction == upstream) ? get_default_tm_sched_id(nni_intf_id, direction) : \
             get_tm_sched_id(intf_id, onu_id, uni_id, direction, tech_profile_id);
 
         int tm_qmp_id = get_tm_qmp_id(tmq_map_profile);
@@ -2902,8 +2906,9 @@ Status CreateTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues)
         ::tech_profile::TrafficQueue traffic_queue = traffic_queues->traffic_queues(i);
 
         direction = GetDirection(traffic_queue.direction());
-        if (direction.compare("direction-not-supported") == 0)
+        if (direction == "direction-not-supported") {
             return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
+	}
 
         err = CreateQueue(direction, intf_id, onu_id, uni_id, qos_type, traffic_queue.priority(), traffic_queue.gemport_id(), tech_profile_id);
 
@@ -2998,8 +3003,9 @@ Status RemoveTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues)
         ::tech_profile::TrafficQueue traffic_queue = traffic_queues->traffic_queues(i);
 
         direction = GetDirection(traffic_queue.direction());
-        if (direction.compare("direction-not-supported") == 0)
+        if (direction == "direction-not-supported") {
             return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
+	}
 
         err = RemoveQueue(direction, intf_id, onu_id, uni_id, qos_type, traffic_queue.priority(), traffic_queue.gemport_id(), tech_profile_id);
         if (err) {
@@ -3009,8 +3015,9 @@ Status RemoveTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues)
         }
     }
 
-    if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE && (direction.compare(upstream) == 0 || direction.compare(downstream) == 0 && is_tm_sched_id_present(intf_id, onu_id, uni_id, direction, tech_profile_id))) {
-        sched_id = (direction.compare(upstream) == 0) ? get_default_tm_sched_id(nni_intf_id, direction) : \
+    if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE && (direction == upstream || \
+		    direction == downstream && is_tm_sched_id_present(intf_id, onu_id, uni_id, direction, tech_profile_id))) {
+        sched_id = (direction == upstream) ? get_default_tm_sched_id(nni_intf_id, direction) : \
             get_tm_sched_id(intf_id, onu_id, uni_id, direction, tech_profile_id);
 
         int tm_qmp_id = get_tm_qmp_id(sched_id, intf_id, onu_id, uni_id);
