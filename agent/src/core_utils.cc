@@ -778,7 +778,7 @@ char* openolt_read_sysinfo(const char* field_name, char* field_val)
    return field_val;
 }
 
-Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state)
+Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state, uint32_t speed)
 {
     ::openolt::Indication ind;
     ::openolt::IntfOperIndication* intf_oper_ind = new ::openolt::IntfOperIndication;
@@ -786,6 +786,7 @@ Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state)
     intf_oper_ind->set_type(type);
     intf_oper_ind->set_intf_id(intf_id);
     intf_oper_ind->set_oper_state(state);
+    intf_oper_ind->set_speed(speed);
     ind.set_allocated_intf_oper_ind(intf_oper_ind);
     oltIndQ.push(ind);
     return Status::OK;
@@ -995,6 +996,20 @@ bcmos_errno get_nni_interface_status(bcmolt_interface id, bcmolt_interface_state
     err = bcmolt_cfg_get(dev_id, &nni_cfg.hdr);
     #endif
     *state = nni_cfg.data.state;
+    return err;
+}
+
+bcmos_errno get_nni_interface_speed(bcmolt_interface id, uint32_t *speed)
+{
+    bcmos_errno err;
+    bcmolt_nni_interface_key nni_key;
+    bcmolt_nni_interface_cfg nni_cfg;
+    nni_key.id = id;
+
+    BCMOLT_CFG_INIT(&nni_cfg, nni_interface, nni_key);
+    BCMOLT_FIELD_SET_PRESENT(&nni_cfg.data, nni_interface_cfg_data, speed);
+    err = bcmolt_cfg_get(dev_id, &nni_cfg.hdr);
+    *speed = nni_cfg.data.speed;
     return err;
 }
 

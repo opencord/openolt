@@ -1105,6 +1105,19 @@ Status SetStateUplinkIf_(uint32_t intf_id, bool set_state) {
     return Status::OK;
 }
 
+uint32_t GetNniSpeed_(uint32_t intf_id) {
+    bcmos_errno err = BCM_ERR_OK;
+
+    uint32_t speed;
+    err = get_nni_interface_speed((bcmolt_interface)intf_id, &speed);
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(WARNING, openolt_log_id, "Failed to read speed of NNI interface: %d\n", intf_id);
+        return 0; //This will cause the adapter to use the default speed value
+    }
+
+    return speed;
+}
+
 Status DisablePonIf_(uint32_t intf_id) {
     bcmos_errno err;
     bcmolt_pon_interface_cfg interface_obj;

@@ -93,6 +93,7 @@ bcmos_errno bcmolt_cfg_get_mult_retry(bcmolt_oltid olt, bcmolt_cfg *cfg);
 unsigned NumNniIf_();
 unsigned NumPonIf_();
 bcmos_errno get_nni_interface_status(bcmolt_interface id, bcmolt_interface_state *state);
+bcmos_errno get_nni_interface_speed(bcmolt_interface id, uint32_t *speed);
 Status install_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id, std::string board_technology);
 Status remove_gem_port(int32_t intf_id, int32_t onu_id, int32_t uni_id, int32_t gemport_id, std::string board_technology);
 Status enable_encryption_for_gem_port(int32_t intf_id, int32_t gemport_id, std::string board_technology);

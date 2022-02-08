@@ -112,10 +112,10 @@ int main(int argc, char** argv) {
         status = EnablePonIf_(i);
         if (!status.ok()) {
             // raise alarm to report error in enabling PON
-            pushOltOperInd(i, "pon", "down");
+            pushOltOperInd(i, "pon", "down", 0 /*Speed will be ignored in the adapter for PONs*/ );
         }
         else
-            pushOltOperInd(i, "pon", "up");
+            pushOltOperInd(i, "pon", "up", 0 /*Speed will be ignored in the adapter for PONs*/);
     }
     sleep(2);
     // Enable all NNI interfaces.
@@ -131,13 +131,15 @@ int main(int argc, char** argv) {
     }
 #endif
     //only for nni-65536 mapping to intf_id 0
+    uint32_t nni_speed = GetNniSpeed_(0);
     status = SetStateUplinkIf_(0, true);
     if (!status.ok()) {
         // raise alarm to report error in enabling NNI
-        pushOltOperInd(0, "nni", "down");
+        pushOltOperInd(0, "nni", "down", nni_speed);
     }
-    else
-        pushOltOperInd(0, "nni", "up");
+    else{
+        pushOltOperInd(0, "nni", "up", nni_speed);
+    }
 
     for (int i = 1; i < argc; ++i) {
        if(strcmp(argv[i-1], "--interface") == 0 || (strcmp(argv[i-1], "--intf") == 0)) {

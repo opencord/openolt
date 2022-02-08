@@ -212,6 +212,7 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
 Status EnablePonIf_(uint32_t intf_id);
 Status DisablePonIf_(uint32_t intf_id);
 Status SetStateUplinkIf_(uint32_t intf_id, bool set_state);
+uint32_t GetNniSpeed_(uint32_t intf_id);
 unsigned NumNniIf_();
 unsigned NumPonIf_();
 Status OmciMsgOut_(uint32_t intf_id, uint32_t onu_id, const std::string pkt);
@@ -246,7 +247,7 @@ Status GetGemPortStatistics_(uint32_t intf_id, uint32_t gemport_id, openolt::Gem
 Status GetPonRxPower_(uint32_t intf_id, uint32_t onu_id, openolt::PonRxPowerData* response);
 int get_status_bcm_cli_quit(void);
 uint16_t get_dev_id(void);
-Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state);
+Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state, uint32_t speed);
 uint64_t get_flow_status(uint16_t flow_id, uint16_t flow_type, uint16_t data_id);
 
 void stats_collection();
