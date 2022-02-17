@@ -1411,6 +1411,8 @@ class TestFlowAdd : public Test {
             classifier->set_src_port(0);
             classifier->set_dst_port(0);
             classifier->set_pkt_tag_type("single_tag");
+            classifier->set_src_mac("aabbccddeeff");
+            classifier->set_dst_mac("112233445566");
 
             action->set_o_vid(12);
             action->set_o_pbits(0);

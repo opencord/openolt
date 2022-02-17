@@ -1880,11 +1880,14 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
             BCMOLT_FIELD_SET(&c_val, classifier, dst_mac, d_mac);
         }
 
-        /*
-        if (classifier.src_mac()) {
-            BCMBAL_ATTRIBUTE_PROP_SET(&val, classifier, src_mac, classifier.src_mac());
+        if (classifier.src_mac().size() > 0) {
+            bcmos_mac_address s_mac = {};
+            bcmos_mac_address_init(&s_mac);
+            memcpy(s_mac.u8, classifier.src_mac().data(), sizeof(s_mac.u8));
+            OPENOLT_LOG(DEBUG, openolt_log_id, "classify src_mac %02x:%02x:%02x:%02x:%02x:%02x\n", s_mac.u8[0],
+                        s_mac.u8[1], s_mac.u8[2], s_mac.u8[3], s_mac.u8[4], s_mac.u8[5]);
+            BCMOLT_FIELD_SET(&c_val, classifier, src_mac, s_mac);
         }
-        */
 
         if (classifier.ip_proto()) {
             OPENOLT_LOG(DEBUG, openolt_log_id, "classify ip_proto %d\n", classifier.ip_proto());
@@ -1966,6 +1969,11 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
     if (cmd.remove_outer_tag()) {
         OPENOLT_LOG(DEBUG, openolt_log_id, "action pop o_tag\n");
         BCMOLT_FIELD_SET(&a_val, action, cmds_bitmask, BCMOLT_ACTION_CMD_ID_REMOVE_OUTER_TAG);
+    }
+
+    if (cmd.translate_outer_tag()) {
+        OPENOLT_LOG(DEBUG, openolt_log_id, "action translate o_tag\n");
+        BCMOLT_FIELD_SET(&a_val, action, cmds_bitmask, BCMOLT_ACTION_CMD_ID_XLATE_OUTER_TAG);
     }
 
     if (action.o_vid()) {
