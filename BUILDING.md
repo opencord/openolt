@@ -11,7 +11,7 @@ The following proprietary source code is required to build the OpenOLT agent.
 * `SW-BCM686OLT_<BAL_VER>.tgz` - Broadcom BAL source and Maple/Aspen SDK
 * `sdk-all-<SDK_VER>.tar.gz` - Broadcom Qumran SDK
 * `ACCTON_BAL_<BAL_VER>-<ACCTON_VER>.patch` - Accton/Edgecore's patch
-* `PHOENIX_BAL_<BAL_VER>_<PHOENIX_VER>.patch` - Phoenix/Radisys patch
+* `RADISYS_BAL_<BAL_VER>_<RADISYS_VER>.patch` - Radisys patch
 
 The versions currently supported by the OpenOLT agent for Accton/Edgecore ASXvOLT16/ASGvOLT64 are:
 
@@ -23,9 +23,9 @@ The versions currently supported by the OpenOLT agent for Accton/Edgecore ASXvOL
 
 The versions currently supported by the OpenOLT agent for Phoenix/Radisys RLT-3200G-W are:
 
-* `SW-BCM686OLT_3_4_9_9.tgz`
+* `SW-BCM686OLT_3_10_2_2.tgz`
 * `sdk-all-6.5.21.tar.gz`
-* `PHOENIX_BAL_3.4.9.9_V20210727.patch`. This is downloadable from the common CSP CS00003233745.
+* `RADISYS_BAL_3.10.2.2_V20211129.patch`. This will be provided by Radisys.
 
 > NOTE: the repository does not contain the above three source packages.  These
 > are needed to build the OpenOLT agent executable. Contact [Dave Baron at
@@ -277,7 +277,7 @@ Copy the Broadcom source and patch files to the openolt/agent/download directory
 
 ```shell
 cd <dir containing Broadcom source and patch files>
-cp PHOENIX_BAL_3.4.9.9_V20210727.patch SW-BCM686OLT_3_4_9_9.tgz sdk-all-6.5.13.tar.gz <cloned openolt repo path>/agent/download
+cp RADISYS_BAL_3.10.2.2_V20211129.patch sdk-all-6.5.21.tar.gz SW-BCM686OLT_3_10_2_2.tgz <cloned openolt repo path>/agent/download
 ```
 
 Run the configure script to generate the appropriate Makefile scaffolding for

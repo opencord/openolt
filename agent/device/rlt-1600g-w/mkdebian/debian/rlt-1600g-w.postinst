@@ -30,7 +30,7 @@ rm -f /run/bcm686*
 mv /tmp/openolt /broadcom
 mv /tmp/libz.so.1 /usr/local/lib
 mv /tmp/libstdc++.so.6 /usr/local/lib
-mv /tmp/libbal_host_api.so /usr/local/lib
+mv /tmp/libbal_host_api-oss.so /usr/local/lib
 
 cp /tmp/logrotate.d/openolt /etc/logrotate.d
 chmod +x /opt/openolt/openolt_dev_mgmt_daemon_process_watchdog

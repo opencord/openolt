@@ -33,7 +33,7 @@ BAL_REV_EMBEDDED_VER = 2
 BAL_API_SO_VER = $(BAL_MAJOR_VER).$(BAL_MINOR_VER).$(BAL_REV_HOST_VER)
 BAL_VER = $(BAL_API_SO_VER).$(BAL_REV_EMBEDDED_VER)
 ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt-3200g-w" "rlt-1600g-w" "rlt-1600x-w"))
-DEV_VER = 202111040101
+DEV_VER = 20211129
 # Version of Open Network Linux (ONL).
 ONL_KERN_VER_MAJOR = 4.19
 else
@@ -174,17 +174,29 @@ $(BUILD_DIR)/libbal_host_api-oss.so:
 		cd $(BAL_API_DIR); \
 		git clone https://github.com/balapi/bal-sdk.git -b $(BAL_VER); \
 		mv bal-sdk bal-sdk-$(BAL_VER); \
-		cat $(TOP_DIR)/download/$(BAL_API_PATCH) | patch -p1 -d $(BAL_API_DIR)/bal-sdk-$(BAL_VER); \
-		cd $(BAL_API_DIR)/bal-sdk-$(BAL_VER); \
-		make BOARD=$(OPENOLTDEVICE); \
-		cp build/fs/libbal_host_api-oss.$(BAL_API_SO_VER).so ../../../$(BUILD_DIR)/libbal_host_api-oss.so; \
-		cp config/$(OPENOLTDEVICE)/bcm_config.h build/fs/include; \
-		cd .. && ln -s bal-sdk-$(BAL_VER)/build/fs/include include; \
-		cd; \
+		if [ "$(OPENOLTDEVICE)" = "rlt-3200g-w" ] || [ "$(OPENOLTDEVICE)" = "rlt-1600g-w" ] || [ "$(OPENOLTDEVICE)" = "rlt-1600x-w" ]; \
+		then \
+			cd $(BAL_API_DIR)/bal-sdk-$(BAL_VER); \
+			make; \
+			cp build/fs/libbal_host_api-oss.$(BAL_API_SO_VER).so ../../../$(BUILD_DIR)/libbal_host_api-oss.so; \
+			cd .. && ln -s bal-sdk-$(BAL_VER)/build/fs/include include; \
+			cd; \
+		else \
+			cat $(TOP_DIR)/download/$(BAL_API_PATCH) | patch -p1 -d $(BAL_API_DIR)/bal-sdk-$(BAL_VER); \
+			cd $(BAL_API_DIR)/bal-sdk-$(BAL_VER); \
+			make BOARD=$(OPENOLTDEVICE); \
+			cp build/fs/libbal_host_api-oss.$(BAL_API_SO_VER).so ../../../$(BUILD_DIR)/libbal_host_api-oss.so; \
+			cp config/$(OPENOLTDEVICE)/bcm_config.h build/fs/include; \
+			cd .. && ln -s bal-sdk-$(BAL_VER)/build/fs/include include; \
+			cd; \
+		fi; \
 	else \
 		cd $(BAL_API_DIR)/bal-sdk-$(BAL_VER); \
 		cp build/fs/libbal_host_api-oss.$(BAL_API_SO_VER).so ../../../$(BUILD_DIR)/libbal_host_api-oss.so; \
-		cp config/$(OPENOLTDEVICE)/bcm_config.h build/fs/include; \
+		if [ "$(OPENOLTDEVICE)" != "rlt-3200g-w" ] && [ "$(OPENOLTDEVICE)" != "rlt-1600g-w" ] && [ "$(OPENOLTDEVICE)" != "rlt-1600x-w" ]; \
+		then \
+			cp config/$(OPENOLTDEVICE)/bcm_config.h build/fs/include; \
+		fi; \
 		cd .. && ln -s bal-sdk-$(BAL_VER)/build/fs/include include; \
 		cd; \
 	fi;
@@ -232,6 +244,7 @@ PORT_SPEED_FILE = $(BAL_DIR)/switch_sdk/$(SDK_VER)/rc/$(OPENOLTDEVICE)/board_fil
 BAL_SDK_ZIP = SW-BCM686OLT_$(subst .,_,$(BAL_VER)).tgz
 CSG_SDK_ZIP = sdk-all-$(SDK_VER).tar.gz
 ACCTON_PATCH = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER).patch
+RADISYS_PATCH = RADISYS_BAL_$(BAL_VER)_V$(DEV_VER).patch
 BROADCOM_IP_PATCH = ACCTON_BAL_$(BAL_VER)-V$(DEV_VER)-BROADCOM-IP.patch 
 BCM_SWITCH_SDK = $(BAL_DIR)/switch_sdk/$(SDK_VER)
 
@@ -241,8 +254,12 @@ ifeq ("$(wildcard $(BAL_DIR))","")
 	tar zxvf download/$(BAL_SDK_ZIP) --strip 1 -C $(BAL_DIR)
 	cp download/$(CSG_SDK_ZIP) $(BCM_SWITCH_SDK)
 	chmod -R 744 $(BAL_DIR)
+ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt-3200g-w" "rlt-1600g-w" "rlt-1600x-w"))
+	cat download/$(RADISYS_PATCH) | patch -p1 -d $(BAL_DIR)
+else
 	cat download/$(ACCTON_PATCH) | patch -p1 -d $(BAL_DIR)
 	cat download/$(BROADCOM_IP_PATCH) | patch -p1 -d $(BAL_DIR)
+endif
 
 ifeq ("$(strip $(OPENOLTDEVICE))","asfvolt16")
 	echo "setenv port_speed_for_100 $(PORT_100G_SPEED)" > $(PORT_SPEED_FILE)
@@ -253,8 +270,9 @@ endif
 
 ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt-3200g-w" "rlt-1600g-w" "rlt-1600x-w"))
 	chmod 0755 $(BAL_DIR)/onu_mgmt/libomcistack/me_codegen/omci_stack_codegen
-	make -C $(BAL_DIR) BOARD=phoenix ONL=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux ONL_DEBIAN_SUITE=$(shell lsb_release -c -s)
-	make -C $(BAL_DIR) BOARD=phoenix release_board
+	chmod 0755 $(BCM_SWITCH_SDK)/sdk_patches_apply.sh
+	make -C $(BAL_DIR) BOARD=radisys ONL=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux ONL_DEBIAN_SUITE=$(shell lsb_release -c -s)
+	make -C $(BAL_DIR) BOARD=radisys release_board
 else
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) ONL_DIR=$(TOP_DIR)/$(ONL_DIR)/OpenNetworkLinux
 	make -C $(BAL_DIR) BOARD=$(OPENOLTDEVICE) release_board
@@ -324,7 +342,11 @@ DEPS = $(SRCS:.cc=.d)
 all: $(BUILD_DIR)/openolt
 $(BUILD_DIR)/openolt: $(BUILD_DIR)/lib$(BALLIBNAME).so sdk protos $(OBJS)
 	$(CXX) $(LDFLAGS) -L$(BALLIBDIR) $(OBJS) $(OPENOLT_API_LIB) $(LIBPROTOBUF_PATH)/libprotobuf.a -o $@ -l$(BALLIBNAME) $(shell pkg-config --libs protobuf grpc++ grpc) $(PCAPPLUSPLUS_LIB_PATH)
+ifeq ("$(strip $(OPENOLTDEVICE))",$(findstring "$(strip $(OPENOLTDEVICE))", "rlt-3200g-w" "rlt-1600g-w" "rlt-1600x-w"))
+	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/radisys/release/release_radisys_v$(BAL_VER).tar.gz $(BUILD_DIR)/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz
+else
 	ln -sf $(TOP_DIR)/$(BAL_DIR)/build/fs/$(OPENOLTDEVICE)/release/release_$(OPENOLTDEVICE)_V$(BAL_VER).$(DEV_VER).tar.gz $(BUILD_DIR)/.
+endif
 	ln -sf $(LIBGRPC_PATH)/libz.so.1 $(BUILD_DIR)/libz.so.1
 	ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 $(BUILD_DIR)/libstdc++.so.6
 	strip $(BUILD_DIR)/openolt

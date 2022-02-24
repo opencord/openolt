@@ -1,7 +1,7 @@
-rlt-1600g-w (3.4.9.9+radisys-V20210727) stable; urgency=high
+rlt-1600g-w (3.10.2.2+radisys-V20211129) stable; urgency=high
 
-    * Based on code from SW-BCM686OLT_3_4_9_9.tgz.
+    * Based on code from SW-BCM686OLT_3_10_2_2.tgz.
     * Patches required for BAL to support RLT-1600G-W has been merged to
-      PHOENIX_BAL_3.4.9.9_V20210727.patch.
+      RADISYS_BAL_3.10.2.2_V20211129.patch.
 
- -- Naresh Kumar Palanisamy <nakumar@radisys.com>  Tue, 27 JUL 2021 09:30:00 +0400
+ -- Thiyagarajan Subramani <tsubrama@radisys.com>  Wed, 23 FEB 2022 09:30:00 +0400

@@ -9,8 +9,7 @@ adapter](https://github.com/opencord/voltha/tree/master/voltha/adapters/openolt)
 
 OpenOLT agent uses Broadcom's BAL (Broadband Adaptation Layer) software for
 interfacing with the Maple/Qumran chipsets in OLTs such as the Edgecore/Accton
-ASXvOLT16 and with Aspen/Qumran chipsets in OLTs such as the Radisys/Phoenix
-RLT-3200G-W.
+ASXvOLT16 and with Aspen/Qumran chipsets in OLTs such as the Radisys RLT-3200G-W.
 The current version of the Broadcom BAL integrated with OpenOLT agent is BAL3.10.2.2.
 
 ```text
