@@ -403,12 +403,12 @@ Status Enable_(int argc, char *argv[]) {
                 BCMOLT_CFG_INIT(&dev_cfg, device, dev_key);
                 BCMOLT_MSG_FIELD_GET(&dev_cfg, system_mode);
 
-		/* FIXME: Single Phoenix BAL patch is prepared for all three variants of Radisys OLT
-		 * in which BCM_MAX_DEVS_PER_LINE_CARD macro need to be redefined as 1 incase of
-		 * "rlt-1600g-w" and "rlt-1600x-w", till then this workaround is required.*/
+		        /* FIXME: Single Phoenix BAL patch is prepared for all three variants of Radisys OLT
+		        * in which BCM_MAX_DEVS_PER_LINE_CARD macro need to be redefined as 1 incase of
+		        * "rlt-1600g-w" and "rlt-1600x-w", till then this workaround is required.*/
                 if (dev == 1 && (MODEL_ID == "rlt-1600g-w" || MODEL_ID == "rlt-1600x-w")) {
-		    continue;
-		}
+                    continue;
+                }
 
                 err = bcmolt_cfg_get(dev_id, &dev_cfg.hdr);
                 if (err == BCM_ERR_NOT_CONNECTED) {
@@ -416,18 +416,27 @@ Status Enable_(int argc, char *argv[]) {
                     bcmolt_device_connect oper;
                     BCMOLT_OPER_INIT(&oper, device, connect, key);
 
-		    /* BAL saves current state into dram_tune soc file and when dev_mgmt_daemon restarts
-		     * it retains config from soc file. If openolt agent try to connect device without
-		     * device reset device initialization fails hence doing device reset here. */
+		            /* BAL saves current state into dram_tune soc file and when dev_mgmt_daemon restarts
+		            * it retains config from soc file. If openolt agent try to connect device without
+		            * device reset device initialization fails hence doing device reset here. */
                     reset_pon_device(dev);
-
+                    bcmolt_system_mode sm;
+                    #ifdef DYNAMIC_PON_TRX_SUPPORT
+                    auto sm_res = ponTrx.get_mac_system_mode(dev, ponTrx.get_sfp_presence_data());
+                    if (!sm_res.second) {
+                        OPENOLT_LOG(ERROR, openolt_log_id, "could not read mac system mode. dev_id = %d\n", dev);
+                        continue;
+                    }
+                    sm = sm_res.first;
+                    #else
+                    sm = DEFAULT_MAC_SYSTEM_MODE;
+                    #endif
+                    BCMOLT_MSG_FIELD_SET (&oper, system_mode, sm);
                     if (MODEL_ID == "asfvolt16") {
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
-                        BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_XGS__2_X);
                     } else if (MODEL_ID == "asgvolt64") {
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_FOUR_TO_ONE);
-                        BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_GPON__16_X);
                     } else if (MODEL_ID == "rlt-3200g-w" || MODEL_ID == "rlt-1600g-w") {
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_NONE);
                         if(dev == 1) {
@@ -435,23 +444,14 @@ Status Enable_(int argc, char *argv[]) {
                         }
                         BCMOLT_MSG_FIELD_SET (&oper, ras_ddr_mode, BCMOLT_RAS_DDR_USAGE_MODE_TWO_DDRS);
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
-                        BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_GPON__16_X);
                     } else if (MODEL_ID == "rlt-1600x-w") {
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_NONE);
                         BCMOLT_MSG_FIELD_SET (&oper, ras_ddr_mode, BCMOLT_RAS_DDR_USAGE_MODE_TWO_DDRS);
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_10_G_XFI);
-                        /* By default setting device mode to GPON for rlt 1600x.
-                           In future device mode can be configured to XGSPON || GPON by reading
-                           device mode configuration from a static configuration file*/
-                        BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_GPON__16_X);
                     } else if (MODEL_ID == "sda3016ss") {
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_12_P_5_G);
                         BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_TWO_TO_ONE);
 						BCMOLT_MSG_FIELD_SET (&oper, ras_ddr_mode, BCMOLT_RAS_DDR_USAGE_MODE_TWO_DDRS);
-                        BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_XGS__8_X_GPON__8_X_WDMA);
-                        /* By default setting device mode to XGSPON/GPON combo for sda3016ss.
-                           And it can also be configured to Any-PON (XGSPON || GPON) */
-
                     }
                     err = bcmolt_oper_submit(dev_id, &oper.hdr);
                     if (err) {
@@ -941,6 +941,9 @@ Status EnablePonIf_(uint32_t intf_id) {
         BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.power_level.pls_maximum_allocation_size, BCMOLT_PON_POWER_LEVEL_PLS_MAXIMUM_ALLOCATION_SIZE_DEFAULT);
         BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.power_level.mode, BCMOLT_PON_POWER_LEVEL_MODE_DEFAULT);
     }
+
+    // TODO: Currently the PON Type is set automatically when the MAC System Mode is set. But it could be explicitely set here again.
+    // The data for the PON type is availabe in the PonTrx object (check trx_data)
 
     //Enable AES Encryption
     BCMOLT_MSG_FIELD_SET(&interface_obj, itu.onu_activation.key_exchange, BCMOLT_CONTROL_STATE_ENABLE);

@@ -291,6 +291,34 @@ Need to redirect syslog to default port of fluentd syslog plugin.
 
 To enable TLS encryption features with td-agent [look at this google doc](https://docs.google.com/document/d/1KF1HhE-PN-VY4JN2bqKmQBrZghFC5HQM_s0mC0slapA/edit)
 
+## Supporing Dynamic PON Transceiver (TRX) detection and configuration of MAC and PON mode
+
+The `PonTrxBase` class defined in `agent/device/device.(h/cc)` provides base implementation with the following capabilities
+- Read SFP/Trx presence information using the `onlpdump` utility on the OLT
+- Read EEPROM data for the PON Trx
+- Decode PON Trx EEPROM data for Vendor Name, P/N, Rev, OUI and Wavelength(s)
+- Get SFP mode
+- Get MAC mode
+- Store SFP, EEPROM data
+
+The base class implentation has to derived class `PonTrx` defined in vendor specific modules and if needed override the base class methods to provide vendor specific implementation. See `agent/device/sim/vendor.(h/cc)` for how this is done for the simulated vendor used in unit tests.
+
+The usual steps involved in openolt-agent startup is below
+1. Read and populate SFP presence data (check `read_sfp_presence_data`)
+2. Read EEPROM data for all the detected SFPs (check `read_eeprom_data_for_sfp`)
+3. Decode EEPROM data for the successfully read SFP EEPROM data (check `decode_eeprom_data`)
+4. Then use `get_mac_system_mode` and `get_sfp_mode` to get the modes while configuring the MAC and the PON respectively.
+
+If any vendor does not want to support dynamic MAC and PON mode configuration, then do not define `DYNAMIC_PON_TRX_SUPPORT` in `agent/device/<vendor-folder>/vendor.h` and then provide the definition of `DEFAULT_MAC_SYSTEM_MODE` and `DEFAULT_PON_MODE` that you would want to use for your device.
+
+### What is supported today?
+All that is described in the earlier section is supported today for supporting Dynamic PON Trx detection and configuration of MAC and PON mode.
+
+### What is missing?
+- Static configuration of PON Trx modes via a yaml configuration file that is discussed in this document https://docs.google.com/document/d/129YDzShMvYACsrM0dWV60tV79BRPI6SsBpf_nm0Byxc/edit#heading=h.f2l6z075wl6e
+- Hot plug in/out of PON Trx and then reconfiguration of MAC and PON modes
+- More error/exception handling in the `PonTrxBase` implementation. But this, as the name suggests, is a base class implementation - could always be overriden in the derived class if you need a sophesticated implementation.
+- Test and enhance for Combo PON SFPs. Currently only tested for either GPON or XGSPON SFP.
 
 ## Build OpenOLT Agent
 
@@ -452,3 +480,4 @@ For more details about BW profile parameters, please refer below links.
 Bandwidth-Profiles-for-Ethernet-Services](https://wiki.mef.net/display/CESG/Bandwidth+Profile)
 [Technology Profile Implementation
 Note](https://www.opennetworking.org/wp-content/uploads/2019/09/2pm-Shaun-Missett-Technology-Profile-and-Speed-Profile-Implementation.pdf)
+

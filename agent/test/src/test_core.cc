@@ -18,6 +18,7 @@
 #include "bal_mocker.h"
 #include "core.h"
 #include "core_data.h"
+#include "core_utils.h"
 #include "server.h"
 #include <future>
 #include <fstream>
@@ -3955,4 +3956,74 @@ TEST_F(TestPowerRead, TestAsgvolt64) {
     ASSERT_EQ(rxtx_power_raw.first.first, 0x04BE);   // 1214
     ASSERT_EQ(rxtx_power_raw.first.second, 0x5C82);  // 23682
     ASSERT_STREQ(trx_eeprom_reader2.get_node_path(), "/sys/bus/i2c/devices/41-0050/eeprom");
+}
+
+////////////////////////////////////////////////////////////////////////////
+// For testing SFP eeprom read and decode capabilities
+////////////////////////////////////////////////////////////////////////////
+
+class TestEEPROMReadDecode : public Test {
+    protected:
+        virtual void SetUp() {
+        }
+        virtual void TearDown() {
+        }
+
+};
+
+// This test reads and decodes EEPROM data confirming to SFP8436 specification.
+// The XFP used on ASFVOLT16 OLTs confirm to this specification.
+TEST_F(TestEEPROMReadDecode, TestSFF8436Decode) {
+    bool res;
+    res = ponTrx.read_eeprom_data_for_sfp(0);
+    ASSERT_TRUE(res);
+    res = ponTrx.decode_eeprom_data(0);
+    ASSERT_TRUE(res);
+    trx_data* t = ponTrx.get_trx_data(0);
+    ASSERT_NE(t, NULL);
+    ASSERT_EQ(t->sfp_index, 0);
+    ASSERT_STREQ(t->vendor_name.c_str(), "Hisense         ");
+    ASSERT_STREQ(t->vendor_part_no.c_str(), "LTH7226-PC+     ");
+    ASSERT_STREQ(t->vendor_rev.c_str(), "01");
+    ASSERT_EQ(t->p_data[0].wavelength, 1577);
+
+}
+
+TEST_F(TestEEPROMReadDecode, TestHexToAsciiSuccess) {
+    std::string vn_ascii("SUPERXON LTD.   ");
+    std::string oui_ascii("");
+    std::string pn_ascii("SOGP4321-PSGB   ");
+    std::string rev_ascii("10");
+    pair<string, bool> res;
+    unsigned char vn_hex[EEPROM_VENDOR_NAME_LENGTH] = {0x53, 0x55, 0x50, 0x45, 0x52, 0x58, 0x4F, 0x4E,
+                                                       0x20, 0x4C, 0x54, 0x44, 0x2E, 0x20, 0x20, 0x20};
+    unsigned char oui_hex[EEPROM_VENDOR_OUI_LENGTH] = {0x00, 0x00, 0x00};
+    unsigned char pn_hex[EEPROM_VENDOR_PART_NUMBER_LENGTH] = {0x53, 0x4F, 0x47, 0x50, 0x34, 0x33, 0x32, 0x31,
+                                                              0x2D, 0x50, 0x53, 0x47, 0x42, 0x20, 0x20, 0x20};
+    unsigned char rev_hex[EEPROM_VENDOR_REVISION_LENGTH] = {0x31, 0x30};
+    res = hex_to_ascii_string(vn_hex, EEPROM_VENDOR_NAME_LENGTH);
+    ASSERT_TRUE(res.second);
+    ASSERT_STREQ(res.first.c_str(), vn_ascii.c_str());
+
+    res = hex_to_ascii_string(oui_hex, EEPROM_VENDOR_OUI_LENGTH);
+    ASSERT_TRUE(res.second);
+    ASSERT_STREQ(res.first.c_str(), oui_ascii.c_str());
+
+    res = hex_to_ascii_string(pn_hex, EEPROM_VENDOR_PART_NUMBER_LENGTH);
+    ASSERT_TRUE(res.second);
+    ASSERT_STREQ(res.first.c_str(), pn_ascii.c_str());
+
+    res = hex_to_ascii_string(rev_hex, EEPROM_VENDOR_REVISION_LENGTH);
+    ASSERT_TRUE(res.second);
+    ASSERT_STREQ(res.first.c_str(), rev_ascii.c_str());
+
+}
+
+TEST_F(TestEEPROMReadDecode, TestHexToUintSuccess) {
+    uint32_t wl_uint = 1490;
+    pair<uint32_t, bool> res;
+    unsigned char vn_hex[EEPROM_DOWNSTREAM_WAVELENGTH_LENGTH] = {0x05, 0xD2};
+    res = hex_to_uinteger(vn_hex, EEPROM_DOWNSTREAM_WAVELENGTH_LENGTH);
+    ASSERT_TRUE(res.second);
+    ASSERT_EQ(res.first, wl_uint);
 }

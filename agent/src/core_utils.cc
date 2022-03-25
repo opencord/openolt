@@ -1979,3 +1979,27 @@ bool save_to_txt_file(const std::string& file_name, const std::string& content) 
         return false;
     }
 }
+
+pair<string, bool> hex_to_ascii_string(unsigned char* ptr, int length) {
+    // initialize the ASCII code string as empty.
+    string ascii = "";
+    for (size_t i = 0; i < length; i ++)
+    {
+        string part = string(1,ptr[i]);
+        ascii += part;
+    }
+    return {ascii, true};
+}
+
+pair<uint32_t, bool> hex_to_uinteger(unsigned char *ptr, int length) {
+    if (length > 8) {
+        perror("invalid length of bytes for conversion to uint\n");
+        return {0, false};
+    }
+    uint32_t res = 0;
+    for (int i = 0; i < length; i++)
+    {
+        res = uint32_t(ptr[i]) * pow(2, (length - 1 - i) * 8) + res;
+    }
+    return {res, true};
+}

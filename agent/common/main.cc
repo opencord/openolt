@@ -65,12 +65,12 @@ void display_version_info(int argc, char *argv[]) {
 
     for (int i = 1; i < argc; ++i) {
         if(strcmp(argv[i], "--version") == 0 || (strcmp(argv[i], "-v") == 0)) {
-           std::cout << "OpenOLT agent: " << version << "\n";
-           std::cout << "BAL version: " << bal_version << "\n";
-           std::cout << "Label VCS Url: " << label_vcs_url << "\n";
-           std::cout << "Label VCS Ref: " << label_vcs_ref << "\n";
-           std::cout << "Label build date: " << label_build_date << "\n";
-           std::cout << "Label commit date: " << label_commit_date << "\n";
+           cout << "OpenOLT agent: " << version << "\n";
+           cout << "BAL version: " << bal_version << "\n";
+           cout << "Label VCS Url: " << label_vcs_url << "\n";
+           cout << "Label VCS Ref: " << label_vcs_ref << "\n";
+           cout << "Label build date: " << label_build_date << "\n";
+           cout << "Label commit date: " << label_commit_date << "\n";
            exit(0);
         }
     }
@@ -80,11 +80,32 @@ int main(int argc, char** argv) {
 
     display_version_info(argc, argv);
 
+#ifdef DYNAMIC_PON_TRX_SUPPORT
+    auto sfp = ponTrx.read_sfp_presence_data();
+    if (sfp.size() == 0) {
+        perror("sfp presence map could not be read\n");
+        return 2;
+    }
+    for (const auto& it : sfp) {
+        bool res = ponTrx.read_eeprom_data_for_sfp(it);
+        if (!res) {
+            cerr << "eeprom data for sfp could not be read: " << it << endl;
+            return 2;
+        }
+    }
+    for (const auto &it : sfp) {
+        bool res = ponTrx.decode_eeprom_data(it);
+        if (!res) {
+            cerr << "eeprom data for sfp could not be decoded: " << it << endl;
+            return 2;
+        }
+    }
+#endif
     Status status = Enable_(argc, argv);
     if (!status.ok()) {
-        std::cout << "ERROR: Enable_ failed - "
+        cout << "ERROR: Enable_ failed - "
                   << status.error_code() << ": " << status.error_message()
-                  << std::endl;
+                  << endl;
         return 1;
     }
 
@@ -95,14 +116,14 @@ int main(int argc, char** argv) {
     while (!state.is_activated()) {
         sleep(1);
         if (--maxTrials == 0) {
-            std::cout << "ERROR: OLT/PON Activation failed" << std::endl;
+            cout << "ERROR: OLT/PON Activation failed" << endl;
             return 1;
         }
     }
 
     status = ProbeDeviceCapabilities_();
     if (!status.ok()) {
-        std::cout << "ERROR: Could not find the OLT Device capabilities" << std::endl;
+        cout << "ERROR: Could not find the OLT Device capabilities" << endl;
         return 1;
     }
 
@@ -149,7 +170,7 @@ int main(int argc, char** argv) {
     }
 
     if (!RunServer(argc, argv)) {
-        std::cerr << "FATAL: gRPC server creation failed\n";
+        cerr << "FATAL: gRPC server creation failed\n";
         return 2;
     }
 

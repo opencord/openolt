@@ -373,10 +373,10 @@ common/%.o: common/%.cc
 ##        device
 ##
 ##
-device/$(OPENOLTDEVICE)/%.o: device/$(OPENOLTDEVICE)/%.cc
-	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -c $< -o $@
+device/%.o: device/%.cc
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I./common -I./src -c $< -o $@
 
-device/generic/%.o: device/generic/%.cc
+device/$(OPENOLTDEVICE)/%.o: device/$(OPENOLTDEVICE)/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -c $< -o $@
 
 ########################################################################
@@ -386,7 +386,7 @@ device/generic/%.o: device/generic/%.cc
 ##
 ##
 OLT_SW_UPGRADE_DIR = ../olt-sw-upgrade
-SRCS = $(wildcard src/*.cc) $(wildcard common/*.cc) $(wildcard device/$(OPENOLTDEVICE)/*.cc)
+SRCS = $(wildcard src/*.cc) $(wildcard common/*.cc) $(wildcard device/*.cc) $(wildcard device/$(OPENOLTDEVICE)/*.cc)
 ANSIBLE_DIR = /etc/ansible
 OBJS = $(SRCS:.cc=.o)
 DEPS = $(SRCS:.cc=.d)

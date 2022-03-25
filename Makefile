@@ -44,6 +44,9 @@ DOCKER_BUILD_ARGS ?= \
 test:
 	${DOCKER} run --rm -v $(shell pwd):/app $(shell test -t 0 && echo "-it") ${IMAGENAME} make -C agent/test test
 
+build:
+	${DOCKER} run --rm -v $(shell pwd):/app $(shell test -t 0 && echo "-it") ${IMAGENAME} make -C agent/test all
+
 clean:
 	${DOCKER} run --rm -v $(shell pwd):/app $(shell test -t 0 && echo "-it") ${IMAGENAME} make -C agent/test clean
 

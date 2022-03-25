@@ -19,3 +19,13 @@
 void vendor_init()
 {
 }
+
+// Returns the MAC System Mode based on the set of SFP IDs provided.
+// The derived class will most likely need to override this method to provide a
+// different implementation for that particular OLT platform.
+pair<bcmolt_system_mode, bool> PonTrx::get_mac_system_mode(int olt_mac_id, set<int> sfp_ids) {
+    bool ret = true;
+    bcmolt_system_mode sm = BCMOLT_SYSTEM_MODE_XGS__2_X;
+
+    return {sm, ret};
+}

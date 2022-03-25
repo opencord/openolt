@@ -127,4 +127,6 @@ std::pair<std::string, bool> read_from_txt_file(const std::string& file_name);
 bool save_to_txt_file(const std::string& file_name, const std::string& content);
 bcmos_errno get_gem_obj_state(bcmolt_interface pon_ni, bcmolt_gem_port_id id, bcmolt_activation_state *state);
 bcmos_errno get_alloc_obj_state(bcmolt_interface pon_ni, bcmolt_alloc_id id, bcmolt_activation_state *state);
+pair<string, bool> hex_to_ascii_string(unsigned char* ptr, int length);
+pair<uint32_t, bool> hex_to_uinteger(unsigned char *ptr, int length);
 #endif // OPENOLT_CORE_UTILS_H_

@@ -16,6 +16,8 @@
 
 #ifndef __VENDOR_H__
 #define __VENDOR_H__
+#include "device.h"
+
 #define VENDOR_ID "Radisys"
 #define RLT3200GW
 #define MODEL_ID  "rlt-3200g-w"
@@ -43,5 +45,57 @@
 #define INVALID_FLOW_ID 0
 
 #define MAC_DEVICE_ACTIVATION_DELAY 200000 // in microseconds
+
+#define DEFAULT_MAC_SYSTEM_MODE BCMOLT_SYSTEM_MODE_GPON__16_X
+//#define DEFAULT_MAC_SYSTEM_MODE BCMOLT_SYSTEM_MODE_XGS__2_X
+#define DEFAULT_PON_MODE BCMOLT_PON_TYPE_GPON
+// #define DEFAULT_PON_MODE BCMOLT_PON_TYPE_XGPON
+
+
+#define TOTAL_PON_TRX_PORTS 32 // total PON transceiver ports
+#define TOTAL_PON_PORTS 32 // total PON ports (we could have up to 2 PON ports on the OLT MAC mapped to the external PON Trx)
+const int trx_port_to_pon_port_map[TOTAL_PON_TRX_PORTS][TOTAL_PON_PORTS/TOTAL_PON_TRX_PORTS]={{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},
+{11},{12},{13},{14},{15},{16},{17},{18},{19},{20},{21},{22},{23},{24},{25},{26},{27},{28},{29},{30},{31}};
+#define PONS_PER_TRX (TOTAL_PON_TRX_PORTS/TOTAL_PON_PORTS) // if there are more than one OLT MAC device,
+                                                           // they all have to be of the same type for this to work.
+
+// FIXME: These may not be correct for this platform
+const int bus_index[TOTAL_PON_TRX_PORTS] = {
+   41,  42,  56,  55,  43,  44,  54,  53,
+   45,  46,  52,  51,  47,  48,  50,  49,
+   57,  58,  72,  71,  59,  60,  70,  69,
+   61,  62,  68,  67,  63,  64,  66,  65
+};
+
+// FIXME: Check the correctness of the below constants for this platform
+
+#define PORT_ADDRESS 50
+
+#define NAME_EEPROM "eeprom"
+
+#define EEPROM_VENDOR_NAME_START_IDX 20
+#define EEPROM_VENDOR_NAME_LENGTH 16
+
+#define EEPROM_VENDOR_OUI_START_IDX 37
+#define EEPROM_VENDOR_OUI_LENGTH 3
+
+#define EEPROM_VENDOR_PART_NUMBER_START_IDX 40
+#define EEPROM_VENDOR_PART_NUMBER_LENGTH 16
+
+#define EEPROM_VENDOR_REVISION_START_IDX 56
+#define EEPROM_VENDOR_REVISION_LENGTH 4
+
+#define EEPROM_DOWNSTREAM_WAVELENGTH_START_IDX 60
+#define EEPROM_DOWNSTREAM_WAVELENGTH_LENGTH 2
+#define EEPROM_WAVELENGTH_RESOLUTION 1
+
+// Define valid values below in case of Combo PON Trx is supported
+// #define EEPROM_DOWNSTREAM_SECONDARY_WAVELENGTH_START_IDX 120
+// #define EEPROM_DOWNSTREAM_SECONDARY_WAVELENGTH_LENGTH 2
+
+class PonTrx: public PonTrxBase {
+   // override the base member functions if you need a different implementation
+
+};
 
 #endif

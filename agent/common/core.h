@@ -23,6 +23,7 @@ using grpc::Status;
 #include <voltha_protos/ext_config.grpc.pb.h>
 
 #include "state.h"
+#include "vendor.h"
 
 extern "C"
 {
@@ -199,6 +200,7 @@ extern "C"
 
 #define LOGICAL_DISTANCE(MLD,EQD,TD) (MLD-(EQD*TD)*102) /* Round-trip time of 102 meters is 1us */
 extern State state;
+extern PonTrx ponTrx;
 
 //***************************************//
 // Function declations used by the core. //

@@ -27,13 +27,7 @@ extern "C" {
 #include "bcmos_errno.h"
 #include "bcmolt_system_types_typedefs.h"
 #include "bcmolt_msg.h"
-
-/** Host subsystem initialization parameters */
-typedef struct bcmolt_host_init_parms
-{
-    int dummy;
-} bcmolt_host_init_parms;
-
+#include "bcmolt_host_api.h"
 }
 
 class BalMocker : public CMockMocker<BalMocker>

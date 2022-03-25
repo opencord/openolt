@@ -16,12 +16,15 @@
 
 #ifndef __VENDOR_H__
 #define __VENDOR_H__
+#include "device.h"
 #define VENDOR_ID "EdgeCore"
 #define ASFVOLT16
 #define MODEL_ID  "asfvolt16"
 #define MAX_SUPPORTED_PON 16
 #define ONU_BIT_TRANSMISSION_DELAY 0.1004823/1000 /* unit: ns to us */
 #define MINIMUM_ONU_RESPONSE_RANGING_TIME 1572135 /* hardcore: this is ranging time for the shortest distance, typically 35us */
+#define DEFAULT_MAC_SYSTEM_MODE BCMOLT_SYSTEM_MODE_XGS__2_X
+#define DEFAULT_PON_MODE BCMOLT_PON_TYPE_XGPON
 
 // DeviceInfo definitions
 
@@ -43,5 +46,60 @@
 #define INVALID_FLOW_ID 0
 
 #define MAC_DEVICE_ACTIVATION_DELAY 2000000 // in microseconds
+
+///////////////////////////////////////////////////////
+// Constants relevant for decoding PON Trx EEPROM Data
+
+// Uncomment below line when you need dynamic transceiver detection support
+// #define DYNAMIC_PON_TRX_SUPPORT
+
+
+#define TOTAL_PON_TRX_PORTS 16 // total PON transceiver ports
+#define TOTAL_PON_PORTS 16 // total PON ports (we could have up to 2 PON ports on the OLT MAC mapped to the external PON Trx)
+const int trx_port_to_pon_port_map[TOTAL_PON_TRX_PORTS][TOTAL_PON_PORTS/TOTAL_PON_TRX_PORTS]={{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},
+{11},{12},{13},{14},{15}};
+#define PONS_PER_TRX (TOTAL_PON_TRX_PORTS/TOTAL_PON_PORTS) // if there are more than one OLT MAC device,
+                                                           // they all have to be of the same type for this to work.
+
+const int bus_index[TOTAL_PON_TRX_PORTS] = {
+   47,  48,  37,  38,  35,  36,  33,  34,
+   39,  40,  41,  42,  43,  44,  45,  46
+};
+
+
+// FIXME: Check the correctness of the below constants for this platform
+
+#define PORT_ADDRESS 50
+
+#define NAME_EEPROM "sfp_eeprom"
+
+#define EEPROM_VENDOR_NAME_START_IDX 148
+#define EEPROM_VENDOR_NAME_LENGTH 16
+
+#define EEPROM_VENDOR_OUI_START_IDX 165
+#define EEPROM_VENDOR_OUI_LENGTH 3
+
+#define EEPROM_VENDOR_PART_NUMBER_START_IDX 168
+#define EEPROM_VENDOR_PART_NUMBER_LENGTH 16
+
+#define EEPROM_VENDOR_REVISION_START_IDX 184
+#define EEPROM_VENDOR_REVISION_LENGTH 2
+
+#define EEPROM_DOWNSTREAM_WAVELENGTH_START_IDX 186
+#define EEPROM_DOWNSTREAM_WAVELENGTH_LENGTH 2
+#define EEPROM_WAVELENGTH_RESOLUTION 0.05
+
+// Define valid values below in case of Combo PON Trx is supported
+// #define EEPROM_DOWNSTREAM_SECONDARY_WAVELENGTH_START_IDX 120
+// #define EEPROM_DOWNSTREAM_SECONDARY_WAVELENGTH_LENGTH 2
+
+
+class PonTrx: public PonTrxBase {
+   // override the base member functions if you need a different implementation
+   public:
+      // Get MAC System mode based on the olt mac id and the set of SFP IDs provided
+      pair<bcmolt_system_mode, bool> get_mac_system_mode(int, set<int>);
+
+};
 
 #endif

@@ -122,7 +122,7 @@ libproto-clean:
 	make -C $(OPENOLT_PROTOS_DIR) clean
 
 # openolt
-OPENOLT_SRCS = $(wildcard ../src/*.cc) ../common/server.cc $(wildcard ../device/$(OPENOLTDEVICE)/*.cc) src/bal_stub.cc
+OPENOLT_SRCS = $(wildcard ../src/*.cc) ../common/server.cc ../device/device.cc $(wildcard ../device/$(OPENOLTDEVICE)/*.cc) src/bal_stub.cc
 OPENOLT_OBJS = $(OPENOLT_SRCS:.cc=.o)
 $(OPENOLT_LIB): $(OPENOLT_OBJS)
 	mkdir -p lib
@@ -134,6 +134,8 @@ $(OPENOLT_LIB): $(OPENOLT_OBJS)
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I../common -I./inc -I../src -c $< -o $@
 src/%.o: src/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I../common -I./inc -I../src -c $< -o $@
+../device/%.o: ../device/%.cc
+	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I../common -I./inc -I../src -c $< -o $@
 ../device/$(OPENOLTDEVICE)/%.o: ../device/$(OPENOLTDEVICE)/%.cc
 	$(CXX) $(CXXFLAGS) $(CXXFLAGSDEVICE) -I../common -I./inc -I../src -c $< -o $@
 
@@ -141,4 +143,4 @@ test: all
 	./test_openolt --gtest_output="xml:./test_openolt_report_xunit.xml"
 
 clean:
-	rm -f src/*.o lib/*.a ../src/*.o ../common/*.o ./test_openolt  ./test_openolt_report_xunit.xml
+	rm -f src/*.o lib/*.a ../src/*.o ../common/*.o ../device/device.o ./test_openolt  ./test_openolt_report_xunit.xml
