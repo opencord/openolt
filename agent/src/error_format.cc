@@ -50,8 +50,8 @@ Status bcm_to_grpc_err(bcmos_errno bcm_err, std::string message) {
             break;
     }
 
-    message.append(" BCM Error ");
-    message.append(std::to_string(bcm_err));
+    message.append(" BCM Error: ");
+    message.append(bcmos_strerror(bcm_err));
 
     return Status(grpc_err, message);
 }
