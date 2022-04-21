@@ -42,6 +42,7 @@ using grpc::Status;
 
 const char *serverPort = "0.0.0.0:9191";
 int signature;
+std::unique_ptr<Server> server;
 
 Queue<openolt::Indication> oltIndQ;
 
@@ -240,6 +241,7 @@ class OpenoltService final : public openolt::Openolt::Service {
             openolt::Empty* response) override {
 
         uint8_t ret = system("shutdown -r now");
+        server->Shutdown();
 
         return Status::OK;
 
@@ -419,7 +421,7 @@ bool RunServer(int argc, char** argv) {
     builder.AddListeningPort(server_address, credentials);
     builder.RegisterService(&service);
 
-    std::unique_ptr<Server> server(builder.BuildAndStart());
+    server = builder.BuildAndStart();
 
     time_t now;
     time(&now);

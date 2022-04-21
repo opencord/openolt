@@ -12,6 +12,8 @@ The following proprietary source code is required to build the OpenOLT agent.
 * `sdk-all-<SDK_VER>.tar.gz` - Broadcom Qumran SDK
 * `ACCTON_BAL_<BAL_VER>-<ACCTON_VER>.patch` - Accton/Edgecore's patch
 * `RADISYS_BAL_<BAL_VER>_<RADISYS_VER>.patch` - Radisys patch
+* `ZYXEL_BAL_<BAL_VER>_<ZYXEL_VER>.patch` - Zyxel's patch
+* `ZYXEL_Docker_<ZYXEL_VER>.patch` - Zyxel's patch
 
 The versions currently supported by the OpenOLT agent for Accton/Edgecore ASXvOLT16/ASGvOLT64 are:
 
@@ -26,6 +28,14 @@ The versions currently supported by the OpenOLT agent for Phoenix/Radisys RLT-32
 * `SW-BCM686OLT_3_10_2_2.tgz`
 * `sdk-all-6.5.21.tar.gz`
 * `RADISYS_BAL_3.10.2.2_V20211129.patch`. This will be provided by Radisys.
+
+The versions currently supported by the OpenOLT agent for Zyxel SDA3016SS are:
+
+* `SW-BCM686OLT_3_10_0_0.tgz`
+* `sdk-all-6.5.21.tar.gz`
+* `ZYXEL_BAL_3.10.0.0_V20220425.patch`. This will be provided by Zyxel.
+* `ZYXEL_BAL_CUSTOM_3.10.0.0_V20220425.tar.gz`. This will be provided by Zyxel.
+* `ZYXEL_Docker_V20220425.patch`. This will be provided by Zyxel.
 
 > NOTE: the repository does not contain the above three source packages.  These
 > are needed to build the OpenOLT agent executable. Contact [Dave Baron at
@@ -375,4 +385,76 @@ make OPENOLTDEVICE=rlt-3200g-w clean
 
 # cleans up the agent objects, protos compiled artificats, openolt deb packages and bal sources
 make OPENOLTDEVICE=rlt-3200g-w distclean
+```
+## Openolt build procedure for Zyxel SDA3016SS
+
+Clone the openolt repository either from OpenCORD Gerrit:
+
+```shell
+git clone https://gerrit.opencord.org/openolt
+```
+
+Copy the Broadcom source and patch files to the openolt/agent/download directory:
+
+```shell
+cd <dir containing Broadcom source and patch files>
+cp ZYXEL_BAL_3.10.0.0_V20220425.patch SW-BCM686OLT_3_10_0_0.tgz sdk-all-6.5.21.tar.gz ZYXEL_Docker_<ZYXEL_VER>.patch <cloned openolt repo path>/agent/download
+tar ZYXEL_BAL_CUSTOM_3.10.0.0_V20220425.tar.gz -C <cloned openolt repo path>/agent/
+```
+
+Run the configure script to generate the appropriate Makefile scaffolding for
+the desired target:
+
+```shell
+cd openolt/agent
+./configure
+```
+
+Run *make*. This can take a while to complete the first time, since it builds
+ONL and the Broadcom SDKs. Following runs will be much faster, as they only
+build the OpenOLT agent source.
+
+```shell
+make OPENOLTDEVICE=sda3016ss
+```
+
+
+Note that the required ONL version `4.19` is built as part of the above build
+procedure and is available at path
+`build/onl/OpenNetworkLinux/RELEASE/jessie/amd64/ONL-HEAD_ONL-OS8_2022-03-04.0602-11ed214_AMD64_INSTALLED_INSTALLER
+This ONL Installer should be used to flash the OS on the OLT.
+
+If you need to use a specific version of voltha-protos, then specify the git
+tag/branch corresponding to that specific version:
+
+```shell
+make OPENOLTDEVICE=sda3016ss OPENOLT_PROTO_VER=master
+```
+
+By default, the `OPENOLT_PROTO_VER` defaults to git tag *v5.2.1* of the
+[voltha-protos](https://gerrit.opencord.org/gitweb?p=voltha-protos.git;a=summary)
+repo.
+
+Build the debian package that will be installed on the OLT.
+
+```shell
+make OPENOLTDEVICE=sda3016ss deb
+```
+
+Optionally, modify agent/download/sda3016_nni_init.conf to change NNI port speed.
+Run *make OPENOLTDEVICE=sda3016ss deb*
+
+If the build process succeeds, a `.deb` package will be created as well in the
+`openolt/agent/build` directory.
+
+## Zyxel SDA3016SS build cleanup
+
+To cleanup the repository and start the build procedure again, run:
+
+```shell
+# cleans up the agent objects, protos compiled artificats and openolt deb packages
+make OPENOLTDEVICE=sda3016ss clean
+
+# cleans up the agent objects, protos compiled artificats, openolt deb packages and bal sources
+make OPENOLTDEVICE=sda3016ss distclean
 ```

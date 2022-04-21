@@ -1,0 +1,13 @@
+Source: sda3016ss
+Section: misc
+Priority: optional
+Maintainer: Wilson Lee <Wilson.Lee@zyxel.com.tw>
+Build-Depends: debhelper (>= 4.0.0)
+Standards-Version: 3.6.2
+
+Package: sda3016ss
+Architecture: amd64
+Depends: ${shlibs:Depends}
+Description: Broadcom OLT drivers,CLI
+  ported from Broadcom SDK-3.10.0.0 package
+

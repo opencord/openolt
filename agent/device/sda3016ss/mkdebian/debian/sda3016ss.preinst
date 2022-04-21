@@ -1,0 +1,50 @@
+#!/bin/bash
+
+#Copyright 2018-present Open Networking Foundation
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
+
+
+# kill CLI applications
+echo "kill running time application"
+[ -n "`pidof openolt`" ] && killall openolt
+[ -n "`pidof dev_mgmt_daemon`" ] && killall dev_mgmt_daemon
+[ -n "`pidof bcm.user`" ] && killall bcm.user
+[ -n "`pidof dev_mgmt_attach`" ] && killall dev_mgmt_attach
+[ -n "`pidof embedded_console`" ] && killall embedded_console 
+[ -n "`pidof example_user_appl`" ] && killall example_user_appl 
+rm -f /tmp/root_dev_mgmt_pid /tmp/root_dev_mgmt_init_done
+sleep 3
+# unload drivers
+echo "unload kernel drivers"
+[ -n "`lsmod | grep nltr`" ] &&  rmmod nltr && sleep 1
+[ -n "`lsmod | grep pcie_proxy`" ] && rmmod pcie_proxy && sleep 1
+[ -n "`lsmod | grep devmem`" ] && rmmod devmem && sleep 1
+[ -n "`lsmod | grep fld_linux`" ] && rmmod fld_linux && sleep 1
+[ -n "`lsmod | grep os_linux`" ] && rmmod os_linux && sleep 1
+[ -n "`lsmod | grep ll_pcie`" ] && rmmod ll_pcie && sleep 1
+[ -n "`lsmod | grep linux_user_bde`" ] && rmmod linux-user-bde && sleep 1
+[ -n "`lsmod | grep linux_kernel_bde`" ] && rmmod linux-kernel-bde && sleep 1
+
+rm -rf /dev/bcmolt_pcie_proxy
+rm -rf /dev/linux-uk-proxy
+rm -rf /dev/linux-user-bde
+rm -rf /dev/linux-kernel-bde
+for i in {0..1}; do
+    [ ! -f /dev/bcmolt_devmem_sram$i ] && rm -f /dev/bcmolt_devmem_sram$i
+    [ ! -f /dev/bcmolt_devmem_ddr$i ] && rm -f /dev/bcmolt_devmem_ddr$i
+    [ ! -f /dev/bcmolt_devmem_regs$i ] && rm -f /dev/bcmolt_devmem_regs$i
+done
+
+rm -rf /opt/bcm68620
+

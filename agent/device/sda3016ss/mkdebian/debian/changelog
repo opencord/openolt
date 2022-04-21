@@ -1,0 +1,5 @@
+sda3016ss (3.10.0.0-ABXZ-a12) stable; urgency=high
+
+    * Based on code from SW-BCM686OLT_3_10_0_0.tgz.
+
+ -- Wilson Lee <Wilson.Lee@zyxel.com.tw>  Tue, 12 OCT 2021 01:01:03 +0800

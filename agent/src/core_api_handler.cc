@@ -444,6 +444,14 @@ Status Enable_(int argc, char *argv[]) {
                            In future device mode can be configured to XGSPON || GPON by reading
                            device mode configuration from a static configuration file*/
                         BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_GPON__16_X);
+                    } else if (MODEL_ID == "sda3016ss") {
+                        BCMOLT_MSG_FIELD_SET(&oper, inni_config.mode, BCMOLT_INNI_MODE_ALL_12_P_5_G);
+                        BCMOLT_MSG_FIELD_SET(&oper, inni_config.mux, BCMOLT_INNI_MUX_TWO_TO_ONE);
+						BCMOLT_MSG_FIELD_SET (&oper, ras_ddr_mode, BCMOLT_RAS_DDR_USAGE_MODE_TWO_DDRS);
+                        BCMOLT_MSG_FIELD_SET (&oper, system_mode, BCMOLT_SYSTEM_MODE_XGS__8_X_GPON__8_X_WDMA);
+                        /* By default setting device mode to XGSPON/GPON combo for sda3016ss.
+                           And it can also be configured to Any-PON (XGSPON || GPON) */
+
                     }
                     err = bcmolt_oper_submit(dev_id, &oper.hdr);
                     if (err) {
@@ -928,7 +936,8 @@ Status EnablePonIf_(uint32_t intf_id) {
 
     // On GPON, power level mode is not set to its default value (i.e. 0) as documented in Broadcom documentation.
     // Instead, it is set to 2 which means -6 dbM attenuation. Therefore, we explicitly set it to the default value below.
-    if (board_technology == "GPON") {
+    std::string intf_technology = intf_technologies[intf_id];
+    if (intf_technology == "GPON") {
         BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.power_level.pls_maximum_allocation_size, BCMOLT_PON_POWER_LEVEL_PLS_MAXIMUM_ALLOCATION_SIZE_DEFAULT);
         BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.power_level.mode, BCMOLT_PON_POWER_LEVEL_MODE_DEFAULT);
     }
@@ -1036,6 +1045,11 @@ Status ProbeDeviceCapabilities_() {
             case 18: board_technology = "XGS-PON"; FILL_ARRAY(intf_technologies,devid*2,(devid+1)*2,"XGS-PON"); break;
             case 19: board_technology = "XGS-PON"; FILL_ARRAY(intf_technologies,devid*16,(devid+1)*16,"XGS-PON"); break;
             case 20: board_technology = MIXED_TECH; FILL_ARRAY(intf_technologies,devid*2,(devid+1)*2,MIXED_TECH); break;
+            case 38:
+               board_technology = "XGS-PON";
+               FILL_ARRAY2(intf_technologies,devid*16,(devid+1)*16,"XGS-PON");
+               FILL_ARRAY2(intf_technologies,devid*16+1,(devid+1)*16+1,"GPON");
+               break;
         }
 
         switch(dev_cfg.data.chip_family) {
@@ -1217,10 +1231,11 @@ vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id,
         BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.serial_number, serial_number);
         BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.auto_learning, BCMOS_TRUE);
         /*set burst and data profiles to fec disabled*/
-        if (board_technology == "XGS-PON") {
+        std::string intf_technology = intf_technologies[intf_id];
+        if (intf_technology == "XGS-PON") {
             BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.ranging_burst_profile, 2);
             BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.xgpon.data_burst_profile, 1);
-        } else if (board_technology == "GPON") {
+        } else if (intf_technology == "GPON") {
             BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.gpon.ds_ber_reporting_interval, 1000000);
             BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.gpon.omci_port_id, onu_id);
         }
@@ -2439,11 +2454,12 @@ port_no, tm_sched_cfg.hdr.hdr.err_text, err);
 uni_id %d, port_no %u\n", tm_sched_key.id, intf_id, onu_id, uni_id, port_no);
 
     } else { //upstream
+        std::string intf_technology = intf_technologies[intf_id];
         bcmolt_itupon_alloc_cfg cfg;
         bcmolt_itupon_alloc_key key = { };
         key.pon_ni = intf_id;
         key.alloc_id = alloc_id;
-        int bw_granularity = (board_technology == "XGS-PON")?XGS_BANDWIDTH_GRANULARITY:GPON_BANDWIDTH_GRANULARITY;
+        int bw_granularity = (intf_technology == "XGS-PON")?XGS_BANDWIDTH_GRANULARITY:GPON_BANDWIDTH_GRANULARITY;
         /*
             PIR: Maximum Bandwidth
             CIR: Assured Bandwidth
