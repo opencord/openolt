@@ -1669,7 +1669,11 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
             update_voltha_flow_to_cache(voltha_flow_id, dev_fl);
         } else { // Flow to be replicated
             OPENOLT_LOG(INFO, openolt_log_id,"symmetric flow and replication is needed\n");
-            for (uint8_t i=0; i<NUMBER_OF_REPLICATED_FLOWS; i++) {
+            if (pbit_to_gemport.size() > NUMBER_OF_PBITS) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "invalid pbit-to-gemport map size=%lu", pbit_to_gemport.size())
+                return ::Status(grpc::StatusCode::OUT_OF_RANGE, "pbit-to-gemport-map-len-invalid-for-flow-replication");
+            }
+            for (uint8_t i=0; i<pbit_to_gemport.size(); i++) {
                 ::openolt::Classifier cl = ::openolt::Classifier(classifier);
                 flow_id = dev_fl_symm_params[i].flow_id;
                 gemport_id = dev_fl_symm_params[i].gemport_id;
@@ -1696,8 +1700,9 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
             dev_fl.is_flow_replicated = true;
             dev_fl.symmetric_voltha_flow_id = symmetric_voltha_flow_id;
             dev_fl.voltha_flow_id = voltha_flow_id;
+            dev_fl.total_replicated_flows = pbit_to_gemport.size();
             dev_fl.flow_type = flow_type;
-            memcpy(dev_fl.params, dev_fl_symm_params, sizeof(device_flow_params)*NUMBER_OF_REPLICATED_FLOWS);
+            memcpy(dev_fl.params, dev_fl_symm_params, sizeof(device_flow_params)*dev_fl.total_replicated_flows);
             // update voltha flow to cache
             update_voltha_flow_to_cache(voltha_flow_id, dev_fl);
         }
@@ -1731,17 +1736,18 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
             }
         } else { // Flow to be replicated
             OPENOLT_LOG(INFO, openolt_log_id,"not a symmetric flow and replication is needed\n");
-            if (pbit_to_gemport.size() != NUMBER_OF_PBITS) {
+            if (pbit_to_gemport.size() > NUMBER_OF_PBITS) {
                 OPENOLT_LOG(ERROR, openolt_log_id, "invalid pbit-to-gemport map size=%lu", pbit_to_gemport.size())
                 return ::Status(grpc::StatusCode::OUT_OF_RANGE, "pbit-to-gemport-map-len-invalid-for-flow-replication");
             }
-            uint16_t flow_ids[NUMBER_OF_REPLICATED_FLOWS];
+            uint16_t flow_ids[MAX_NUMBER_OF_REPLICATED_FLOWS];
             device_flow dev_fl;
-            if (get_flow_ids(NUMBER_OF_REPLICATED_FLOWS, flow_ids)) {
+            if (get_flow_ids(pbit_to_gemport.size(), flow_ids)) {
                 uint8_t cnt = 0;
                 dev_fl.is_flow_replicated = true;
                 dev_fl.voltha_flow_id = voltha_flow_id;
                 dev_fl.symmetric_voltha_flow_id = INVALID_FLOW_ID; // invalid
+                dev_fl.total_replicated_flows = pbit_to_gemport.size();
                 dev_fl.flow_type = flow_type;
                 for (google::protobuf::Map<unsigned int, unsigned int>::const_iterator it=pbit_to_gemport.begin(); it!=pbit_to_gemport.end(); it++) {
                     dev_fl.params[cnt].flow_id = flow_ids[cnt];
@@ -1766,7 +1772,7 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                             }
                         }
                         // Free up all the flow IDs on failure
-                        free_flow_ids(NUMBER_OF_REPLICATED_FLOWS, flow_ids);
+                        free_flow_ids(pbit_to_gemport.size(), flow_ids);
                         return st;
                     }
                     cnt++;
@@ -2198,7 +2204,7 @@ Status FlowRemoveWrapper_(const ::openolt::Flow* request) {
     std::string flow_type = dev_fl->flow_type;
     if (dev_fl->is_flow_replicated) {
         // Note: Here we are ignoring FlowRemove failures
-        for (int i=0; i<NUMBER_OF_REPLICATED_FLOWS; i++) {
+        for (int i=0; i<dev_fl->total_replicated_flows; i++) {
             st = FlowRemove_(dev_fl->params[i].flow_id, flow_type);
             if (st.error_code() == grpc::StatusCode::OK) {
                 free_flow_id(dev_fl->params[i].flow_id);

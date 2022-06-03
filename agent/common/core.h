@@ -174,7 +174,7 @@ extern "C"
 #define FILL_ARRAY2(ARRAY,START,END,VALUE) for(int i=START;i<END;ARRAY[i]=VALUE,i+=2);
 #define COUNT_OF(array) (sizeof(array) / sizeof(array[0]))
 #define NUMBER_OF_PBITS 8
-#define NUMBER_OF_REPLICATED_FLOWS NUMBER_OF_PBITS
+#define MAX_NUMBER_OF_REPLICATED_FLOWS NUMBER_OF_PBITS
 #define GRPC_THREAD_POOL_SIZE 150
 
 #define GET_FLOW_INTERFACE_TYPE(type) \
