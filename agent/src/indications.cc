@@ -422,6 +422,12 @@ static void OnuDyingGaspIndication(bcmolt_devid olt, bcmolt_msg *msg) {
 }
 
 static void OnuDiscoveryIndication(bcmolt_devid olt, bcmolt_msg *msg) {
+    //Ignore the onu discovery when agent is not connected to VOLTHA
+    if (!state.is_connected()) {
+        bcmolt_msg_free(msg);
+        return;
+    }
+
     openolt::Indication ind;
     openolt::OnuDiscIndication* onu_disc_ind = new openolt::OnuDiscIndication;
     openolt::SerialNumber* serial_number = new openolt::SerialNumber;
