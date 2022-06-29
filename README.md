@@ -44,7 +44,7 @@ The current version of the Broadcom BAL integrated with OpenOLT agent is BAL3.10
 ## Hardware requirements
 
 A list of tested devices and optics can be found in the [CORD hardware
-requirements](https://guide.opencord.org/prereqs/hardware.html#recommended-hardware)
+requirements](https://guide.opencord.org/master/prereqs/hardware.html#recommended-hardware)
 guide, in the *R-CORD access equipment and optics* section.
 
 ## Pre-built debian packages of OpenOLT agent for Accton/Edgecore ASFVOLT16/ASGvOLT64
