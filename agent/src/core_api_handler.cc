@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cerrno>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -207,7 +208,6 @@ Status GetDeviceInfo_(::openolt::DeviceInfo* device_info) {
     device_info->set_model(MODEL_ID);
     device_info->set_hardware_version("");
     device_info->set_firmware_version(firmware_version);
-    device_info->set_technology(board_technology);
     device_info->set_pon_ports(num_of_pon_ports);
 
     char serial_number[OPENOLT_FIELD_LEN];
@@ -237,18 +237,6 @@ Status GetDeviceInfo_(::openolt::DeviceInfo* device_info) {
     }
 
     device_info->set_device_id(device_id);
-
-    // Legacy, device-wide ranges. To be deprecated when adapter
-    // is upgraded to support per-interface ranges
-    device_info->set_onu_id_start(ONU_ID_START);
-    device_info->set_onu_id_end(ONU_ID_END);
-    device_info->set_alloc_id_start(ALLOC_ID_START);
-    device_info->set_alloc_id_end(ALLOC_ID_END);
-    device_info->set_gemport_id_start(GEM_PORT_ID_START);
-    device_info->set_gemport_id_end(GEM_PORT_ID_END);
-    device_info->set_flow_id_start(FLOW_ID_START);
-    device_info->set_flow_id_end(FLOW_ID_END);
-
     std::map<std::string, ::openolt::DeviceInfo::DeviceResourceRanges*> ranges;
     for (uint32_t intf_id = 0; intf_id < num_of_pon_ports; ++intf_id) {
         std::string intf_technology = intf_technologies[intf_id];
@@ -3508,5 +3496,138 @@ Status GetPonRxPower_(uint32_t intf_id, uint32_t onu_id, openolt::PonRxPowerData
         return Status::OK;
     } else {
         return bcm_to_grpc_err(err, "timeout waiting for pon rssi measurement complete indication");
+    }
+}
+
+Status GetOnuInfo_(uint32_t intf_id, uint32_t onu_id, openolt::OnuInfo *response)
+{
+    bcmos_errno err = BCM_ERR_OK;
+
+    bcmolt_onu_state onu_state;
+
+    bcmolt_status losi;
+    bcmolt_status lofi;
+    bcmolt_status loami;
+    err = get_gpon_onu_info((bcmolt_interface)intf_id, onu_id, &onu_state, &losi, &lofi, &loami);
+
+    if (err == BCM_ERR_OK)
+    {
+
+        response->set_onu_id(onu_id);
+        OPENOLT_LOG(DEBUG, openolt_log_id, "onu state  %d\n", onu_state);
+        OPENOLT_LOG(DEBUG, openolt_log_id, "losi  %d\n", losi);
+        OPENOLT_LOG(DEBUG, openolt_log_id, "lofi %d\n", lofi);
+        OPENOLT_LOG(DEBUG, openolt_log_id, "loami %d\n", loami);
+
+        switch (onu_state)
+        {
+        case bcmolt_onu_state::BCMOLT_ONU_STATE_ACTIVE:
+            response->set_state(openolt::OnuInfo_OnuState::OnuInfo_OnuState_ACTIVE);
+            break;
+        case bcmolt_onu_state::BCMOLT_ONU_STATE_INACTIVE:
+            response->set_state(openolt::OnuInfo_OnuState::OnuInfo_OnuState_INACTIVE);
+            break;
+        case bcmolt_onu_state::BCMOLT_ONU_STATE_UNAWARE:
+            response->set_state(openolt::OnuInfo_OnuState::OnuInfo_OnuState_UNKNOWN);
+            break;
+        case bcmolt_onu_state::BCMOLT_ONU_STATE_NOT_CONFIGURED:
+            response->set_state(openolt::OnuInfo_OnuState::OnuInfo_OnuState_NOT_CONFIGURED);
+            break;
+        case bcmolt_onu_state::BCMOLT_ONU_STATE_DISABLED:
+            response->set_state(openolt::OnuInfo_OnuState::OnuInfo_OnuState_DISABLED);
+            break;
+        }
+        switch (losi)
+        {
+        case bcmolt_status::BCMOLT_STATUS_ON:
+            response->set_losi(openolt::AlarmState::ON);
+            break;
+        case bcmolt_status::BCMOLT_STATUS_OFF:
+            response->set_losi(openolt::AlarmState::OFF);
+            break;
+        }
+
+        switch (lofi)
+        {
+        case bcmolt_status::BCMOLT_STATUS_ON:
+            response->set_lofi(openolt::AlarmState::ON);
+            break;
+        case bcmolt_status::BCMOLT_STATUS_OFF:
+            response->set_lofi(openolt::AlarmState::OFF);
+            break;
+        }
+
+        switch (loami)
+        {
+        case bcmolt_status::BCMOLT_STATUS_ON:
+            response->set_loami(openolt::AlarmState::ON);
+            break;
+        case bcmolt_status::BCMOLT_STATUS_OFF:
+            response->set_loami(openolt::AlarmState::OFF);
+            break;
+        }
+        return Status::OK;
+    }
+    else
+    {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch Onu status, onu_id = %d, intf_id = %d, err = %s\n",
+                    onu_id, intf_id, bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "Failed to fetch Onu status");
+    }
+}
+
+Status GetPonInterfaceInfo_(uint32_t intf_id, openolt::PonIntfInfo *response)
+{
+    bcmos_errno err = BCM_ERR_OK;
+
+    bcmolt_status los_status;
+    bcmolt_interface_state state;
+    err = get_pon_interface_status((bcmolt_interface)intf_id, &state, &los_status);
+    OPENOLT_LOG(ERROR, openolt_log_id, "pon state  %d\n",state);
+    OPENOLT_LOG(ERROR, openolt_log_id, "pon los status  %d\n", los_status);
+
+
+    if (err == BCM_ERR_OK)
+    {
+        response->set_intf_id(intf_id) ;
+        switch (los_status)
+        {
+        case bcmolt_status::BCMOLT_STATUS_ON:
+
+            response->set_los(openolt::AlarmState::ON);
+            break;
+        case bcmolt_status::BCMOLT_STATUS_OFF:
+            response->set_los(openolt::AlarmState::OFF);
+            break;
+        }
+
+        switch (state)
+        {
+        case bcmolt_interface_state::BCMOLT_INTERFACE_STATE_ACTIVE_WORKING:
+            response->set_state(openolt::PonIntfInfo_PonIntfState::PonIntfInfo_PonIntfState_ACTIVE_WORKING);
+            break;
+        case bcmolt_interface_state::BCMOLT_INTERFACE_STATE_ACTIVE_STANDBY:
+            response->set_state(openolt::PonIntfInfo_PonIntfState::PonIntfInfo_PonIntfState_ACTIVE_STANDBY);
+            break;
+
+        case bcmolt_interface_state::BCMOLT_INTERFACE_STATE_DISABLED:
+            response->set_state(openolt::PonIntfInfo_PonIntfState::PonIntfInfo_PonIntfState_DISABLED);
+            break;
+
+        case bcmolt_interface_state::BCMOLT_INTERFACE_STATE_INACTIVE:
+
+            response->set_state(openolt::PonIntfInfo_PonIntfState::PonIntfInfo_PonIntfState_INACTIVE);
+            break;
+        default:
+            response->set_state(openolt::PonIntfInfo_PonIntfState::PonIntfInfo_PonIntfState_UNKNOWN);
+        }
+
+        return Status::OK;
+    }
+    else
+    {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to fetch PON interface los status intf_id = %d, err = %s\n",
+                    intf_id, bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "Failed to fetch PON interface los status intf_id");
     }
 }

@@ -21,7 +21,7 @@
 TOP_DIR=`pwd`
 OPENOLTDEVICE ?= sim
 
-OPENOLT_PROTO_VER ?= v5.2.1
+OPENOLT_PROTO_VER ?= v5.4.6
 
 ########################################################################
 ##

@@ -355,6 +355,30 @@ class OpenoltService final : public openolt::Openolt::Service {
             request->onu_id(),
             response);
     }
+
+    Status GetOnuInfo(
+            ServerContext* context,
+            const openolt::Onu* request,
+            openolt::OnuInfo* response) override {
+        return GetOnuInfo_(
+            request->intf_id(),
+            request->onu_id(),
+            response);
+    }
+
+
+    Status GetPonInterfaceInfo(
+            ServerContext* context,
+            const openolt::Interface* request,
+            openolt::PonIntfInfo* response) override {
+        return GetPonInterfaceInfo_(
+            request->intf_id(),
+            response);
+    }
+
+
+
+
 };
 
 bool RunServer(int argc, char** argv) {

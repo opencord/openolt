@@ -891,6 +891,51 @@ bcmos_errno get_onu_state(bcmolt_interface pon_ni, int onu_id, bcmolt_onu_state 
     return err;
 }
 
+bcmos_errno get_gpon_onu_info(bcmolt_interface pon_ni, int onu_id, bcmolt_onu_state *onu_state, bcmolt_status *losi, bcmolt_status *lofi, bcmolt_status *loami)
+{
+
+    bcmos_errno err;
+    bcmolt_onu_cfg onu_cfg;
+    bcmolt_itu_onu_params itu = {};
+    bcmolt_gpon_onu_alarm_state alarm_state = {};
+    bcmolt_gpon_onu_params gpon = {};
+
+    bcmolt_onu_cfg onu_cfg_itu;
+    bcmolt_onu_key onu_key;
+    onu_key.pon_ni = pon_ni;
+    onu_key.onu_id = onu_id;
+
+    BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
+    BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, onu_state);
+
+    BCMOLT_FIELD_SET_PRESENT(&onu_cfg.data, onu_cfg_data, itu);
+
+    BCMOLT_FIELD_SET_PRESENT(&itu, itu_onu_params, gpon);
+    BCMOLT_FIELD_SET_PRESENT(&gpon, gpon_onu_params, alarm_state);
+
+    BCMOLT_FIELD_SET_PRESENT(&alarm_state, gpon_onu_alarm_state, losi);
+    BCMOLT_FIELD_SET_PRESENT(&alarm_state, gpon_onu_alarm_state, lofi);
+    BCMOLT_FIELD_SET_PRESENT(&alarm_state, gpon_onu_alarm_state, loami);
+
+    BCMOLT_FIELD_SET(&gpon, gpon_onu_params, alarm_state, alarm_state);
+
+    BCMOLT_FIELD_SET(&itu, itu_onu_params, gpon, gpon);
+
+    BCMOLT_FIELD_SET(&onu_cfg.data, onu_cfg_data, itu, itu);
+
+    err = bcmolt_cfg_get(dev_id, &onu_cfg.hdr);
+
+    *onu_state = onu_cfg.data.onu_state;
+    // fetch onu itu
+    *losi = onu_cfg.data.itu.gpon.alarm_state.losi;
+
+    *lofi = onu_cfg.data.itu.gpon.alarm_state.lofi;
+
+    *loami = onu_cfg.data.itu.gpon.alarm_state.loami;
+
+    return err;
+}
+
 bcmos_errno get_gem_obj_state(bcmolt_interface pon_ni, bcmolt_gem_port_id id, bcmolt_activation_state *state) {
     bcmos_errno err;
     bcmolt_itupon_gem_cfg cfg;

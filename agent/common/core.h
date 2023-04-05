@@ -248,6 +248,8 @@ Status GetLogicalOnuDistance_(uint32_t intf_id, uint32_t onu_id, openolt::OnuLog
 Status GetOnuStatistics_(uint32_t intf_id, uint32_t onu_id, openolt::OnuStatistics *onu_stats);
 Status GetGemPortStatistics_(uint32_t intf_id, uint32_t gemport_id, openolt::GemPortStatistics* gemport_stats);
 Status GetPonRxPower_(uint32_t intf_id, uint32_t onu_id, openolt::PonRxPowerData* response);
+Status GetOnuInfo_(uint32_t intf_id, uint32_t onu_id, openolt::OnuInfo *response);
+Status GetPonInterfaceInfo_(uint32_t intf_id, openolt::PonIntfInfo *response);
 int get_status_bcm_cli_quit(void);
 uint16_t get_dev_id(void);
 Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state, uint32_t speed);
