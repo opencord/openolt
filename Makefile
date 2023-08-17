@@ -1,4 +1,5 @@
-#Copyright 2018-present Open Networking Foundation
+# -*- makefile -*-
+# Copyright 2018-2023 Open Networking Foundation (ONF) and the ONF Contributors
 #
 #Licensed under the Apache License, Version 2.0 (the "License");
 #you may not use this file except in compliance with the License.
@@ -22,6 +23,7 @@
 
 # set default shell options
 SHELL = bash -e -o pipefail
+## See also: https://github.com/opencord/onf-make/blob/master/makefiles/consts.mk
 
 export OPENOLT_ROOT_DIR=$(shell pwd)
 
@@ -41,6 +43,14 @@ DOCKER_BUILD_ARGS ?= \
 	--build-arg OPENOLTDEVICE=${OPENOLTDEVICE} \
 	--build-arg OPENOLT_PROTO_VER=${OPENOLT_PROTO_VER}
 
+## -----------------------------------------------------------------------
+## See github::onf-make (docker --tty), docker -it inhibits jenkins logging output
+## https://github.com/opencord/onf-make/blob/master/makefiles/docker/include.mk#L34
+## -----------------------------------------------------------------------
+## Overhead from $(shell pwd) can be avoided using a ./Makefile derived path
+##   path := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+## -----------------------------------------------------------------------
+
 test:
 	${DOCKER} run --rm -v $(shell pwd):/app $(shell test -t 0 && echo "-it") ${IMAGENAME} make -C agent/test test
 
@@ -53,3 +63,5 @@ clean:
 cleanall:
 	${DOCKER} run --rm -v $(shell pwd):/app $(shell test -t 0 && echo "-it") ${IMAGENAME} make -C agent/test clean
 	${DOCKER} run --rm -v $(shell pwd):/app $(shell test -t 0 && echo "-it") ${IMAGENAME} make -C protos distclean
+
+# [EOF]
