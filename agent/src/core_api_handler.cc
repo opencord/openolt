@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-present Open Networking Foundation
+ * Copyright 2018-2023 Open Networking Foundation (ONF) and the ONF Contributors
 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1170,7 +1170,7 @@ Status ActivateOnu_(uint32_t intf_id, uint32_t onu_id,
     bcmos_errno err = BCM_ERR_OK;
     bcmolt_onu_cfg onu_cfg;
     bcmolt_onu_key onu_key;
-    bcmolt_serial_number serial_number; /**< ONU serial number */
+    bcmolt_serial_number serial_number = {}; /**< ONU serial number */
     bcmolt_bin_str_36 registration_id; /**< ONU registration ID */
 
     bcmolt_onu_set_onu_state onu_oper; /* declare main API struct */
@@ -1218,6 +1218,7 @@ vendor specific %s, pir %d\n", onu_id, intf_id, vendor_id,
 
         memcpy(serial_number.vendor_id.arr, vendor_id, 4);
         memcpy(serial_number.vendor_specific.arr, vendor_specific, 4);
+
         BCMOLT_CFG_INIT(&onu_cfg, onu, onu_key);
         BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.serial_number, serial_number);
         BCMOLT_MSG_FIELD_SET(&onu_cfg, itu.auto_learning, BCMOS_TRUE);
@@ -2313,6 +2314,7 @@ Status FlowRemove_(uint32_t flow_id, const std::string flow_type) {
             if (it->first.first == flow_id && it->first.second == key.flow_type) {
                 flow_id_counters -= 1;
                 flow_map.erase(it);
+                break; /* After match found break from the loop, otherwise leads to crash */
             }
         }
     }
