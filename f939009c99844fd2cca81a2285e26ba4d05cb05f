@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "b1a2fbe5_dec038a3",
+        "filename": "agent/common/main.cc",
+        "patchSetId": 3
+      },
+      "lineNbr": 144,
+      "author": {
+        "id": 1000558
+      },
+      "writtenOn": "2024-03-12T10:25:31Z",
+      "side": 1,
+      "message": "Why don\u0027t we call EnableUplinkIf_(i) anymore?",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    }
+  ]
+}
