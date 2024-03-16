@@ -928,6 +928,16 @@ Status EnablePonIf_(uint32_t intf_id) {
     if (intf_technology == "GPON") {
         BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.power_level.pls_maximum_allocation_size, BCMOLT_PON_POWER_LEVEL_PLS_MAXIMUM_ALLOCATION_SIZE_DEFAULT);
         BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.power_level.mode, BCMOLT_PON_POWER_LEVEL_MODE_DEFAULT);
+	/* PON gpon itu threshold default values for LOSi, LOFi and LOAMi are
+           configured as 4, 4 and 3 respectively. These values are suppressing
+           onu down indication from BAL.
+           To fix this problem all thresholds for LOSi, LOFi and LOAMi are
+           configured with 14. After this configuration BAL started sending
+           onu down indication.
+        */
+        BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.onu_alarms_thresholds.losi, 14);
+        BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.onu_alarms_thresholds.lofi, 14);
+        BCMOLT_MSG_FIELD_SET(&interface_obj, itu.gpon.onu_alarms_thresholds.loami, 14);
     }
 
     // TODO: Currently the PON Type is set automatically when the MAC System Mode is set. But it could be explicitely set here again.
@@ -937,6 +947,10 @@ Status EnablePonIf_(uint32_t intf_id) {
     BCMOLT_MSG_FIELD_SET(&interface_obj, itu.onu_activation.key_exchange, BCMOLT_CONTROL_STATE_ENABLE);
     BCMOLT_MSG_FIELD_SET(&interface_obj, itu.onu_activation.authentication, BCMOLT_CONTROL_STATE_ENABLE);
     BCMOLT_MSG_FIELD_SET(&interface_obj, itu.onu_activation.fail_due_to_authentication_failure, BCMOLT_CONTROL_STATE_ENABLE);
+    /* PON LOS wait time is set to 500ms, so that ONU LOS  will not be seen
+       before PON LOS during manual fiber pull or fiber cut scenarios.
+    */
+    BCMOLT_MSG_FIELD_SET(&interface_obj, los_wait_timeout, 500);
 
     BCMOLT_FIELD_SET(&pon_interface_set_state.data, pon_interface_set_pon_interface_state_data,
         operation, BCMOLT_INTERFACE_OPERATION_ACTIVE_WORKING);
