@@ -1,6 +1,40 @@
 {
   "comments": [
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "e9fb10bc_bb063bf7",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000948
+      },
+      "writtenOn": "2024-04-11T17:05:00Z",
+      "side": 1,
+      "message": "One general request for the patch:\n\nCan you inline the project copyright notice spanning 2024 within all the patch sources:\n    https://github.com/joey-onf/copyright/blob/origin/master/notice",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "c966ec51_96494d40",
+        "filename": "agent/Makefile.in",
+        "patchSetId": 3
+      },
+      "lineNbr": 55,
+      "author": {
+        "id": 1000948
+      },
+      "writtenOn": "2024-04-11T17:05:00Z",
+      "side": 1,
+      "message": "Can you move the line comment above the variable assignment.\nOr use two comment symbols, the first attached to 5.4.10 w/o any space.\n\nMake has a nasty habit of attaching trailing space to a value when comments are written this way.\n\nIf later a value is derived from O_P_V:\n   val :\u003d $(OPENOLT_PROTO_VER)-dev\n\nThe expanded string will be: \"v5.4.10\u003cspace\u003e-dev\"\n\nOr creating a file can be interesting:\n    touch \"$(OPENOLT_PROTO_VER)\" \n\nFile v5.4.10 would not exist due to the silent addition of a space character.",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "b1a2fbe5_dec038a3",
@@ -82,6 +116,23 @@
       "writtenOn": "2024-04-11T15:37:37Z",
       "side": 1,
       "message": "Question:\n  % git apply \"disable-certificate-validation-v$(COMMIT_ID)\"\n\nWhat problem was resolved by introducing \"disable-certificate-validation-*\":\n  * Patch signing / validation failures ?\n  * SSL certificate/access problems to a server ?\n\nI do not think we should be performing this action in either case:\n  * If code will be released -- patches should be signed to prove content is valid and any external resources they are built from is also valid.\n  * If we are building an artifact for release and server/retrieval problems exist, those need to be resolved:\n     * If SSL certs were disabled due to intermittent access problems, masking failure will allow the problem to manifest around the build system.\n     * When patch certs are disabled that can disable some error detection and/or create security issues.",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "fdc19eb1_622ef12a",
+        "filename": "agent/download/debian_stretch_mirror.patch",
+        "patchSetId": 3
+      },
+      "lineNbr": 6,
+      "author": {
+        "id": 1000948
+      },
+      "writtenOn": "2024-04-11T17:05:00Z",
+      "side": 1,
+      "message": "Stray whitespace on lines 6 \u0026 13",
       "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     }
