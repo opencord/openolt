@@ -16,6 +16,74 @@
       "message": "Why don\u0027t we call EnableUplinkIf_(i) anymore?",
       "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "8cc2ecd0_7d03ad08",
+        "filename": "agent/download/Makefile.onl",
+        "patchSetId": 3
+      },
+      "lineNbr": 1,
+      "author": {
+        "id": 1000948
+      },
+      "writtenOn": "2024-04-11T15:37:37Z",
+      "side": 1,
+      "message": "Syntax of the Apache copyright line used by the project can be found here:\nhttps://github.com/joey-onf/copyright/blob/origin/master/notice\n\nCan you add an entry that spans 2024",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "c48cbc9b_f7d41245",
+        "filename": "agent/download/Makefile.onl",
+        "patchSetId": 3
+      },
+      "lineNbr": 27,
+      "author": {
+        "id": 1000948
+      },
+      "writtenOn": "2024-04-11T15:37:37Z",
+      "side": 1,
+      "message": "Hi,\n\nIt it is perfectly fine to inline shell commands within makefiles:\n  * Thumbs up using \u0027\u0026\u0026\u0027 as a separator VS \u0027;\u0027\n  * \"export SHELL :\u003d bash -euo pipefail\" can also be added near the top to help error detection.\n\n\nFor maintainability I would strongly suggest refactoring blocks of shell logic and place them in named shell scripts that accept parameters.  There are a few benefits to be had:\n\n  * The shellcheck command (make lint-shell) can detect scripting and security problems.\n\nhttps://docs.voltha.org/master/howto/code/linting.html?highlight\u003dlint%20shell#shell-command-line-scripts\n\n  * Quoting, line continuation, etc are far less tedious to deal with.\n  * \"set -euo pipefail\" so bash can report problems.\n  * scripting can validate args passed in, adding error detection for vars \u0026 values.\n  * cd OpenNetworkLinux x [n]\n      * Several cd calls can be replaced with a single pushd \"OpenNetworkLinux\" within the script.\n  * Smoke and unit tests can also be created for the standalone scripts:\n\nhttps://bats-core.readthedocs.io/en/stable/writing-tests.html",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "0a9c7d6f_7d04f35c",
+        "filename": "agent/download/Makefile.onl",
+        "patchSetId": 3
+      },
+      "lineNbr": 30,
+      "author": {
+        "id": 1000948
+      },
+      "writtenOn": "2024-04-11T15:37:37Z",
+      "side": 1,
+      "message": "Question: I see several checkouts made by --commit-id.\n\nFor VOLTHA release -- we normally branch \u0026 tag repositories to freeze the code base and testing so development can progress while retaining the ability to apply bug fixes to frozen state after a release has been made.\n\nFrom a high level it seems like the makefile is attempting to maintain release metadata outside the normal build system release model.  Is there an explicit need for secondary release metadata // checking out an explicit changeset ?",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "16503d3e_5a605e10",
+        "filename": "agent/download/Makefile.onl",
+        "patchSetId": 3
+      },
+      "lineNbr": 31,
+      "author": {
+        "id": 1000948
+      },
+      "writtenOn": "2024-04-11T15:37:37Z",
+      "side": 1,
+      "message": "Question:\n  % git apply \"disable-certificate-validation-v$(COMMIT_ID)\"\n\nWhat problem was resolved by introducing \"disable-certificate-validation-*\":\n  * Patch signing / validation failures ?\n  * SSL certificate/access problems to a server ?\n\nI do not think we should be performing this action in either case:\n  * If code will be released -- patches should be signed to prove content is valid and any external resources they are built from is also valid.\n  * If we are building an artifact for release and server/retrieval problems exist, those need to be resolved:\n     * If SSL certs were disabled due to intermittent access problems, masking failure will allow the problem to manifest around the build system.\n     * When patch certs are disabled that can disable some error detection and/or create security issues.",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     }
   ]
 }
