@@ -31,6 +31,7 @@
 
 #include <grpc++/grpc++.h>
 #include <voltha_protos/openolt.grpc.pb.h>
+#include <voltha_protos/common.grpc.pb.h>
 #include <voltha_protos/tech_profile.grpc.pb.h>
 
 using grpc::Server;
@@ -377,6 +378,33 @@ class OpenoltService final : public openolt::Openolt::Service {
     }
 
 
+    Status GetPonPortStatistics(
+            ServerContext* context,
+            const openolt::Interface* request,
+            common::PortStatistics* response) override {
+        return GetPonPortStatistics_(
+            request->intf_id(),
+            response);
+    }
+
+    Status GetNniPortStatistics(
+            ServerContext* context,
+            const openolt::Interface* request,
+            common::PortStatistics* response) override {
+        return GetNniPortStatistics_(
+            request->intf_id(),
+            response);
+    }
+
+    Status GetAllocIdStatistics(
+            ServerContext* context,
+            const openolt::OnuPacket* request,
+            openolt::OnuAllocIdStatistics* response) override {
+        return GetAllocIdStatistics_(
+            request->intf_id(),
+            request->alloc_id(),
+            response);
+    }
 
 
 };
