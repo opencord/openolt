@@ -18,6 +18,7 @@
 #define OPENOLT_STATS_COLLECTION_H_
 
 #include <voltha_protos/openolt.grpc.pb.h>
+#include <voltha_protos/common.grpc.pb.h>
 
 extern "C"
 {
@@ -26,10 +27,11 @@ extern "C"
 
 void init_stats();
 void stop_collecting_statistics();
-openolt::PortStatistics* get_default_port_statistics();
-openolt::PortStatistics* collectPortStatistics(bcmolt_interface_id intf_id, bcmolt_interface_type intf_type);
+common::PortStatistics* get_default_port_statistics();
+common::PortStatistics* collectPortStatistics(bcmolt_interface_id intf_id, bcmolt_interface_type intf_type);
 bcmos_errno get_onu_statistics(bcmolt_interface_id intf_id, bcmolt_onu_id onu_id, openolt::OnuStatistics* onu_stats);
 bcmos_errno get_gemport_statistics(bcmolt_interface_id intf_id, bcmolt_gem_port_id gemport_id, openolt::GemPortStatistics* gemport_stats);
+bcmos_errno get_port_statistics(bcmolt_intf_ref intf_ref, common::PortStatistics* port_stats);
 #if 0
 openolt::FlowStatistics* get_default_flow_statistics();
 openolt::FlowStatistics* collectFlowStatistics(bcmbal_flow_id flow_id, bcmbal_flow_type flow_type);

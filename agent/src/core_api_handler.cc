@@ -3449,6 +3449,40 @@ Status GetGemPortStatistics_(uint32_t intf_id, uint32_t gemport_id, openolt::Gem
     return Status::OK;
 }
 
+Status GetPonPortStatistics_(uint32_t intf_id, common::PortStatistics* pon_stats) {
+    bcmos_errno err;
+    bcmolt_intf_ref intf_ref;
+    intf_ref.intf_type = BCMOLT_INTERFACE_TYPE_PON;
+    intf_ref.intf_id = intf_id;
+
+    err = get_port_statistics(intf_ref, pon_stats);
+
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "retrieval of Pon port statistics failed - Intf ID = %u, err = %d - %s", intf_id, err, bcmos_strerror(err));
+        return grpc::Status(grpc::StatusCode::INTERNAL, "retrieval of Pon port statistics failed");
+    }
+
+    OPENOLT_LOG(INFO, openolt_log_id, "retrieved Pon port statistics for Intf ID = %d\n", (int)intf_id);
+    return Status::OK;
+}
+
+Status GetNniPortStatistics_(uint32_t intf_id, common::PortStatistics* nni_stats) {
+    bcmos_errno err;
+    bcmolt_intf_ref intf_ref;
+    intf_ref.intf_type = BCMOLT_INTERFACE_TYPE_NNI;
+    intf_ref.intf_id = intf_id;
+
+    err = get_port_statistics(intf_ref, nni_stats);
+
+    if (err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "retrieval of Nni port statistics failed - Nni Port ID = %u, err = %d - %s", intf_id, err, bcmos_strerror(err));
+        return grpc::Status(grpc::StatusCode::INTERNAL, "retrieval of Nni port statistics failed");
+    }
+
+    OPENOLT_LOG(INFO, openolt_log_id, "retrieved Nni port statistics for Nni Port ID = %d\n", (int)intf_id);
+    return Status::OK;
+}
+
 Status GetPonRxPower_(uint32_t intf_id, uint32_t onu_id, openolt::PonRxPowerData* response) {
     bcmos_errno err = BCM_ERR_OK;
 

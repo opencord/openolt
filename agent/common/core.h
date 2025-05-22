@@ -20,6 +20,7 @@
 #include <grpc++/grpc++.h>
 using grpc::Status;
 #include <voltha_protos/openolt.grpc.pb.h>
+#include <voltha_protos/common.grpc.pb.h>
 #include <voltha_protos/ext_config.grpc.pb.h>
 
 #include "state.h"
@@ -250,6 +251,8 @@ Status GetGemPortStatistics_(uint32_t intf_id, uint32_t gemport_id, openolt::Gem
 Status GetPonRxPower_(uint32_t intf_id, uint32_t onu_id, openolt::PonRxPowerData* response);
 Status GetOnuInfo_(uint32_t intf_id, uint32_t onu_id, openolt::OnuInfo *response);
 Status GetPonInterfaceInfo_(uint32_t intf_id, openolt::PonIntfInfo *response);
+Status GetPonPortStatistics_(uint32_t intf_id, common::PortStatistics* pon_stats);
+Status GetNniPortStatistics_(uint32_t intf_id, common::PortStatistics* nni_stats);
 int get_status_bcm_cli_quit(void);
 uint16_t get_dev_id(void);
 Status pushOltOperInd(uint32_t intf_id, const char *type, const char *state, uint32_t speed);
