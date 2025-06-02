@@ -1,0 +1,31 @@
+# Copyright 2017-2025 the Open Networking Foundation Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at:
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+COMMIT_ID = f0bcb230
+RLT_COMMIT_ID = 72b95a7
+INBAND = "n"
+BOARD = ""
+
+onl-4.14:
+	if [ $(INBAND) = y ]; then \
+	    cd OpenNetworkLinux && git checkout -B $@ $(COMMIT_ID) && git pull origin pull/822/head -ff -q --no-edit && git apply disable-certificate-validation-v$(COMMIT_ID).patch && git apply inband-$(COMMIT_ID).patch && docker/tools/onlbuilder --non-interactive -8 -c ./build-onl.sh; \
+	else \
+	cd OpenNetworkLinux && git stash && git checkout -B $@ $(COMMIT_ID) && git pull origin pull/822/head -ff -q --no-edit && git apply disable-certificate-validation-v$(COMMIT_ID).patch && docker/tools/onlbuilder --non-interactive -8 -c ./build-onl.sh; \
+	fi;
+onl-4.19:
+	if [ "$(BOARD)" = "rlt-3200g-w" ] || [ "$(BOARD)" = "rlt-1600g-w" ] || [ "$(BOARD)" = "rlt-1600x-w" ]; then \
+		cd OpenNetworkLinux && git stash && git checkout -B $@ $(RLT_COMMIT_ID) && git apply disable-certificate-validation-v$(RLT_COMMIT_ID).patch && bash update_kernel_options.sh && git apply debian_stretch_mirror.patch && docker/tools/onlbuilder --non-interactive -9 -c ./build-onl.sh; \
+	else \
+		cd OpenNetworkLinux && git stash && git checkout -B $@ $(COMMIT_ID) && git pull origin pull/822/head -ff -q --no-edit && git apply disable-certificate-validation-v$(COMMIT_ID).patch && git apply debian_stretch_mirror.patch && docker/tools/onlbuilder --non-interactive -9 -c ./build-onl.sh; \
+	fi;
