@@ -70,7 +70,7 @@ static bcmos_errno CreateSched(std::string direction, uint32_t access_intf_id, u
                           uint32_t priority, ::tech_profile::SchedulingPolicy sched_policy,
                           ::tech_profile::TrafficShapingInfo traffic_shaping_info, uint32_t tech_profile_id);
 static bcmos_errno RemoveSched(int intf_id, int onu_id, int uni_id, int alloc_id, std::string direction, int tech_profile_id);
-static bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, \
+static bcmos_errno CreateQueue(std::string direction, uint32_t nni_intf_id, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, \
                                bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id, uint32_t tech_profile_id);
 static bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id, \
                                bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id, uint32_t tech_profile_id);
@@ -209,6 +209,7 @@ Status GetDeviceInfo_(::openolt::DeviceInfo* device_info) {
     device_info->set_hardware_version("");
     device_info->set_firmware_version(firmware_version);
     device_info->set_pon_ports(num_of_pon_ports);
+    device_info->set_nni_ports(num_of_nni_ports);
 
     char serial_number[OPENOLT_FIELD_LEN];
     memset(serial_number, '\0', OPENOLT_FIELD_LEN);
@@ -1627,7 +1628,7 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
         intf_id = network_intf_id;
     }
 
-    OPENOLT_LOG(INFO, openolt_log_id, "received flow add. voltha_flow_id=%lu, symmetric_voltha_flow_id=%lu, replication=%d\n", voltha_flow_id, symmetric_voltha_flow_id, replicate_flow)
+    OPENOLT_LOG(INFO, openolt_log_id, "received flow add. voltha_flow_id=%lu, symmetric_voltha_flow_id=%lu, network_intf_id=%d, replication=%d\n", voltha_flow_id, symmetric_voltha_flow_id, network_intf_id, replicate_flow);
     // This is the case of voltha_flow_id (not symmetric_voltha_flow_id)
     if (is_voltha_flow_installed(voltha_flow_id)) {
         OPENOLT_LOG(INFO, openolt_log_id, "voltha_flow_id=%lu, already installed\n", voltha_flow_id);
@@ -2078,8 +2079,8 @@ Status FlowAdd_(int32_t access_intf_id, int32_t onu_id, int32_t uni_id, uint32_t
                 BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.priority_to_queue.tm_qmp_id, tm_qmp_id);
                 BCMOLT_MSG_FIELD_SET(&cfg , egress_qos.u.priority_to_queue.tm_q_set_id, tm_q_set_id);
 
-                OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, q_set_id = %d, sched_id = %d, intf_type %s\n", \
-                        upstream.c_str(), tm_q_set_id, tm_val.sched_id, \
+                OPENOLT_LOG(DEBUG, openolt_log_id, "direction = %s, q_set_id = %d, tm_qmp_id = %d, sched_id = %d, intf_type %s\n", \
+                        upstream.c_str(), tm_q_set_id, tm_qmp_id, tm_val.sched_id, \
                         GET_FLOW_INTERFACE_TYPE(cfg.data.ingress_intf.intf_type));
             }
         }
@@ -2836,13 +2837,13 @@ bcmos_errno CreateDefaultQueue(uint32_t intf_id, const std::string direction) {
     return BCM_ERR_OK;
 }
 
-bcmos_errno CreateQueue(std::string direction, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id,
+bcmos_errno CreateQueue(std::string direction, uint32_t nni_intf_id, uint32_t access_intf_id, uint32_t onu_id, uint32_t uni_id,
                         bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id, uint32_t tech_profile_id) {
     bcmos_errno err;
     bcmolt_tm_queue_cfg cfg;
     bcmolt_tm_queue_key key = { };
-    OPENOLT_LOG(INFO, openolt_log_id, "creating %s queue. access_intf_id = %d, onu_id = %d, uni_id = %d \
-gemport_id = %d, tech_profile_id = %d\n", direction.c_str(), access_intf_id, onu_id, uni_id, gemport_id, tech_profile_id);
+    OPENOLT_LOG(INFO, openolt_log_id, "creating %s queue. access_intf_id = %d, nni_intf_id = %d, onu_id = %d, uni_id = %d \
+gemport_id = %d, tech_profile_id = %d\n", direction.c_str(), access_intf_id, nni_intf_id, onu_id, uni_id, gemport_id, tech_profile_id);
 
     key.sched_id = (direction == upstream) ? get_default_tm_sched_id(nni_intf_id, direction) : \
         get_tm_sched_id(access_intf_id, onu_id, uni_id, direction, tech_profile_id);
@@ -2910,6 +2911,7 @@ intf_id %d, onu_id %d, uni_id %d, tech_profiled_id %d\n", direction.c_str(), key
 
 Status CreateTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues) {
     uint32_t intf_id = traffic_queues->intf_id();
+    uint32_t nni_intf_id = traffic_queues->network_intf_id();
     uint32_t onu_id = traffic_queues->onu_id();
     uint32_t uni_id = traffic_queues->uni_id();
     uint32_t tech_profile_id = traffic_queues->tech_profile_id();
@@ -2918,6 +2920,7 @@ Status CreateTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues)
     bcmos_errno err;
     bcmolt_egress_qos_type qos_type = get_qos_type(intf_id, onu_id, uni_id, traffic_queues->traffic_queues_size());
 
+    OPENOLT_LOG(DEBUG, openolt_log_id, "Create traffic queues nni_intf_id %d, intf_id %d\n", nni_intf_id, intf_id);
     if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE) {
         uint32_t queues_priority_q[traffic_queues->traffic_queues_size()] = {0};
         std::string queues_pbit_map[traffic_queues->traffic_queues_size()];
@@ -2960,7 +2963,7 @@ Status CreateTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues)
             return bcm_to_grpc_err(BCM_ERR_PARM, "direction-not-supported");
 	}
 
-        err = CreateQueue(direction, intf_id, onu_id, uni_id, qos_type, traffic_queue.priority(), traffic_queue.gemport_id(), tech_profile_id);
+        err = CreateQueue(direction, nni_intf_id, intf_id, onu_id, uni_id, qos_type, traffic_queue.priority(), traffic_queue.gemport_id(), tech_profile_id);
 
         // If the queue exists already, lets not return failure and break the loop.
         if (err && err != BCM_ERR_ALREADY) {
@@ -3039,6 +3042,7 @@ intf_id %d, onu_id %d, uni_id %d\n", direction.c_str(), key.id, key.sched_id, ke
 
 Status RemoveTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues) {
     uint32_t intf_id = traffic_queues->intf_id();
+    uint32_t nni_intf_id = traffic_queues->network_intf_id();
     uint32_t onu_id = traffic_queues->onu_id();
     uint32_t uni_id = traffic_queues->uni_id();
     uint32_t port_no = traffic_queues->port_no();
@@ -3049,6 +3053,8 @@ Status RemoveTrafficQueues_(const ::tech_profile::TrafficQueues *traffic_queues)
     bcmolt_egress_qos_type qos_type = get_qos_type(intf_id, onu_id, uni_id, traffic_queues->traffic_queues_size());
     Status ret_code = Status::OK;
 
+    OPENOLT_LOG(DEBUG, openolt_log_id, "Remove Traffic Queues for nni_intf_id %d, intf_id %d\n", nni_intf_id, intf_id);
+    
     for (int i = 0; i < traffic_queues->traffic_queues_size(); i++) {
         ::tech_profile::TrafficQueue traffic_queue = traffic_queues->traffic_queues(i);
 
