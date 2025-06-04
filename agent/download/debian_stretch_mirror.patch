@@ -1,0 +1,13 @@
+diff --git a/tools/onlrfs.py b/tools/onlrfs.py
+index a9a4cb5d..051259d0 100755
+--- a/tools/onlrfs.py
++++ b/tools/onlrfs.py
+@@ -302,7 +302,7 @@ class OnlRfsBuilder(object):
+ 
+     DEFAULTS = dict(
+         DEBIAN_SUITE='wheezy',
+-        DEBIAN_MIRROR='mirrors.kernel.org/debian/',
++        DEBIAN_MIRROR='archive.debian.org/debian/',
+         APT_CACHE='127.0.0.1:3142/'
+         )
+
