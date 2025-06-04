@@ -159,6 +159,7 @@ onl:
 			cp download/Makefile.onl $(ONL_DIR)/Makefile; \
 			install -m 755 download/build-onl.sh $(ONL_DIR)/OpenNetworkLinux; \
 			cp download/disable-certificate-validation*.patch $(ONL_DIR)/OpenNetworkLinux; \
+			cp download/debian_stretch_mirror.patch $(ONL_DIR)/OpenNetworkLinux; \
 			if [ "$(OPENOLTDEVICE)" = "rlt-3200g-w" ] || [ "$(OPENOLTDEVICE)" = "rlt-1600g-w" ] || [ "$(OPENOLTDEVICE)" = "rlt-1600x-w" ]; \
 			then \
 				cp $(TOP_DIR)/device/$(OPENOLTDEVICE)/update_kernel_options.sh $(ONL_DIR)/OpenNetworkLinux/.; \
