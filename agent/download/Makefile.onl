@@ -25,7 +25,7 @@ onl-4.14:
 	fi;
 onl-4.19:
 	if [ "$(BOARD)" = "rlt-3200g-w" ] || [ "$(BOARD)" = "rlt-1600g-w" ] || [ "$(BOARD)" = "rlt-1600x-w" ]; then \
-		cd OpenNetworkLinux && git stash && git checkout -B $@ $(RLT_COMMIT_ID) && git apply disable-certificate-validation-v$(RLT_COMMIT_ID).patch && bash update_kernel_options.sh && docker/tools/onlbuilder --non-interactive -9 -c ./build-onl.sh; \
+		cd OpenNetworkLinux && git stash && git checkout -B $@ $(RLT_COMMIT_ID) && git apply disable-certificate-validation-v$(RLT_COMMIT_ID).patch && bash update_kernel_options.sh && git apply debian_stretch_mirror.patch && docker/tools/onlbuilder --non-interactive -9 -c ./build-onl.sh; \
 	else \
-		cd OpenNetworkLinux && git stash && git checkout -B $@ $(COMMIT_ID) && git pull origin pull/822/head -ff -q --no-edit && git apply disable-certificate-validation-v$(COMMIT_ID).patch && docker/tools/onlbuilder --non-interactive -9 -c ./build-onl.sh; \
+		cd OpenNetworkLinux && git stash && git checkout -B $@ $(COMMIT_ID) && git pull origin pull/822/head -ff -q --no-edit && git apply disable-certificate-validation-v$(COMMIT_ID).patch && git apply debian_stretch_mirror.patch && docker/tools/onlbuilder --non-interactive -9 -c ./build-onl.sh; \
 	fi;
