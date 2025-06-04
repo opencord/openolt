@@ -36,7 +36,6 @@ extern "C"
 using grpc::Status;
 
 bool subscribed = false;
-uint32_t nni_intf_id = 0;
 #define current_device 0
 
 static void OmciIndication(bcmolt_devid olt, bcmolt_msg *msg);
