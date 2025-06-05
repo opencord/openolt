@@ -69,6 +69,24 @@
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "8ec1a5ab_4d3c66c5",
+        "filename": "agent/common/main.cc",
+        "patchSetId": 3
+      },
+      "lineNbr": 144,
+      "author": {
+        "id": 1000960
+      },
+      "writtenOn": "2025-06-05T14:08:53Z",
+      "side": 1,
+      "message": "Seems like is was already not in use. Hence the commented code is being removed.",
+      "parentUuid": "b1a2fbe5_dec038a3",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "8cc2ecd0_7d03ad08",
@@ -82,6 +100,24 @@
       "writtenOn": "2024-04-11T15:37:37Z",
       "side": 1,
       "message": "Syntax of the Apache copyright line used by the project can be found here:\nhttps://github.com/joey-onf/copyright/blob/origin/master/notice\n\nCan you add an entry that spans 2024",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "67b962e6_b5b9dc3d",
+        "filename": "agent/download/Makefile.onl",
+        "patchSetId": 3
+      },
+      "lineNbr": 1,
+      "author": {
+        "id": 1000960
+      },
+      "writtenOn": "2025-06-05T14:08:53Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "8cc2ecd0_7d03ad08",
       "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     },
@@ -103,6 +139,24 @@
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "477b669a_5ef3cdfd",
+        "filename": "agent/download/Makefile.onl",
+        "patchSetId": 3
+      },
+      "lineNbr": 27,
+      "author": {
+        "id": 1000960
+      },
+      "writtenOn": "2025-06-05T14:08:53Z",
+      "side": 1,
+      "message": "Will be taken up under https://lf-broadband.atlassian.net/browse/VOL-5444",
+      "parentUuid": "c48cbc9b_f7d41245",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "0a9c7d6f_7d04f35c",
@@ -116,6 +170,24 @@
       "writtenOn": "2024-04-11T15:37:37Z",
       "side": 1,
       "message": "Question: I see several checkouts made by --commit-id.\n\nFor VOLTHA release -- we normally branch \u0026 tag repositories to freeze the code base and testing so development can progress while retaining the ability to apply bug fixes to frozen state after a release has been made.\n\nFrom a high level it seems like the makefile is attempting to maintain release metadata outside the normal build system release model.  Is there an explicit need for secondary release metadata // checking out an explicit changeset ?",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "b4570915_4796e047",
+        "filename": "agent/download/Makefile.onl",
+        "patchSetId": 3
+      },
+      "lineNbr": 30,
+      "author": {
+        "id": 1000960
+      },
+      "writtenOn": "2025-06-05T14:08:53Z",
+      "side": 1,
+      "message": "Will be taken up under https://lf-broadband.atlassian.net/browse/VOL-5444.",
+      "parentUuid": "0a9c7d6f_7d04f35c",
       "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     },
@@ -137,6 +209,24 @@
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "41511182_61b1aae1",
+        "filename": "agent/download/Makefile.onl",
+        "patchSetId": 3
+      },
+      "lineNbr": 31,
+      "author": {
+        "id": 1000960
+      },
+      "writtenOn": "2025-06-05T14:08:53Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "16503d3e_5a605e10",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "fdc19eb1_622ef12a",
@@ -150,6 +240,24 @@
       "writtenOn": "2024-04-11T17:05:00Z",
       "side": 1,
       "message": "Stray whitespace on lines 6 \u0026 13",
+      "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "7e6301c1_3a75f15e",
+        "filename": "agent/download/debian_stretch_mirror.patch",
+        "patchSetId": 3
+      },
+      "lineNbr": 6,
+      "author": {
+        "id": 1000960
+      },
+      "writtenOn": "2025-06-05T14:08:53Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "fdc19eb1_622ef12a",
       "revId": "f939009c99844fd2cca81a2285e26ba4d05cb05f",
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     }
