@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "8b8dce75_b37ec2be",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1001025
+      },
+      "writtenOn": "2025-06-12T09:00:40Z",
+      "side": 1,
+      "message": "\u003e Patch Set 3: Verified-1\n\u003e \n\u003e Build Failed \n\u003e \n\u003e https://jenkins.opencord.org/job/verify_openolt_unit-test/486/ : FAILURE\n\u003e \n\u003e https://jenkins.opencord.org/job/verify_openolt_licensed/783/ : SUCCESS\n\nrecheck\n",
+      "revId": "c8bb87781909ec04257008e6cb0ef2675a3b1e78",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    }
+  ]
+}
