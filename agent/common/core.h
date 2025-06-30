@@ -215,6 +215,8 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     const char *vendor_id, const char *vendor_specific);
 Status EnablePonIf_(uint32_t intf_id);
 Status DisablePonIf_(uint32_t intf_id);
+Status DisableOnuSerialNumber_(const ::openolt::InterfaceOnuSerialNumber* request);
+Status EnableOnuSerialNumber_(const ::openolt::InterfaceOnuSerialNumber* request);
 Status SetStateUplinkIf_(uint32_t intf_id, bool set_state);
 uint32_t GetNniSpeed_(uint32_t intf_id);
 unsigned NumNniIf_();
