@@ -225,6 +225,14 @@ class OpenoltService final : public openolt::Openolt::Service {
         return DisablePonIf_(request->intf_id());
     }
 
+    Status DisableOnuSerialNumber(
+            ServerContext* context,
+            const openolt::InterfaceOnuSerialNumber* request,
+            openolt::Empty* response) override {
+
+        return DisableOnuSerialNumber_(request);
+    }
+    
     Status CollectStatistics(
             ServerContext* context,
             const openolt::Empty* request,
