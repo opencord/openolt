@@ -1137,6 +1137,56 @@ uint32_t GetNniSpeed_(uint32_t intf_id) {
     return speed;
 }
 
+Status DisableOnuSerialNumber_(const ::openolt::InterfaceOnuSerialNumber* request) {
+    bcmos_errno err = BCM_ERR_OK;
+    uint32_t intf_id = request->intf_id();
+    uint32_t onu_id = request->onu_id();
+    bcmolt_onu_set_onu_state    onu_oper;
+    bcmolt_onu_key              onu_key;
+    onu_key.onu_id = onu_id;
+    onu_key.pon_ni = intf_id;
+
+    BCMOLT_OPER_INIT(&onu_oper, onu, set_onu_state, onu_key);
+    BCMOLT_FIELD_SET(&onu_oper.data, onu_set_onu_state_data,
+                onu_state, BCMOLT_ONU_OPERATION_DISABLE);
+ 
+    err = bcmolt_oper_submit(dev_id, &onu_oper.hdr);
+    if (err != BCM_ERR_OK)
+    {
+        OPENOLT_LOG(ERROR, openolt_log_id,"Failed to set onu state to %s. intf_id=%d, onu_id=%d, bcm_err=%s",
+                BCMOLT_ENUM_STRING_VAL(bcmolt_onu_operation, BCMOLT_ONU_OPERATION_DISABLE),
+                intf_id, onu_id,  bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "Failed to disable onu serialnumber");
+    }
+    OPENOLT_LOG(ERROR, openolt_log_id, "Successfully disabled Onu id: %d , interface id %d\n",onu_id,intf_id);
+    return Status::OK;
+}
+
+Status EnableOnuSerialNumber_(const ::openolt::InterfaceOnuSerialNumber* request) {
+    bcmos_errno err = BCM_ERR_OK;
+    uint32_t intf_id = request->intf_id();
+    uint32_t onu_id = request->onu_id();
+    bcmolt_onu_set_onu_state    onu_oper;
+    bcmolt_onu_key              onu_key;
+    onu_key.onu_id = onu_id;
+    onu_key.pon_ni = intf_id;
+
+    BCMOLT_OPER_INIT(&onu_oper, onu, set_onu_state, onu_key);
+    BCMOLT_FIELD_SET(&onu_oper.data, onu_set_onu_state_data,
+                onu_state, BCMOLT_ONU_OPERATION_ENABLE);
+ 
+    err = bcmolt_oper_submit(dev_id, &onu_oper.hdr);
+    if (err != BCM_ERR_OK)
+    {
+        OPENOLT_LOG(ERROR, openolt_log_id,"Failed to set onu state to %s. intf_id=%d, onu_id=%d, bcm_err=%s",
+                BCMOLT_ENUM_STRING_VAL(bcmolt_onu_operation, BCMOLT_ONU_OPERATION_ENABLE),
+                intf_id, onu_id,  bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "Failed to enable onu serialnumber");
+    }
+    OPENOLT_LOG(ERROR, openolt_log_id, "Successfully enabled Onu id: %d , interface id %d\n",onu_id,intf_id);
+    return Status::OK;
+}
+
 Status DisablePonIf_(uint32_t intf_id) {
     bcmos_errno err;
     bcmolt_pon_interface_cfg interface_obj;
