@@ -226,6 +226,38 @@ class OpenoltService final : public openolt::Openolt::Service {
         return DisablePonIf_(request->intf_id());
     }
 
+    Status DisableOnuSerialNumber(
+            ServerContext* context,
+            const openolt::InterfaceOnuSerialNumber* request,
+            openolt::Empty* response) override {
+
+        return DisableOnuSerialNumber_(request);
+    }
+
+    Status EnableOnuSerialNumber(
+            ServerContext* context,
+            const openolt::InterfaceOnuSerialNumber* request,
+            openolt::Empty* response) override {
+
+        return EnableOnuSerialNumber_(request);
+    }
+    
+    Status DisableChildDevice(
+            ServerContext* context,
+            const openolt::InterfaceOnuSerialNumberOnuId* request,
+            openolt::Empty* response) override {
+
+        return DisableChildDevice_(request);
+    }
+
+    Status EnableChildDevice(
+            ServerContext* context,
+            const openolt::InterfaceOnuSerialNumberOnuId* request,
+            openolt::Empty* response) override {
+
+        return EnableChildDevice_(request);
+    }
+    
     Status CollectStatistics(
             ServerContext* context,
             const openolt::Empty* request,

@@ -1137,6 +1137,177 @@ uint32_t GetNniSpeed_(uint32_t intf_id) {
     return speed;
 }
 
+Status DisableOnuSerialNumber_(const ::openolt::InterfaceOnuSerialNumber* request) {
+    bcmos_errno err = BCM_ERR_OK;
+    uint32_t intf_id = request->intf_id();
+     
+    // 1. Parse ONU Serial Number ▒~V~R~@~T assuming 4-byte vendor_id + 4-byte vendor_specific
+    bcmolt_serial_number itu_serial_number = {};
+    bcmolt_bin_str_4 itu_serial_number_vendor_id = {};
+    bcmolt_bin_str_4 itu_serial_number_vendor_specific = {};
+ 
+    // Extract vendor_id and vendor_specific from string
+    // Example onu_serial_number = "BBSM0001530A" ▒~V~R~F~R "BBSM" + binary(vendor_specific)
+    memcpy(itu_serial_number_vendor_id.arr, ((request->onu_serial_number()).vendor_id()).c_str(), 4);
+    memcpy(itu_serial_number_vendor_specific.arr, ((request->onu_serial_number()).vendor_specific()).c_str(), 4);
+ 
+    
+     // 2. Set fields in BAL serial number object
+    BCMOLT_FIELD_SET(&itu_serial_number, serial_number, vendor_id, itu_serial_number_vendor_id);
+    BCMOLT_FIELD_SET(&itu_serial_number, serial_number, vendor_specific, itu_serial_number_vendor_specific);
+ 
+    OPENOLT_LOG(INFO, openolt_log_id, "Received disable request for ONU serial number %s with vendor_id: %s, vendor_specific: %s\n",
+        serial_number_to_str(&itu_serial_number).c_str(),
+                ((request->onu_serial_number()).vendor_id()).c_str(), ((request->onu_serial_number()).vendor_specific()).c_str());
+
+    // 3. Prepare disable_serial_number operation on PON interface
+    bcmolt_pon_interface_key intf_key = {.pon_ni = (bcmolt_interface)intf_id};
+    bcmolt_pon_interface_disable_serial_number pon_interface_disable_sn;
+    BCMOLT_OPER_INIT(&pon_interface_disable_sn, pon_interface, disable_serial_number, intf_key);
+ 
+    // Set the control (enable/disable) and the serial number to disable
+    BCMOLT_FIELD_SET(&pon_interface_disable_sn.data, pon_interface_disable_serial_number_data,
+        control, (bcmolt_disable_serial_number_control)BCMOLT_DISABLE_SERIAL_NUMBER_CONTROL_UNICAST_DISABLE);
+    BCMOLT_FIELD_SET(&pon_interface_disable_sn.data, pon_interface_disable_serial_number_data,
+        serial_number, itu_serial_number);
+ 
+       // 4. Submit operation
+    err = bcmolt_oper_submit(dev_id, &pon_interface_disable_sn.hdr);
+    if(err != BCM_ERR_OK)
+    {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to disable onu serial number %s on port %d: %d, bcm_err: %s, err_text: %s\n",serial_number_to_str(&itu_serial_number).c_str(), intf_id,
+            bcmos_strerror(err), pon_interface_disable_sn.hdr.hdr.err_text);
+        return bcm_to_grpc_err(err, "Failed to disable onu serialnumber");
+    }
+    OPENOLT_LOG(INFO, openolt_log_id, "Successfully disabled Onu Serial number: %s , interface id %d\n",serial_number_to_str(&itu_serial_number).c_str(),intf_id);
+    return Status::OK;
+}
+
+Status EnableOnuSerialNumber_(const ::openolt::InterfaceOnuSerialNumber* request) {
+    bcmos_errno err = BCM_ERR_OK;
+    uint32_t intf_id = request->intf_id();
+     
+    // 1. Parse ONU Serial Number ▒~V~R~@~T assuming 4-byte vendor_id + 4-byte vendor_specific
+    bcmolt_serial_number itu_serial_number = {};
+    bcmolt_bin_str_4 itu_serial_number_vendor_id = {};
+    bcmolt_bin_str_4 itu_serial_number_vendor_specific = {};
+ 
+    // Extract vendor_id and vendor_specific from string
+    // Example onu_serial_number = "BBSM0001530A" ▒~V~R~F~R "BBSM" + binary(vendor_specific)
+    memcpy(itu_serial_number_vendor_id.arr, ((request->onu_serial_number()).vendor_id()).c_str(), 4);
+    memcpy(itu_serial_number_vendor_specific.arr, ((request->onu_serial_number()).vendor_specific()).c_str(), 4);
+ 
+     // 2. Set fields in BAL serial number object
+    BCMOLT_FIELD_SET(&itu_serial_number, serial_number, vendor_id, itu_serial_number_vendor_id);
+    BCMOLT_FIELD_SET(&itu_serial_number, serial_number, vendor_specific, itu_serial_number_vendor_specific);
+ 
+    OPENOLT_LOG(INFO, openolt_log_id, "Received enable request for ONU serial number %s with vendor_id: %s, vendor_specific: %s\n",
+        serial_number_to_str(&itu_serial_number).c_str(),
+                ((request->onu_serial_number()).vendor_id()).c_str(), ((request->onu_serial_number()).vendor_specific()).c_str());
+    // 3. Prepare disable_serial_number operation on PON interface
+    bcmolt_pon_interface_key intf_key = {.pon_ni = (bcmolt_interface)intf_id};
+    bcmolt_pon_interface_disable_serial_number pon_interface_disable_sn;
+    BCMOLT_OPER_INIT(&pon_interface_disable_sn, pon_interface, disable_serial_number, intf_key);
+ 
+    // Set the control (enable/disable) and the serial number to disable
+    BCMOLT_FIELD_SET(&pon_interface_disable_sn.data, pon_interface_disable_serial_number_data,
+        control, (bcmolt_disable_serial_number_control)BCMOLT_DISABLE_SERIAL_NUMBER_CONTROL_UNICAST_ENABLE);
+    BCMOLT_FIELD_SET(&pon_interface_disable_sn.data, pon_interface_disable_serial_number_data,
+        serial_number, itu_serial_number);
+ 
+       // 4. Submit operation
+    err = bcmolt_oper_submit(dev_id, &pon_interface_disable_sn.hdr);
+    if(err != BCM_ERR_OK)
+    {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to enable onu serial number %s on port: %d, bcm_err: %s, err_text: %s\n",serial_number_to_str(&itu_serial_number).c_str(), intf_id,
+            bcmos_strerror(err), pon_interface_disable_sn.hdr.hdr.err_text);
+        return bcm_to_grpc_err(err, "Failed to enable onu serialnumber");
+    }
+    OPENOLT_LOG(INFO, openolt_log_id, "Successfully enabled Onu Serial number: %s , interface id %d\n",serial_number_to_str(&itu_serial_number).c_str(),intf_id);
+    return Status::OK;
+}
+
+Status DisableChildDevice_(const ::openolt::InterfaceOnuSerialNumberOnuId* request) {
+    bcmos_errno err = BCM_ERR_OK;
+    uint32_t intf_id = (request->intf_id_serial_num()).intf_id();
+    uint32_t onu_id = request->onu_id();
+
+     // 1. Parse ONU Serial Number ▒~V~R~@~T assuming 4-byte vendor_id + 4-byte vendor_specific
+    bcmolt_serial_number itu_serial_number = {};
+    bcmolt_bin_str_4 itu_serial_number_vendor_id = {};
+    bcmolt_bin_str_4 itu_serial_number_vendor_specific = {};
+ 
+    // Extract vendor_id and vendor_specific from string
+    // Example onu_serial_number = "BBSM0001530A" ▒~V~R~F~R "BBSM" + binary(vendor_specific)
+    memcpy(itu_serial_number_vendor_id.arr, (((request->intf_id_serial_num()).onu_serial_number()).vendor_id()).c_str(), 4);
+    memcpy(itu_serial_number_vendor_specific.arr, (((request->intf_id_serial_num()).onu_serial_number()).vendor_specific()).c_str(), 4);
+
+    // 2. Set fields in BAL serial number object
+    BCMOLT_FIELD_SET(&itu_serial_number, serial_number, vendor_id, itu_serial_number_vendor_id);
+    BCMOLT_FIELD_SET(&itu_serial_number, serial_number, vendor_specific, itu_serial_number_vendor_specific);
+
+    bcmolt_onu_set_onu_state    onu_oper;
+    bcmolt_onu_key              onu_key;
+    onu_key.onu_id = onu_id;
+    onu_key.pon_ni = intf_id;
+    BCMOLT_OPER_INIT(&onu_oper, onu, set_onu_state, onu_key);
+    BCMOLT_FIELD_SET(&onu_oper.data, onu_set_onu_state_data,
+                onu_state, BCMOLT_ONU_OPERATION_DISABLE);
+ 
+    err = bcmolt_oper_submit(dev_id, &onu_oper.hdr);
+    if (err != BCM_ERR_OK)
+    {
+        OPENOLT_LOG(ERROR, openolt_log_id,"Failed to set onu state to %s.onu serial number=%s, intf_id=%d, onu_id=%d, bcm_err=%s\n",
+                BCMOLT_ENUM_STRING_VAL(bcmolt_onu_operation, BCMOLT_ONU_OPERATION_DISABLE),
+                serial_number_to_str(&itu_serial_number).c_str(),
+                intf_id, onu_id,  bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "Failed to disable onu");
+    }
+    OPENOLT_LOG(ERROR, openolt_log_id, "Successfully disabled Onu device with serial number %s ,id: %d , interface id %d\n",serial_number_to_str(&itu_serial_number).c_str(),onu_id,intf_id);
+    return Status::OK;
+}
+
+Status EnableChildDevice_(const ::openolt::InterfaceOnuSerialNumberOnuId* request) {
+    bcmos_errno err = BCM_ERR_OK;
+    uint32_t intf_id = (request->intf_id_serial_num()).intf_id();
+    uint32_t onu_id = request->onu_id();
+
+     // 1. Parse ONU Serial Number ▒~V~R~@~T assuming 4-byte vendor_id + 4-byte vendor_specific
+    bcmolt_serial_number itu_serial_number = {};
+    bcmolt_bin_str_4 itu_serial_number_vendor_id = {};
+    bcmolt_bin_str_4 itu_serial_number_vendor_specific = {};
+ 
+    // Extract vendor_id and vendor_specific from string
+    // Example onu_serial_number = "BBSM0001530A" ▒~V~R~F~R "BBSM" + binary(vendor_specific)
+    memcpy(itu_serial_number_vendor_id.arr, (((request->intf_id_serial_num()).onu_serial_number()).vendor_id()).c_str(), 4);
+    memcpy(itu_serial_number_vendor_specific.arr, (((request->intf_id_serial_num()).onu_serial_number()).vendor_specific()).c_str(), 4);
+
+    // 2. Set fields in BAL serial number object
+    BCMOLT_FIELD_SET(&itu_serial_number, serial_number, vendor_id, itu_serial_number_vendor_id);
+    BCMOLT_FIELD_SET(&itu_serial_number, serial_number, vendor_specific, itu_serial_number_vendor_specific);
+
+    bcmolt_onu_set_onu_state    onu_oper;
+    bcmolt_onu_key              onu_key;
+    onu_key.onu_id = onu_id;
+    onu_key.pon_ni = intf_id;
+
+    BCMOLT_OPER_INIT(&onu_oper, onu, set_onu_state, onu_key);
+    BCMOLT_FIELD_SET(&onu_oper.data, onu_set_onu_state_data,
+                onu_state, BCMOLT_ONU_OPERATION_ENABLE);
+ 
+    err = bcmolt_oper_submit(dev_id, &onu_oper.hdr);
+    if (err != BCM_ERR_OK)
+    {
+        OPENOLT_LOG(ERROR, openolt_log_id,"Failed to set onu state to %s. Serial number=%s, intf_id=%d, onu_id=%d, bcm_err=%s\n",
+                BCMOLT_ENUM_STRING_VAL(bcmolt_onu_operation, BCMOLT_ONU_OPERATION_ENABLE),
+                serial_number_to_str(&itu_serial_number).c_str(),               
+                intf_id, onu_id,  bcmos_strerror(err));
+        return bcm_to_grpc_err(err, "Failed to enable onu");
+    }
+    OPENOLT_LOG(ERROR, openolt_log_id, "Successfully enabled Onu device with serial number %s, id: %d , interface id %d\n",serial_number_to_str(&itu_serial_number).c_str(),onu_id,intf_id);
+    return Status::OK;
+}
+
 Status DisablePonIf_(uint32_t intf_id) {
     bcmos_errno err;
     bcmolt_pon_interface_cfg interface_obj;
