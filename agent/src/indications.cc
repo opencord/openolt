@@ -341,6 +341,66 @@ static void IfOperIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     bcmolt_msg_free(msg);
 }
 
+static void OnuDisableIndication(bcmolt_devid olt, bcmolt_msg *msg) {
+    openolt::Indication ind;
+    openolt::OnuDisabledIndication* onu_disable_ind = new openolt::OnuDisabledIndication;
+
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_ONU_DISABLE_COMPLETED:
+                {
+                    bcmolt_onu_onu_disable_completed* dgi_data = (bcmolt_onu_onu_disable_completed *)msg;
+                    bcmolt_onu_key *key = &((bcmolt_onu_onu_disable_completed *)msg)->key;
+
+                    int port_no = interface_key_to_port_no(key->pon_ni, BCMOLT_INTERFACE_TYPE_PON);
+
+                    OPENOLT_LOG(INFO, openolt_log_id, "onu disable indication, pon_ni %d, onu_id %d, port_no %d, status %s\n",
+                        key->pon_ni, key->onu_id, port_no, bcmolt_result_to_string(dgi_data->data.status).c_str());
+
+                    onu_disable_ind->set_intf_id(key->pon_ni);
+                    onu_disable_ind->set_onu_id(key->onu_id);
+
+                    ind.set_allocated_onu_disabled_ind(onu_disable_ind);
+                    break;
+                }
+            }
+    }
+
+    oltIndQ.push(ind);
+    bcmolt_msg_free(msg);
+}
+
+static void OnuEnableIndication(bcmolt_devid olt, bcmolt_msg *msg) {
+    openolt::Indication ind;
+    openolt::OnuEnabledIndication* onu_enable_ind = new openolt::OnuEnabledIndication;
+
+    switch (msg->obj_type) {
+        case BCMOLT_OBJ_ID_ONU:
+            switch (msg->subgroup) {
+                case BCMOLT_ONU_AUTO_SUBGROUP_ONU_ENABLE_COMPLETED:
+                {
+                    bcmolt_onu_onu_enable_completed* dgi_data = (bcmolt_onu_onu_enable_completed *)msg;
+                    bcmolt_onu_key *key = &((bcmolt_onu_onu_enable_completed *)msg)->key;
+
+                    int port_no = interface_key_to_port_no(key->pon_ni, BCMOLT_INTERFACE_TYPE_PON);
+
+                    OPENOLT_LOG(INFO, openolt_log_id, "onu enable indication, pon_ni %d, onu_id %d, port_no %d\n",
+                        key->pon_ni, key->onu_id, port_no);
+
+                    onu_enable_ind->set_intf_id(key->pon_ni);
+                    onu_enable_ind->set_onu_id(key->onu_id);
+
+                    ind.set_allocated_onu_enabled_ind(onu_enable_ind);
+                    break;
+                }
+            }
+    }
+
+    oltIndQ.push(ind);
+    bcmolt_msg_free(msg);
+}
+
 static void OnuAlarmIndication(bcmolt_devid olt, bcmolt_msg *msg) {
     openolt::Indication ind;
     openolt::AlarmIndication* alarm_ind = new openolt::AlarmIndication;
@@ -1340,6 +1400,22 @@ Status SubscribeIndication() {
     rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
     if(rc != BCM_ERR_OK)
         return Status(grpc::StatusCode::INTERNAL, "onu dying-gasp indication subscribe failed");
+
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuDisableIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_onu_disable_completed;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, "onu disable indication subscribe failed");
+
+    rx_cfg.obj_type = BCMOLT_OBJ_ID_ONU;
+    rx_cfg.rx_cb = OnuEnableIndication;
+    rx_cfg.flags = BCMOLT_AUTO_FLAGS_NONE;
+    rx_cfg.subgroup = bcmolt_onu_auto_subgroup_onu_enable_completed;
+    rc = bcmolt_ind_subscribe(current_device, &rx_cfg);
+    if(rc != BCM_ERR_OK)
+        return Status(grpc::StatusCode::INTERNAL, "onu enable indication subscribe failed"); 
 
     rx_cfg.obj_type = BCMOLT_OBJ_ID_PON_INTERFACE;
     rx_cfg.rx_cb = OnuDiscoveryIndication;
