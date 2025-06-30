@@ -29,7 +29,7 @@ export OPENOLT_ROOT_DIR=$(shell pwd)
 
 ## Variables
 OPENOLTDEVICE     ?= sim
-OPENOLT_PROTO_VER ?= v5.6.5
+OPENOLT_PROTO_VER ?= v5.6.6
 
 DOCKER                     ?= docker
 DOCKER_REGISTRY            ?=
