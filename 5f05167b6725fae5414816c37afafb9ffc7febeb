@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "543740fa_6814ec12",
+        "filename": "agent/common/server.cc",
+        "patchSetId": 4
+      },
+      "lineNbr": 228,
+      "author": {
+        "id": 1000558
+      },
+      "writtenOn": "2025-07-04T08:46:43Z",
+      "side": 1,
+      "message": "Since the method does not involve disabling the ONU using its serial number, we should rename it to DisableOnu/EnableOnu (just like DeactivateOnu/ActivateOnu).\n\nThis method name confuse people since it implies sending DISABLE PLOAM message to an ONU using its serial number through the PON object (sub\u003ddisable_serial_number). We will probably want to add such a method in the future in case we need to put an ONU into O7 state.",
+      "revId": "5f05167b6725fae5414816c37afafb9ffc7febeb",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "b0a14050_a837d039",
+        "filename": "agent/src/indications.cc",
+        "patchSetId": 4
+      },
+      "lineNbr": 390,
+      "author": {
+        "id": 1000558
+      },
+      "writtenOn": "2025-07-04T08:46:43Z",
+      "side": 1,
+      "message": "\"dgi_data\" --\u003e \"data\"? (probably due to copy-paste typo)",
+      "revId": "5f05167b6725fae5414816c37afafb9ffc7febeb",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    }
+  ]
+}
