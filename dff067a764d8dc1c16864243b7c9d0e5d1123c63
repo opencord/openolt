@@ -1,0 +1,72 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "a7cfd92b_2062011c",
+        "filename": "agent/src/core_api_handler.cc",
+        "patchSetId": 6
+      },
+      "lineNbr": 1154,
+      "author": {
+        "id": 1000558
+      },
+      "writtenOn": "2025-07-09T13:38:00Z",
+      "side": 1,
+      "message": "The log line does not tell the action. Suggestion: \n\n\"Received disable request for ONU serial number with vendor_id: %s, vendor_specific: %s on pon_id: %d\\n\"",
+      "revId": "dff067a764d8dc1c16864243b7c9d0e5d1123c63",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "9b244833_c9ab0c2e",
+        "filename": "agent/src/core_api_handler.cc",
+        "patchSetId": 6
+      },
+      "lineNbr": 1175,
+      "author": {
+        "id": 1000558
+      },
+      "writtenOn": "2025-07-09T13:38:00Z",
+      "side": 1,
+      "message": "Since we should identify the onu by looking at the log line, we need to specify the serial no here also. Suggestion:\n\n\"Failed to disable ONU serial no vendor_id: %s, vendor_specific: %s on pon_id: %d, bcm_err: %s, err_text: %s\\n\"",
+      "revId": "dff067a764d8dc1c16864243b7c9d0e5d1123c63",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "a30976cd_ba5d5c44",
+        "filename": "agent/src/core_api_handler.cc",
+        "patchSetId": 6
+      },
+      "lineNbr": 1179,
+      "author": {
+        "id": 1000558
+      },
+      "writtenOn": "2025-07-09T13:38:00Z",
+      "side": 1,
+      "message": "only vendor_id part will be printed with this log. You can rearrange this line based on my previous suggestions also including vendor_specific part.",
+      "revId": "dff067a764d8dc1c16864243b7c9d0e5d1123c63",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "0cd1882a_2c6c2647",
+        "filename": "agent/src/core_api_handler.cc",
+        "patchSetId": 6
+      },
+      "lineNbr": 1183,
+      "author": {
+        "id": 1000558
+      },
+      "writtenOn": "2025-07-09T13:38:00Z",
+      "side": 1,
+      "message": "My comments for DisableOnuSerialNumber_ are also valid here.",
+      "revId": "dff067a764d8dc1c16864243b7c9d0e5d1123c63",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    }
+  ]
+}

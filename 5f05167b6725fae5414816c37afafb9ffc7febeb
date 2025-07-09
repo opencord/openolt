@@ -20,6 +20,23 @@
     {
       "unresolved": true,
       "key": {
+        "uuid": "ceaa7299_3cb2eeb4",
+        "filename": "agent/src/indications.cc",
+        "patchSetId": 4
+      },
+      "lineNbr": 344,
+      "author": {
+        "id": 1000558
+      },
+      "writtenOn": "2025-07-09T13:38:00Z",
+      "side": 1,
+      "message": "This indication must be handled if we send disable to ONU using a/o object\u003donu sub\u003dset_onu_state... however now we changed the operation to PON disable serial number. So, we don\u0027t need to process this indication, right? (unless you also want to add DisableOnu and EnableOnu methods)",
+      "revId": "5f05167b6725fae5414816c37afafb9ffc7febeb",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
         "uuid": "b0a14050_a837d039",
         "filename": "agent/src/indications.cc",
         "patchSetId": 4
