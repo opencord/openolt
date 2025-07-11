@@ -20,6 +20,24 @@
     {
       "unresolved": true,
       "key": {
+        "uuid": "d18b8dd4_bcd336a8",
+        "filename": "agent/common/server.cc",
+        "patchSetId": 4
+      },
+      "lineNbr": 228,
+      "author": {
+        "id": 1001023
+      },
+      "writtenOn": "2025-07-11T04:22:36Z",
+      "side": 1,
+      "message": "Both are onu disable approaches are implemenated with different rpc calls.",
+      "parentUuid": "543740fa_6814ec12",
+      "revId": "5f05167b6725fae5414816c37afafb9ffc7febeb",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
         "uuid": "ceaa7299_3cb2eeb4",
         "filename": "agent/src/indications.cc",
         "patchSetId": 4
@@ -37,6 +55,24 @@
     {
       "unresolved": true,
       "key": {
+        "uuid": "ddd1c0be_ca27e12e",
+        "filename": "agent/src/indications.cc",
+        "patchSetId": 4
+      },
+      "lineNbr": 344,
+      "author": {
+        "id": 1001023
+      },
+      "writtenOn": "2025-07-11T04:22:36Z",
+      "side": 1,
+      "message": "Need this handlers as DisableChild/EnableChild also is implemented",
+      "parentUuid": "ceaa7299_3cb2eeb4",
+      "revId": "5f05167b6725fae5414816c37afafb9ffc7febeb",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
         "uuid": "b0a14050_a837d039",
         "filename": "agent/src/indications.cc",
         "patchSetId": 4
@@ -48,6 +84,24 @@
       "writtenOn": "2025-07-04T08:46:43Z",
       "side": 1,
       "message": "\"dgi_data\" --\u003e \"data\"? (probably due to copy-paste typo)",
+      "revId": "5f05167b6725fae5414816c37afafb9ffc7febeb",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "f94851c7_02d3b17e",
+        "filename": "agent/src/indications.cc",
+        "patchSetId": 4
+      },
+      "lineNbr": 390,
+      "author": {
+        "id": 1001023
+      },
+      "writtenOn": "2025-07-11T04:22:36Z",
+      "side": 1,
+      "message": "changed variable name , we cant keep name as data as this struct contains another field inside as data",
+      "parentUuid": "b0a14050_a837d039",
       "revId": "5f05167b6725fae5414816c37afafb9ffc7febeb",
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     }
