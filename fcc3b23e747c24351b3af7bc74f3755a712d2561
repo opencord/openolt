@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "3bf709a7_51f3f097",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 11
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000404
+      },
+      "writtenOn": "2025-08-04T11:08:46Z",
+      "side": 1,
+      "message": "Comments in the https://gerrit.opencord.org/c/voltha-protos/+/35780 should be addressed first.",
+      "revId": "fcc3b23e747c24351b3af7bc74f3755a712d2561",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    }
+  ]
+}
