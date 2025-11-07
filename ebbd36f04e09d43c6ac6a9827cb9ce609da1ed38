@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "b8e9a432_a5f803b8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 16
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1001023
+      },
+      "writtenOn": "2025-11-07T09:10:09Z",
+      "side": 1,
+      "message": "\u003e Patch Set 9: Verified-1\n\u003e \n\u003e Build Failed \n\u003e \n\u003e https://jenkins.opencord.org/job/verify_openolt_unit-test/506/ : FAILURE\n\u003e \n\u003e https://jenkins.opencord.org/job/verify_openolt_licensed/803/ : SUCCESS\n\nrecheck",
+      "revId": "ebbd36f04e09d43c6ac6a9827cb9ce609da1ed38",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    }
+  ]
+}
