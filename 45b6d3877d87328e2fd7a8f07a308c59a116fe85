@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "b7fe8f0a_742cbc93",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 19
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1001023
+      },
+      "writtenOn": "2025-11-20T09:55:53Z",
+      "side": 1,
+      "message": "\u003e Patch Set 19: Verified-1\n\u003e \n\u003e Build Failed \n\u003e \n\u003e https://jenkins.lfbroadband.org/job/verify_openolt_unit-test/510/ : FAILURE\n\u003e \n\u003e https://jenkins.lfbroadband.org/job/verify_openolt_licensed/807/ : SUCCESS\n\nrecheck",
+      "revId": "45b6d3877d87328e2fd7a8f07a308c59a116fe85",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    }
+  ]
+}
