@@ -131,6 +131,7 @@ bcmolt_stat_alarm_config set_stat_alarm_config(const config::OnuItuPonAlarm* req
             break;
         default:
             OPENOLT_LOG(ERROR, openolt_log_id, "unsupported alarm reporting condition = %u\n", request->alarm_reporting_condition());
+             OPENOLT_LOG(ERROR, openolt_log_id, "unsupported alarm reporting condition = %u\n", request->alarm_reporting_condition());
             // For now just log the error and not return error. We can handle this scenario in the future.
             break;
     }
