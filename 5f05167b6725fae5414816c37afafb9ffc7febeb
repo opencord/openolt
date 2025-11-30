@@ -36,6 +36,24 @@
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "37c60fa6_ed67136a",
+        "filename": "agent/common/server.cc",
+        "patchSetId": 4
+      },
+      "lineNbr": 228,
+      "author": {
+        "id": 1000558
+      },
+      "writtenOn": "2025-11-30T21:15:17Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "d18b8dd4_bcd336a8",
+      "revId": "5f05167b6725fae5414816c37afafb9ffc7febeb",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "ceaa7299_3cb2eeb4",
@@ -71,6 +89,24 @@
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "5fff2795_9f770f82",
+        "filename": "agent/src/indications.cc",
+        "patchSetId": 4
+      },
+      "lineNbr": 344,
+      "author": {
+        "id": 1000558
+      },
+      "writtenOn": "2025-11-30T21:15:17Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "ddd1c0be_ca27e12e",
+      "revId": "5f05167b6725fae5414816c37afafb9ffc7febeb",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "b0a14050_a837d039",
@@ -102,6 +138,24 @@
       "side": 1,
       "message": "changed variable name , we cant keep name as data as this struct contains another field inside as data",
       "parentUuid": "b0a14050_a837d039",
+      "revId": "5f05167b6725fae5414816c37afafb9ffc7febeb",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "9492e880_461fe6c5",
+        "filename": "agent/src/indications.cc",
+        "patchSetId": 4
+      },
+      "lineNbr": 390,
+      "author": {
+        "id": 1000558
+      },
+      "writtenOn": "2025-11-30T21:15:17Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "f94851c7_02d3b17e",
       "revId": "5f05167b6725fae5414816c37afafb9ffc7febeb",
       "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
     }
