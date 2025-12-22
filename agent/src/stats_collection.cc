@@ -431,19 +431,19 @@ bcmos_errno get_port_statistics(bcmolt_intf_ref intf_ref, common::PortStatistics
             if (err == BCM_ERR_OK)
             {
                 port_stats->set_rx_bytes(nni_stats.data.rx_bytes);
-                port_stats->set_rx_packets(nni_stats.data.rx_packets);
-                port_stats->set_rx_ucast_packets(nni_stats.data.rx_ucast_packets);
-                port_stats->set_rx_mcast_packets(nni_stats.data.rx_mcast_packets);
-                port_stats->set_rx_bcast_packets(nni_stats.data.rx_bcast_packets);
-                port_stats->set_rx_error_packets(nni_stats.data.rx_error_packets);
+                port_stats->set_rx_frames(nni_stats.data.rx_packets);
+                port_stats->set_rx_ucast_frames(nni_stats.data.rx_ucast_packets);
+                port_stats->set_rx_mcast_frames(nni_stats.data.rx_mcast_packets);
+                port_stats->set_rx_bcast_frames(nni_stats.data.rx_bcast_packets);
+                port_stats->set_rx_error_frames(nni_stats.data.rx_error_packets);
                 port_stats->set_rxfcserrorpackets(nni_stats.data.rx_fcs_error_packets);
                 port_stats->set_rxundersizepackets(nni_stats.data.rx_undersize_packets);
                 port_stats->set_rxoversizepackets(nni_stats.data.rx_oversize_packets);
                 port_stats->set_tx_bytes(nni_stats.data.tx_bytes);
-                port_stats->set_tx_packets(nni_stats.data.tx_packets);
-                port_stats->set_tx_ucast_packets(nni_stats.data.tx_ucast_packets);
-                port_stats->set_tx_mcast_packets(nni_stats.data.tx_mcast_packets);
-                port_stats->set_tx_bcast_packets(nni_stats.data.tx_bcast_packets);
+                port_stats->set_tx_frames(nni_stats.data.tx_packets);
+                port_stats->set_tx_ucast_frames(nni_stats.data.tx_ucast_packets);
+                port_stats->set_tx_mcast_frames(nni_stats.data.tx_mcast_packets);
+                port_stats->set_tx_bcast_frames(nni_stats.data.tx_bcast_packets);
                 port_stats->set_tx_error_packets(nni_stats.data.tx_error_packets);
                 port_stats->set_txundersizepackets(nni_stats.data.tx_undersize_packets);
                 port_stats->set_txoversizepackets(nni_stats.data.tx_oversize_packets);
