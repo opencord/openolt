@@ -76,6 +76,7 @@ static bcmos_errno RemoveQueue(std::string direction, uint32_t access_intf_id, u
                                bcmolt_egress_qos_type qos_type, uint32_t priority, uint32_t gemport_id, uint32_t tech_profile_id);
 static bcmos_errno CreateDefaultSched(uint32_t intf_id, const std::string direction);
 static bcmos_errno CreateDefaultQueue(uint32_t intf_id, const std::string direction);
+static Status CleanupResources(bcmolt_interface_id intf_id, bcmolt_onu_id onu_id, std::string direction);
 static const std::chrono::milliseconds ONU_RSSI_COMPLETE_WAIT_TIMEOUT = std::chrono::seconds(10);
 
 inline const char *get_flow_acton_command(uint32_t command) {
@@ -1501,6 +1502,17 @@ Status DeleteOnu_(uint32_t intf_id, uint32_t onu_id,
     bcmos_errno err = BCM_ERR_OK;
     bcmolt_onu_state onu_state;
     Status st;
+    vector<std::string> flow_types = {upstream, downstream};
+
+    // Cleanup the resources in the OLT for both upstream and downstream before deleting ONU
+    for(const auto &flow_type : flow_types) {
+        st = CleanupResources(intf_id, onu_id, flow_type);
+        if (st.error_code() != grpc::StatusCode::OK) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Failed to cleanup %s flows from OLT for intf_id %d, onu_id %d\n",
+                flow_type.c_str(), intf_id, onu_id);
+            return st;
+        }
+    }
 
     OPENOLT_LOG(INFO, openolt_log_id,  "DeleteOnu ONU %d on PON %d : vendor id %s, vendor specific %s\n",
         onu_id, intf_id, vendor_id, vendor_specific_to_str(vendor_specific).c_str());
@@ -1837,6 +1849,8 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
             dev_fl.symmetric_voltha_flow_id = symmetric_voltha_flow_id;
             dev_fl.voltha_flow_id = voltha_flow_id;
             dev_fl.flow_type = flow_type;
+            dev_fl.tech_profile_id = tech_profile_id;
+            dev_fl.uni_id = uni_id;
             memcpy(dev_fl.params, dev_fl_symm_params, sizeof(device_flow_params));
             // update voltha flow to cache
             update_voltha_flow_to_cache(voltha_flow_id, dev_fl);
@@ -1875,6 +1889,8 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
             dev_fl.voltha_flow_id = voltha_flow_id;
             dev_fl.total_replicated_flows = pbit_to_gemport.size();
             dev_fl.flow_type = flow_type;
+            dev_fl.tech_profile_id = tech_profile_id;
+            dev_fl.uni_id = uni_id;
             memcpy(dev_fl.params, dev_fl_symm_params, sizeof(device_flow_params)*dev_fl.total_replicated_flows);
             // update voltha flow to cache
             update_voltha_flow_to_cache(voltha_flow_id, dev_fl);
@@ -1897,6 +1913,8 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                 dev_fl.symmetric_voltha_flow_id = INVALID_FLOW_ID; // Invalid
                 dev_fl.voltha_flow_id = voltha_flow_id;
                 dev_fl.flow_type = flow_type;
+                dev_fl.tech_profile_id = tech_profile_id;
+                dev_fl.uni_id = uni_id;
                 dev_fl.params[0].flow_id = flow_id;
                 dev_fl.params[0].gemport_id = gemport_id;
                 dev_fl.params[0].pbit = classifier.o_pbits();
@@ -1922,6 +1940,8 @@ Status FlowAddWrapper_(const ::openolt::Flow* request) {
                 dev_fl.symmetric_voltha_flow_id = INVALID_FLOW_ID; // invalid
                 dev_fl.total_replicated_flows = pbit_to_gemport.size();
                 dev_fl.flow_type = flow_type;
+                dev_fl.tech_profile_id = tech_profile_id;
+                dev_fl.uni_id = uni_id;
                 for (google::protobuf::Map<unsigned int, unsigned int>::const_iterator it=pbit_to_gemport.begin(); it!=pbit_to_gemport.end(); it++) {
                     dev_fl.params[cnt].flow_id = flow_ids[cnt];
                     dev_fl.params[cnt].pbit = it->first;
@@ -3869,4 +3889,181 @@ Status GetPonInterfaceInfo_(uint32_t intf_id, openolt::PonIntfInfo *response)
                     intf_id, bcmos_strerror(err));
         return bcm_to_grpc_err(err, "Failed to fetch PON interface los status intf_id");
     }
+}
+
+Status CleanupResources(bcmolt_interface_id intf_id, bcmolt_onu_id onu_id, std::string direction)
+{
+    bcmos_errno err = BCM_ERR_OK;
+    Status st = Status::OK;
+    bcmolt_flow_key flow_key = {};
+    bcmolt_flow_multi_cfg *flow_multi_cfg = nullptr;
+    bcmolt_flow_cfg_data flow_filter = {};
+    bcmolt_itupon_alloc_multi_cfg *alloc_multi_cfg = nullptr;
+    bcmolt_itupon_alloc_key alloc_key = {};
+    bcmolt_itupon_alloc_cfg_data alloc_filter = {};
+    bcmolt_filter_flags filter_flags = BCMOLT_FILTER_FLAGS_NONE;
+    uint32_t max_msgs = 100;
+    int uni_id = 0;
+    int tech_profile_id = 0;
+    bcmolt_egress_qos_type qos_type;
+    uint32_t nni_intf_id = 0;
+    uint32_t sched_id = 0;
+    uint32_t alloc_id = 0;
+
+    BCMOLT_KEY_SET_TO_WILDCARD(&flow_key);
+    flow_multi_cfg = BCMOLT_MULTI_CFG_ALLOC(flow, flow_key, max_msgs);
+    if(flow_multi_cfg == nullptr) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to allocate memory for flow multi cfg\n");
+        st = grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "Failed to allocate memory for flow multi cfg");
+        goto cleanup;
+    }
+
+    BCMOLT_FIELD_SET(&flow_filter, flow_cfg_data, onu_id, onu_id);
+    if(direction == upstream) {
+        bcmolt_flow_intf_ref filter_ingress_intf = {};
+        BCMOLT_FIELD_SET(&filter_ingress_intf, intf_ref, intf_id, intf_id);
+        BCMOLT_FIELD_SET(&filter_ingress_intf, intf_ref, intf_type, BCMOLT_FLOW_INTERFACE_TYPE_PON);
+        BCMOLT_FIELD_SET(&flow_filter, flow_cfg_data, ingress_intf, filter_ingress_intf);
+    }
+    else { // downstream
+        bcmolt_flow_intf_ref filter_egress_intf = {};
+        BCMOLT_FIELD_SET(&filter_egress_intf, intf_ref, intf_id, intf_id);
+        BCMOLT_FIELD_SET(&filter_egress_intf, intf_ref, intf_type, BCMOLT_FLOW_INTERFACE_TYPE_PON);
+        BCMOLT_FIELD_SET(&flow_filter, flow_cfg_data, egress_intf, filter_egress_intf);
+    }
+    flow_multi_cfg->filter = flow_filter;
+
+    err = bcmolt_multi_cfg_get(dev_id, &flow_multi_cfg->hdr, filter_flags);
+    if(err != BCM_ERR_OK) {
+        OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get flow for ONU_ID check, err = %s\n", bcmos_strerror(err));
+        st = bcm_to_grpc_err(err, "Failed to get flow info from OLT");
+        goto cleanup;
+    }
+
+    if(flow_multi_cfg->num_responses > 0 && flow_multi_cfg->responses != NULL) {
+        if(direction == upstream) {
+            nni_intf_id = flow_multi_cfg->responses[0].data.egress_intf.intf_id;
+        }
+        else {
+            nni_intf_id = flow_multi_cfg->responses[0].data.ingress_intf.intf_id;
+        }
+        // Get the cached device flow
+        const device_flow *dev_flow = get_device_flow_by_id_and_type(flow_multi_cfg->responses[0].key.flow_id, direction);
+        if(dev_flow == nullptr) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Device flow not found for flow id %d\n", flow_multi_cfg->responses[0].key.flow_id);
+            st = grpc::Status(grpc::StatusCode::NOT_FOUND, "Device flow not found");
+            goto cleanup;
+        }
+        uni_id = dev_flow->uni_id;
+        tech_profile_id = dev_flow->tech_profile_id;
+        if(dev_flow->is_flow_replicated) {
+            // Remove all replications of the flow one by one
+            for(int i = 0; i < dev_flow->total_replicated_flows; i++) {
+                st = FlowRemove_(dev_flow->params[i].flow_id, dev_flow->flow_type);
+                if(st.error_code() == grpc::StatusCode::OK) {
+                    free_flow_id(dev_flow->params[i].flow_id);
+                }
+            }
+        }
+        else {
+            st = FlowRemove_(dev_flow->params[0].flow_id, dev_flow->flow_type);
+            if(st.error_code() == grpc::StatusCode::OK) {
+                free_flow_id(dev_flow->params[0].flow_id);
+            }
+        }
+
+        qos_type = flow_multi_cfg->responses[0].data.egress_qos.type;
+        if(dev_flow->is_flow_replicated) {
+            for(int i=0; i < dev_flow->total_replicated_flows; i++) {
+                err = RemoveQueue(direction, intf_id, onu_id, uni_id, qos_type, \
+                    dev_flow->params[i].pbit, \
+                    dev_flow->params[i].gemport_id, tech_profile_id);
+                if (err) {
+                    OPENOLT_LOG(WARNING, openolt_log_id, "Failed to remove queue, err = %s\n", bcmos_strerror(err));
+                }
+            }
+        }
+        else {
+            err = RemoveQueue(direction, intf_id, onu_id, uni_id, qos_type, \
+                dev_flow->params[0].pbit, \
+                dev_flow->params[0].gemport_id, tech_profile_id);
+            if (err) {
+                OPENOLT_LOG(WARNING, openolt_log_id, "Failed to remove queue, err = %s\n", bcmos_strerror(err));
+            }
+        }
+        if (qos_type == BCMOLT_EGRESS_QOS_TYPE_PRIORITY_TO_QUEUE && (direction == upstream || \
+            direction == downstream && is_tm_sched_id_present(intf_id, onu_id, uni_id, direction, tech_profile_id))) {
+            sched_id = (direction == upstream) ? get_default_tm_sched_id(nni_intf_id, direction) : \
+                        get_tm_sched_id(intf_id, onu_id, uni_id, direction, tech_profile_id);
+
+            int tm_qmp_id = get_tm_qmp_id(sched_id, intf_id, onu_id, uni_id);
+            if (free_tm_qmp_id(sched_id, intf_id, onu_id, uni_id, tm_qmp_id)) {
+                err = RemoveTrafficQueueMappingProfile(tm_qmp_id);
+                if (err != BCM_ERR_OK) {
+                    OPENOLT_LOG(ERROR, openolt_log_id, "Failed to remove tm queue mapping profile, err = %s\n", bcmos_strerror(err));
+                    st = bcm_to_grpc_err(err, "Failed to remove tm queue mapping profile");
+                    goto cleanup;
+                }
+            }
+        }
+
+        if (direction == upstream) {
+            BCMOLT_KEY_SET_TO_WILDCARD(&alloc_key);
+            alloc_key.pon_ni = intf_id;
+            alloc_multi_cfg = BCMOLT_MULTI_CFG_ALLOC(itupon_alloc, alloc_key, max_msgs);
+            if(alloc_multi_cfg == nullptr) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to allocate memory for itupon alloc multi cfg\n");
+                st = grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, \
+                                "Failed to allocate memory for itupon alloc multi cfg");
+                goto cleanup;
+            }
+
+            BCMOLT_FIELD_SET(&alloc_filter, itupon_alloc_cfg_data, onu_id, onu_id);
+            alloc_multi_cfg->filter = alloc_filter;
+            err = bcmolt_multi_cfg_get(dev_id, &alloc_multi_cfg->hdr, filter_flags);
+            if(err != BCM_ERR_OK) {
+                OPENOLT_LOG(ERROR, openolt_log_id, "Failed to get alloc for PON ID %d ONU ID %d, err = %s\n", \
+                    intf_id, onu_id, bcmos_strerror(err));
+                st = bcm_to_grpc_err(err, "Failed to get alloc info from OLT");
+                goto cleanup;
+            }
+
+            if(alloc_multi_cfg->num_responses > 0 && alloc_multi_cfg->responses != NULL) {
+                for(int i = 0; i < alloc_multi_cfg->num_responses; i++) {
+                    if(alloc_multi_cfg->responses[i].key.alloc_id > 255) {
+                        alloc_id = alloc_multi_cfg->responses[i].key.alloc_id;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Remove the traffic scheduler for upstream and alloc ID for downstream
+        err = RemoveSched(intf_id, onu_id, uni_id, alloc_id, direction, tech_profile_id);
+        if (err) {
+            OPENOLT_LOG(ERROR, openolt_log_id, "Error-removing-traffic-scheduler, err = %s\n", bcmos_strerror(err));
+            st = bcm_to_grpc_err(err, "error-removing-traffic-scheduler");
+            goto cleanup;
+        }
+
+        // clear qos type from cache
+        clear_qos_type(intf_id, onu_id, uni_id);
+        // remove the flow from cache on voltha flow removal
+        remove_voltha_flow_from_cache(dev_flow->voltha_flow_id);
+        symmetric_datapath_flow_id_map_key map_key(intf_id, onu_id, uni_id, tech_profile_id, direction);
+        // Remove onu-uni mapping for the pon-gem key
+        bcmos_fastlock_lock(&symmetric_datapath_flow_id_lock);
+        symmetric_datapath_flow_id_map.erase(map_key);
+        bcmos_fastlock_unlock(&symmetric_datapath_flow_id_lock, 0);
+    }
+
+cleanup:
+    // Cleanup all allocated resources
+    if(alloc_multi_cfg != nullptr) {
+        bcmolt_multi_msg_free(&alloc_multi_cfg->hdr.hdr);
+    }
+    if(flow_multi_cfg != nullptr) {
+        bcmolt_multi_msg_free(&flow_multi_cfg->hdr.hdr);
+    }
+    return st;
 }

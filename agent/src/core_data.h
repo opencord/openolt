@@ -193,7 +193,8 @@ typedef struct device_flow {
                                        // 0 value means invalid or not-applicable
                                        // Applicable for bi-directional data path flows (one flow per direction)
                                        // Symmetric flows should share the same device_flow_id.
-
+    uint32_t tech_profile_id;
+    int32_t uni_id;
 } device_flow;
 
 // key for map used for tracking Onu RSSI Measurement Completed Indication

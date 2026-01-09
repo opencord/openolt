@@ -70,6 +70,7 @@ int get_acl_id();
 void free_acl_id (int acl_id);
 uint16_t get_flow_id();
 bool get_flow_ids(int num_of_flow_ids, uint16_t *flow_ids);
+const device_flow* get_device_flow_by_id_and_type(uint16_t flow_id, std::string flow_type);
 void free_flow_id (uint16_t flow_id);
 void free_flow_ids(uint8_t num_flows, uint16_t *flow_ids);
 std::string get_qos_type_as_string(bcmolt_egress_qos_type qos_type);
