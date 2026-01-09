@@ -1803,6 +1803,24 @@ const device_flow* get_device_flow(uint64_t voltha_flow_id) {
     return NULL;
 }
 
+const device_flow* get_device_flow_by_id_and_type(uint16_t flow_id, std::string flow_type) {
+    bcmos_fastlock_lock(&voltha_flow_to_device_flow_lock);
+    std::map<uint64_t, device_flow>::const_iterator it = voltha_flow_to_device_flow.begin();
+    while (it != voltha_flow_to_device_flow.end()) {
+	if(it->second.flow_type == flow_type) {
+            for(int i = 0; i < MAX_NUMBER_OF_REPLICATED_FLOWS; i++) {
+                if (it->second.params[i].flow_id == flow_id) {
+                    bcmos_fastlock_unlock(&voltha_flow_to_device_flow_lock, 0);
+                    return &it->second;
+                }
+            }
+	}
+        it++;
+    }
+    bcmos_fastlock_unlock(&voltha_flow_to_device_flow_lock, 0);
+    return nullptr;
+}
+
 trap_to_host_packet_type get_trap_to_host_packet_type(const ::openolt::Classifier& classifier) {
     trap_to_host_packet_type type = unsupported_trap_to_host_pkt_type;
     if (classifier.eth_type() == EAP_ETH_TYPE) {
