@@ -232,19 +232,18 @@ common::PortStatistics* collectPortStatistics(bcmolt_intf_ref intf_ref) {
             {
                 //std::cout << "Interface statistics retrieved"
                 //          << " intf_id:" << intf_id << std::endl;
-
                 port_stats->set_rx_bytes(nni_stats.data.rx_bytes);
-                port_stats->set_rx_packets(nni_stats.data.rx_packets);
-                port_stats->set_rx_ucast_packets(nni_stats.data.rx_ucast_packets);
-                port_stats->set_rx_mcast_packets(nni_stats.data.rx_mcast_packets);
-                port_stats->set_rx_bcast_packets(nni_stats.data.rx_bcast_packets);
-                port_stats->set_rx_error_packets(nni_stats.data.rx_error_packets);
+                port_stats->set_rx_framess(nni_stats.data.rx_packets);
+                port_stats->set_rx_ucast_frames(nni_stats.data.rx_ucast_packets);
+                port_stats->set_rx_mcast_frames(nni_stats.data.rx_mcast_packets);
+                port_stats->set_rx_bcast_frames(nni_stats.data.rx_bcast_packets);
+                port_stats->set_rx_error_frames(nni_stats.data.rx_error_packets);
                 port_stats->set_tx_bytes(nni_stats.data.tx_bytes);
-                port_stats->set_tx_packets(nni_stats.data.tx_packets);
-                port_stats->set_tx_ucast_packets(nni_stats.data.tx_ucast_packets);
-                port_stats->set_tx_mcast_packets(nni_stats.data.tx_mcast_packets);
-                port_stats->set_tx_bcast_packets(nni_stats.data.tx_bcast_packets);
-                port_stats->set_tx_error_packets(nni_stats.data.tx_error_packets);
+                port_stats->set_tx_frames(nni_stats.data.tx_packets);
+                port_stats->set_tx_ucast_frames(nni_stats.data.tx_ucast_packets);
+                port_stats->set_tx_mcast_frames(nni_stats.data.tx_mcast_packets);
+                port_stats->set_tx_bcast_frames(nni_stats.data.tx_bcast_packets);
+                port_stats->set_tx_error_frames(nni_stats.data.tx_error_packets);
 
             } else {
                 OPENOLT_LOG(ERROR, openolt_log_id,  "Failed to retrieve port statistics, intf_id %d, intf_type %d, err = %s\n",
