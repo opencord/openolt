@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "b56b08bb_2c5f81c8",
+        "filename": "agent/src/stats_collection.cc",
+        "patchSetId": 3
+      },
+      "lineNbr": 236,
+      "author": {
+        "id": 1000404
+      },
+      "writtenOn": "2026-02-05T23:55:46Z",
+      "side": 1,
+      "message": "it seems there is a typo here.",
+      "revId": "589303c0fc71e4b6284a92c46967ff52674a3f19",
+      "serverId": "2a2bfe1b-c5c2-48ed-9ac8-16438ab24388"
+    }
+  ]
+}
