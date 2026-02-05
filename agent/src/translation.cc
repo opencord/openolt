@@ -20,7 +20,7 @@
 int interface_key_to_port_no(bcmolt_interface_id intf_id, 
         bcmolt_interface_type intf_type) {
     if (intf_type == BCMOLT_INTERFACE_TYPE_NNI) {
-        return (0x1 << 20) + intf_id;
+        return (0x1 << 24) + intf_id;
     }
     if (intf_type == BCMOLT_INTERFACE_TYPE_PON) {
         return (0x2 << 28) + intf_id;
